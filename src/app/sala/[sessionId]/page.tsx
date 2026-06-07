@@ -11,10 +11,10 @@ import { retroByKey } from "@/lib/retros";
 import { PULSE_DIMS } from "@/lib/data";
 import {
   addCard, addVote, assignCardToCluster, averagePulse, createCluster, deleteCluster,
-  finalizeSession, getCardCounts, getCards, getClusters, getMyCards, getParticipants,
+  finalizeSession, getCardCounts, getCards, getClusters, getInputs, getMyCards, getParticipants,
   getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
-  renameCluster, setResult, setStep, submitPulse, subscribeSession,
-  type LiveSession, type Participant, type PulseResponse, type SessionCard, type SessionCluster, type SessionVote,
+  renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession,
+  type LiveSession, type Participant, type PulseResponse, type SessionCard, type SessionCluster, type SessionInput, type SessionVote,
 } from "@/lib/session";
 
 const COLS = [
@@ -51,6 +51,7 @@ export default function SalaPage() {
   const [allCards, setAllCards] = useState<SessionCard[]>([]);
   const [clusters, setClusters] = useState<SessionCluster[]>([]);
   const [votes, setVotes] = useState<SessionVote[]>([]);
+  const [inputs, setInputs] = useState<SessionInput[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -70,6 +71,7 @@ export default function SalaPage() {
         getClusters(sessionId), getVotes(sessionId),
       ]);
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
+      setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
       const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
@@ -219,6 +221,120 @@ export default function SalaPage() {
       {!ranked.length && <div style={{ padding: 20, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>Sin tensiones</div>}
     </Card>
   );
+
+  // ════════ PRUEBA · "Diseño de la prueba" (proof_design) ════════
+  if (session.retro === "proof_design") {
+    const R = session.result;
+    const betIf = (R.betIf as string) ?? "";
+    const betThen = (R.betThen as string) ?? "";
+    const signal = (R.signal as string) ?? "";
+    const responsible = (R.responsible as string) ?? "";
+    const deadline = (R.deadline as string) ?? "";
+    const filters = (R.filters as { observable?: boolean; medible?: boolean; equipo?: boolean }) ?? {};
+    const allFilters = !!(filters.observable && filters.medible && filters.equipo);
+    const rootCause = (initiative?.data?.focus as { rootCause?: string } | undefined)?.rootCause ?? "";
+    const field: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" };
+    const confirmCount = inputs.filter((i) => i.key === "confirm").length;
+    const iConfirmed = inputs.some((i) => i.userId === user.id && i.key === "confirm");
+    const Bet = (
+      <div style={{ padding: "14px 16px", background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 30%, transparent)", borderRadius: "var(--r-md)" }}>
+        <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>La apuesta</div>
+        <p style={{ fontSize: "var(--t-md)", lineHeight: 1.55 }}>Creemos que si <b style={{ color: "var(--green)" }}>{betIf || "…"}</b>, lograremos que <b style={{ color: "var(--st-proof)" }}>{betThen || "…"}</b>.</p>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10, fontSize: "var(--t-sm)" }}>
+          <span className="muted">Señal: <b style={{ color: "var(--ink-0)" }}>{signal || "—"}</b></span>
+          <span className="muted">Responsable: <b style={{ color: "var(--ink-0)" }}>{responsible || "—"}</b></span>
+          <span className="muted">Plazo: <b style={{ color: "var(--ink-0)" }}>{deadline || "—"}</b></span>
+        </div>
+      </div>
+    );
+    const Filters = (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {([["observable", "¿Es observable? (se ve sin interpretar)"], ["medible", "¿Es medible en ~15 días?"], ["equipo", "¿Depende solo del equipo?"]] as const).map(([k, label]) => {
+          const on = !!filters[k];
+          return <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: on ? "var(--success-bg)" : "var(--card)", border: `1px solid ${on ? "var(--green)" : "var(--line)"}`, borderRadius: "var(--r-md)", fontSize: "var(--t-sm)" }}>
+            <span style={{ color: on ? "var(--green)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>{label}
+          </div>;
+        })}
+      </div>
+    );
+
+    if (!isFacil) {
+      if (step === "confirm") {
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 520 }}>
+              {Header("Leé la apuesta y confirmá tu compromiso.")}
+              <Card pad={24}>{Bet}
+                <div style={{ marginTop: 18 }}>
+                  {iConfirmed
+                    ? <div style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="CircleCheck" size={20} /> Confirmaste tu compromiso</div>
+                    : <Button full size="lg" icon="Check" onClick={() => setMyInput(sessionId, "confirm", { ok: true })}>Entiendo la prueba y me comprometo</Button>}
+                  <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)", marginTop: 10 }}>{confirmCount} de {totalInRoom} confirmaron</p>
+                </div>
+              </Card>
+            </div>
+          </Shell>
+        );
+      }
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header(step === "close" ? "La apuesta quedó definida. ¡A probar!" : "El facilitador está diseñando la apuesta con el equipo.")}{Bet}{step === "validate" && <div style={{ marginTop: 14 }}>{Filters}</div>}</div></Shell>;
+    }
+
+    // facilitador
+    const fSteps = ["context", "bet", "validate", "confirm", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { betIf, betThen, signal, responsible, deadline, filters } }); setBusy(false); exit(); };
+    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "context") {
+      fsub = "Diseñemos la prueba a partir de la causa raíz.";
+      fbody = <Card pad={16} style={{ borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causa raíz</div><div style={{ fontWeight: 700 }}>{rootCause || "—"}</div></Card>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Construir la apuesta</Button>;
+    } else if (step === "bet") {
+      fsub = "Escribí la apuesta con el equipo (se ve en vivo en todas las pantallas).";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div><label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Creemos que si… <span className="faint">(acción)</span></label><textarea defaultValue={betIf} onBlur={(e) => setResult(sessionId, { betIf: e.target.value })} rows={2} placeholder="cerramos cada reunión con decisiones por escrito" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} /></div>
+          <div><label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>…lograremos que <span className="faint">(resultado)</span></label><textarea defaultValue={betThen} onBlur={(e) => setResult(sessionId, { betThen: e.target.value })} rows={2} placeholder="el equipo avance sin volver a discutir lo mismo" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} /></div>
+          <div><label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Señal de avance</label><input defaultValue={signal} onBlur={(e) => setResult(sessionId, { signal: e.target.value })} placeholder="% de reuniones con decisiones registradas" style={field} /></div>
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 9 }}>Responsable</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(team?.members ?? []).map((m, i) => { const on = responsible === m.name; return <button key={i} onClick={() => setResult(sessionId, { responsible: m.name })} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px 6px 6px", borderRadius: "var(--r-full)", background: on ? "color-mix(in srgb, var(--st-proof) 16%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line-2)"}`, fontSize: "var(--t-sm)", fontWeight: 600 }}><Avatar name={m.name} initials={m.initials} size={24} idx={i} />{m.name}</button>; })}
+              {!(team?.members ?? []).length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>El equipo no tiene integrantes cargados.</span>}
+            </div>
+          </div>
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 9 }}>Plazo</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{["1 semana", "15 días", "30 días"].map((d) => { const on = deadline === d; return <button key={d} onClick={() => setResult(sessionId, { deadline: d })} style={{ padding: "9px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-proof)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-proof)" : "var(--line-2)") }}>{d}</button>; })}</div>
+          </div>
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !betIf || !betThen} onClick={fNext}>Validar la apuesta</Button>;
+    } else if (step === "validate") {
+      fsub = "Los 3 filtros tienen que pasar para poder avanzar.";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {Bet}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {([["observable", "¿Es observable? (se ve sin interpretar)"], ["medible", "¿Es medible en ~15 días?"], ["equipo", "¿Depende solo del equipo?"]] as const).map(([k, label]) => {
+              const on = !!filters[k];
+              return <button key={k} onClick={() => setResult(sessionId, { filters: { ...filters, [k]: !on } })} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", background: on ? "var(--success-bg)" : "var(--card)", border: `1px solid ${on ? "var(--green)" : "var(--line-2)"}`, borderRadius: "var(--r-md)", fontSize: "var(--t-sm)" }}><span style={{ color: on ? "var(--green)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={18} /></span>{label}</button>;
+            })}
+          </div>
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !allFilters} onClick={fNext}>{allFilters ? "Pedir compromiso del equipo" : "Pasá los 3 filtros"}</Button>;
+    } else if (step === "confirm") {
+      fsub = "Cada miembro confirma su compromiso desde su pantalla.";
+      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{confirmCount}/{totalInRoom || team?.members.length || 0}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>confirmaron su compromiso</div></div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>;
+    } else {
+      fsub = "Al cerrar, se guarda la ficha de prueba y la iniciativa pasa a Seguimiento.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{Bet}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{confirmCount} {confirmCount === 1 ? "compromiso" : "compromisos"} · 3 filtros validados</div></div>;
+      faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y lanzar la prueba"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
 
   // ════════ FOCO (¿Por qué pasa esto?) ════════
   if (session.type === "focus") {

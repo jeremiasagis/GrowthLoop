@@ -30,6 +30,7 @@ export interface Participant { userId: string; name: string; initials: string; }
 export interface SessionCard { id: string; columnKey: string; text: string; anonymous: boolean; authorId?: string; clusterId?: string; }
 export interface SessionCluster { id: string; name: string; }
 export interface SessionVote { id: string; clusterId: string; userId: string; }
+export interface SessionInput { userId: string; key: string; value: Record<string, unknown>; }
 
 const RETRO_NAME: Record<string, string> = {
   explore: "¿Dónde estamos?", focus: "¿Por qué pasa esto?", proof: "Diseñar la apuesta",
@@ -97,7 +98,8 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
   const FIRST: Record<string, string> = { focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
-  const firstStep = FIRST[p.type] ?? "pulse";
+  const RETRO_FIRST: Record<string, string> = { proof_design: "context" };
+  const firstStep = (p.retro && RETRO_FIRST[p.retro]) || FIRST[p.type] || "pulse";
   const { data, error } = await supabase.from("sessions").insert({
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,
     mode: "live", status: "live", step_key: firstStep, step_index: 0,
@@ -207,6 +209,22 @@ export async function assignCardToCluster(cardId: string, clusterId: string | nu
   await supabase.from("session_cards").update({ cluster_id: clusterId }).eq("id", cardId);
 }
 
+// ── Aportes genéricos de miembros (confirmaciones, ICE, etc.) ──
+export async function getInputs(sessionId: string): Promise<SessionInput[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.from("session_inputs").select("user_id,key,value").eq("session_id", sessionId);
+  return (data ?? []).map((r: any) => ({ userId: r.user_id, key: r.key, value: (r.value as Record<string, unknown>) ?? {} }));
+}
+export async function setMyInput(sessionId: string, key: string, value: Record<string, unknown>, isPrivate = false): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return;
+  await supabase.from("session_inputs").upsert(
+    { session_id: sessionId, user_id: auth.user.id, key, value, private: isPrivate },
+    { onConflict: "session_id,user_id,key" },
+  );
+}
+
 // ── Votar (un punto por fila) ──
 export async function getVotes(sessionId: string): Promise<SessionVote[]> {
   const supabase = getSupabaseBrowserClient();
@@ -298,6 +316,7 @@ export function subscribeSession(sessionId: string, onChange: () => void): () =>
     .on("postgres_changes", { event: "*", schema: "public", table: "session_cards", filter: `session_id=eq.${sessionId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "session_clusters", filter: `session_id=eq.${sessionId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "session_votes", filter: `session_id=eq.${sessionId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "session_inputs", filter: `session_id=eq.${sessionId}` }, onChange)
     .subscribe();
   return () => { supabase.removeChannel(channel); };
 }
