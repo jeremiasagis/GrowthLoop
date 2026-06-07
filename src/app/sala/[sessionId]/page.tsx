@@ -43,7 +43,7 @@ const STEP_SEQ: Record<string, string[]> = {
   founding: ["welcome", "contract", "sign", "close"],
   consolidate: ["report", "decide", "close"],
   explore: STEPS,
-  focus: ["causes", "causes_reveal", "group", "vote", "deepen", "close"],
+  focus: ["causes", "causes_reveal", "group", "vote", "matrix", "deepen", "close"],
   proof: ["ideas", "ideas_reveal", "vote", "premortem", "premortem_reveal", "bet", "commit", "close"],
   follow: ["progress", "blockers", "blockers_reveal", "decide", "close"],
   learn: ["result", "reflect", "learnings", "learnings_reveal", "decision", "close"],
@@ -101,7 +101,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "group", "deepen", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "group", "matrix", "deepen", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -517,7 +517,7 @@ export default function SalaPage() {
     const addCause = async () => { const t = (cardDraft.cause ?? "").trim(); if (!t) return; await addCard(sessionId, "cause", t, true); setCardDraft((d) => ({ ...d, cause: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
     const groupCauses = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Causa ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
     const voteCause = async (clusterId: string, delta: number) => { if (delta > 0 && remaining <= 0) return; if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId); };
-    const fSteps = ["causes", "causes_reveal", "group", "vote", "deepen", "close"];
+    const fSteps = ["causes", "causes_reveal", "group", "vote", "matrix", "deepen", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const setWhy = (idx: number, val: string) => { const next = [...whys]; next[idx] = val; setResult(sessionId, { whys: next }); };
     // 5 Porqués colaborativo + causas raíz múltiples
@@ -602,18 +602,17 @@ export default function SalaPage() {
       const shown = !!session.result.cvoteShown;
       const cVoters = new Set(votes.map((v) => v.userId)).size;
       const maxC = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
-      sub = shown ? "Resultado: qué grupo de causas pesa más. El facilitador confirma cuál profundizar." : "¿Qué grupo de causas pesa más? Repartí tus puntos. La votación está oculta hasta que el facilitador la muestre.";
+      sub = shown ? "Resultado: qué grupo de causas pesa más para el equipo." : "¿Qué grupo de causas pesa más? Repartí tus puntos. La votación está oculta hasta que el facilitador la muestre.";
       content = shown ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {ranked.map((cl, i) => { const on = cl.id === (chosenId || topCluster?.id); return (
-            <button key={cl.id} onClick={() => isFacil && setResult(sessionId, { causeClusterId: cl.id, cause: cl.name })} disabled={!isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default" }}>
+          {ranked.map((cl, i) => (
+            <div key={cl.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
               <span className="num" style={{ width: 18, fontWeight: 700, color: i === 0 ? "var(--st-focus)" : "var(--ink-3)" }}>{i + 1}</span>
               <span style={{ flex: 1 }}>{cl.name} <span className="faint" style={{ fontSize: 10 }}>· {cardsOf(cl.id).length}</span></span>
               <div style={{ width: 80 }}><Bar value={((votesByCluster[cl.id] ?? 0) / maxC) * 100} color="var(--st-focus)" height={6} /></div>
               <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
-            </button>
-          ); })}
-          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 4 }}>Tocá el grupo a profundizar (el más votado queda sugerido). Los demás quedan como causas secundarias.</p>}
+            </div>
+          ))}
         </div>
       ) : (
         <>
@@ -636,8 +635,58 @@ export default function SalaPage() {
         </>
       );
       controls = isFacil
-        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || (!chosenId && !topCluster)} onClick={() => { if (!chosenId && topCluster) setResult(sessionId, { causeClusterId: topCluster.id, cause: topCluster.name }); fNext(); }}>Profundizar con 5 Porqués</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { cvoteShown: true })}>Mostrar votación ({cVoters}/{totalInRoom})</Button>)
+        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Priorizar (impacto / esfuerzo)</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { cvoteShown: true })}>Mostrar votación ({cVoters}/{totalInRoom})</Button>)
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado cuando todos voten.</p>;
+    } else if (step === "matrix") {
+      wide = true; sub = "Ubicamos cada grupo por impacto y esfuerzo. La esquina ideal: alto impacto, bajo esfuerzo.";
+      const mat = (session.result?.matrix as Record<string, { impact?: boolean; effort?: boolean }>) ?? {};
+      const setMat = (id: string, field: "impact" | "effort", val: boolean) => setResult(sessionId, { matrix: { ...mat, [id]: { ...(mat[id] || {}), [field]: val } } });
+      const quad = (hiImpact: boolean, loEffort: boolean) => clusters.filter((cl) => { const m = mat[cl.id]; return m && !!m.impact === hiImpact && (m.effort !== true) === loEffort; });
+      const QChip = ({ cl }: { cl: SessionCluster }) => { const on = cl.id === chosenId; return <button onClick={() => isFacil && setResult(sessionId, { causeClusterId: cl.id, cause: cl.name })} disabled={!isFacil} style={{ fontSize: "var(--t-xs)", padding: "4px 9px", borderRadius: "var(--r-full)", background: on ? "var(--st-focus)" : "var(--card)", color: on ? "#08120c" : "var(--ink-1)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line-2)"}`, fontWeight: 600, cursor: isFacil ? "pointer" : "default", margin: 2 }}>{cl.name}</button>; };
+      const QCell = ({ title, hint, hiImpact, loEffort, good }: { title: string; hint: string; hiImpact: boolean; loEffort: boolean; good?: boolean }) => (
+        <div style={{ minHeight: 92, padding: 10, border: `1px solid ${good ? "color-mix(in srgb, var(--green) 40%, var(--line))" : "var(--line)"}`, borderRadius: "var(--r-md)", background: good ? "color-mix(in srgb, var(--green) 7%, transparent)" : "var(--bg-2)" }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: good ? "var(--green)" : "var(--ink-2)", textTransform: "uppercase", letterSpacing: ".04em" }}>{title}</div>
+          <div className="faint" style={{ fontSize: 10, marginBottom: 6 }}>{hint}</div>
+          <div style={{ display: "flex", flexWrap: "wrap" }}>{quad(hiImpact, loEffort).map((cl) => <QChip key={cl.id} cl={cl} />)}</div>
+        </div>
+      );
+      const unclassified = clusters.filter((cl) => !mat[cl.id]);
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--ink-3)", padding: "0 2px" }}>← Impacto →</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <QCell title="Quick win" hint="Alto impacto · bajo esfuerzo" hiImpact loEffort good />
+                <QCell title="Apuesta grande" hint="Alto impacto · alto esfuerzo" hiImpact loEffort={false} />
+                <QCell title="Relleno" hint="Bajo impacto · bajo esfuerzo" hiImpact={false} loEffort />
+                <QCell title="Evitar" hint="Bajo impacto · alto esfuerzo" hiImpact={false} loEffort={false} />
+              </div>
+              <div style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--ink-3)", marginTop: 4 }}>← Esfuerzo →</div>
+            </div>
+          </div>
+          {isFacil && unclassified.length > 0 && (
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Clasificá cada grupo</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {clusters.map((cl) => { const m = mat[cl.id] || {}; return (
+                  <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                    <span style={{ flex: 1, minWidth: 120, fontSize: "var(--t-sm)", fontWeight: 600 }}>{cl.name}</span>
+                    <span className="faint" style={{ fontSize: 10 }}>Impacto</span>
+                    {[["Bajo", false], ["Alto", true]].map(([l, v]) => <button key={String(v)} onClick={() => setMat(cl.id, "impact", v as boolean)} style={{ fontSize: 11, padding: "3px 9px", borderRadius: "var(--r-full)", fontWeight: 700, background: m.impact === v ? "var(--st-focus)" : "var(--card-2)", color: m.impact === v ? "#08120c" : "var(--ink-2)", border: "1px solid var(--line-2)" }}>{l}</button>)}
+                    <span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>Esfuerzo</span>
+                    {[["Bajo", false], ["Alto", true]].map(([l, v]) => <button key={String(v)} onClick={() => setMat(cl.id, "effort", v as boolean)} style={{ fontSize: 11, padding: "3px 9px", borderRadius: "var(--r-full)", fontWeight: 700, background: m.effort === v ? "var(--warning)" : "var(--card-2)", color: m.effort === v ? "#08120c" : "var(--ink-2)", border: "1px solid var(--line-2)" }}>{l}</button>)}
+                  </div>
+                ); })}
+              </div>
+            </div>
+          )}
+          {chosenCluster && <div style={{ textAlign: "center", fontSize: "var(--t-sm)" }}><span className="muted">A profundizar: </span><b style={{ color: "var(--st-focus)" }}>{chosenCluster.name}</b></div>}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || (!chosenId && !topCluster)} onClick={() => { if (!chosenId && topCluster) setResult(sessionId, { causeClusterId: topCluster.id, cause: topCluster.name }); fNext(); }}>Profundizar el grupo elegido</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador prioriza y elige cuál profundizar.</p>;
     } else if (step === "deepen") {
       wide = true; sub = 'Los "5 Porqués": el equipo aporta y el facilitador arma la cadena hasta la raíz.';
       content = (
