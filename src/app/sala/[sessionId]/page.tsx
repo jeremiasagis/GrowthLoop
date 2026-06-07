@@ -8,6 +8,7 @@ import { Avatar, Bar, Button, Card, Pill } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getInitiatives, getTeam } from "@/lib/repository";
 import { retroByKey } from "@/lib/retros";
+import { useToast } from "@/components/Toast";
 import { PULSE_DIMS } from "@/lib/data";
 import {
   addCard, addVote, assignCardToCluster, averagePulse, createCluster, deleteCluster,
@@ -42,6 +43,7 @@ export default function SalaPage() {
   const params = useParams<{ sessionId: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { show } = useToast();
 
   const [session, setSession] = useState<LiveSession | null>(null);
   const [responses, setResponses] = useState<PulseResponse[]>([]);
@@ -74,7 +76,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -762,6 +764,80 @@ export default function SalaPage() {
       faction = <Button full size="lg" icon="Check" disabled={busy || !chosen} onClick={fFinish}>{busy ? "Guardando…" : "Confirmar prioridad"}</Button>;
     }
     return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ EXPLORACIÓN · "¿Para qué existimos?" (explore_purpose) ════════
+  if (session.retro === "explore_purpose") {
+    const PCOLS = [{ key: "pa", label: "¿Para qué existe este equipo?" }, { key: "pb", label: "¿Quién depende de nuestro trabajo?" }, { key: "pc", label: "¿Cómo sabe que hicimos un buen trabajo?" }];
+    const total = PCOLS.reduce((a, c) => a + (counts[c.key] ?? 0), 0);
+    const purpose = (session.result.purpose as string) ?? "";
+    const ta: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none", resize: "vertical", fontFamily: "inherit" };
+    if (!isFacil) {
+      if (step === "answers") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Respondé por tu cuenta. La diversidad de respuestas es el dato valioso.")}{MultiWrite(PCOLS, "var(--st-explore)")}</div></Shell>;
+      if (step === "answers_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Las respuestas del equipo, lado a lado.")}{MultiReveal(PCOLS)}</div></Shell>;
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Propósito del equipo.")}{purpose ? <Card pad={18} style={{ borderColor: "var(--st-explore)" }}><div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 6 }}>Propósito</div><div style={{ fontWeight: 700 }}>{purpose}</div></Card> : <p className="muted" style={{ textAlign: "center" }}>El facilitador está redactando el propósito…</p>}</div></Shell>;
+    }
+    const fSteps = ["answers", "answers_reveal", "decide", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: purpose ? "Propósito acordado" : "Dispersión registrada", dataKey: "explore", dataValue: { purpose }, noAdvance: true }); setBusy(false); exit(); };
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "", wide = false;
+    if (step === "answers") { fsub = "Cada miembro responde por separado."; fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-explore)" }}>{total}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respuestas</div></div>; faction = <Button full size="lg" icon="Eye" disabled={busy || total === 0} onClick={fNext}>Revelar ({total})</Button>; }
+    else if (step === "answers_reveal") { wide = true; fsub = "¿Hay acuerdo o dispersión? Esa es la lectura."; fbody = MultiReveal(PCOLS); faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Redactar propósito</Button>; }
+    else if (step === "decide") { fsub = "Si hay acuerdo, redactá el propósito. Si hay dispersión, dejalo vacío y queda registrada."; fbody = <textarea defaultValue={purpose} onBlur={(e) => setResult(sessionId, { purpose: e.target.value })} rows={3} placeholder="El propósito de este equipo es…" style={ta} />; faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>; }
+    else { fsub = "Cierre."; fbody = purpose ? <Card pad={18} style={{ borderColor: "var(--st-explore)" }}><div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 6 }}>Propósito</div><div style={{ fontWeight: 700 }}>{purpose}</div></Card> : <p className="muted">Sin acuerdo: queda registrado como dispersión a trabajar.</p>; faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar"}</Button>; }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>{Header(fsub)}<Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ FOCO · "La voz del cliente" (focus_client) ════════
+  if (session.retro === "focus_client") {
+    const VCOLS = [{ key: "va", label: "¿Qué valora más el cliente?" }, { key: "vb", label: "¿Qué le molesta o frustra?" }, { key: "vc", label: "¿Qué piensa pero nunca nos dijo?" }];
+    const total = VCOLS.reduce((a, c) => a + (counts[c.key] ?? 0), 0);
+    const gap = (session.result.gap as string) ?? "";
+    const ta: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none", resize: "vertical", fontFamily: "inherit" };
+    if (!isFacil) {
+      if (step === "perceptions") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("¿Cómo cree el equipo que nos ve el cliente? (anónimo)")}{MultiWrite(VCOLS, "var(--st-focus)")}</div></Shell>;
+      if (step === "perceptions_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Las percepciones del equipo.")}{MultiReveal(VCOLS)}</div></Shell>;
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Brecha de percepción.")}{gap ? <Card pad={16}><div style={{ fontSize: "var(--t-sm)", whiteSpace: "pre-wrap" }}>{gap}</div></Card> : <p className="muted" style={{ textAlign: "center" }}>El facilitador está sintetizando…</p>}</div></Shell>;
+    }
+    const fSteps = ["perceptions", "perceptions_reveal", "gap", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: "Voz del cliente", dataKey: "focus", dataValue: { clientGap: gap }, noAdvance: true }); setBusy(false); exit(); };
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "", wide = false;
+    if (step === "perceptions") { fsub = "Los miembros escriben qué cree el equipo (anónimo)."; fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-focus)" }}>{total}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>percepciones</div></div>; faction = <Button full size="lg" icon="Eye" disabled={busy || total === 0} onClick={fNext}>Revelar ({total})</Button>; }
+    else if (step === "perceptions_reveal") { wide = true; fsub = "Las percepciones internas."; fbody = MultiReveal(VCOLS); faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Sintetizar brecha</Button>; }
+    else if (step === "gap") { fsub = "Formulá la brecha (o la alineación) con el cliente."; fbody = <textarea defaultValue={gap} onBlur={(e) => setResult(sessionId, { gap: e.target.value })} rows={3} placeholder="El equipo cree que el cliente valora X, pero las señales indican Y…" style={ta} />; faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>; }
+    else { fsub = "Cierre."; fbody = gap ? <Card pad={16}><div style={{ fontSize: "var(--t-sm)", whiteSpace: "pre-wrap" }}>{gap}</div></Card> : <p className="muted">Sin síntesis cargada.</p>; faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar"}</Button>; }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>{Header(fsub)}<Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ EXPLORACIÓN · "¿Cómo nos relacionamos?" (explore_relations · sensible) ════════
+  if (session.retro === "explore_relations") {
+    const RCOLS = [{ key: "ra", label: "¿Con quién trabajo más fluido y por qué?" }, { key: "rb", label: "¿Dónde se corta la comunicación?" }, { key: "rc", label: "¿Qué conversación importante no tuvimos?" }];
+    const total = RCOLS.reduce((a, c) => a + (counts[c.key] ?? 0), 0);
+    const feelings = inputs.filter((i) => i.key === "feeling").map((i) => (i.value as { w?: string }).w).filter(Boolean) as string[];
+    const myFeeling = (inputs.find((i) => i.userId === user.id && i.key === "feeling")?.value as { w?: string } | undefined)?.w ?? "";
+    const sensitiveNote = <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}><Icon name="ShieldAlert" size={13} style={{ color: "var(--warning)" }} /> Retro sensible. Todo es anónimo y lo que emerge no sale de esta sala.</p>;
+    if (!isFacil) {
+      if (step === "relations") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Cómo trabajamos juntos como personas. Anónimo.")}{MultiWrite(RCOLS, "var(--st-explore)")}{sensitiveNote}</div></Shell>;
+      if (step === "relations_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Lo que emergió. Sin nombres.")}{MultiReveal(RCOLS)}</div></Shell>;
+      return (
+        <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 480 }}>{Header("¿Cómo te vas de esta conversación? Una palabra.")}
+          <Card pad={20}>
+            <input defaultValue={myFeeling} onBlur={(e) => setMyInput(sessionId, "feeling", { w: e.target.value.trim() })} placeholder="una palabra…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none", textAlign: "center" }} />
+            <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>Anónimo.</p>
+          </Card>
+        </div></Shell>
+      );
+    }
+    const fSteps = ["relations", "relations_reveal", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: "Dinámica relacional", dataKey: "explore", dataValue: { relations: true }, noAdvance: true }); setBusy(false); exit(); };
+    const privateBtn = <button onClick={() => { show("Pausá la dinámica y gestioná en privado con quien corresponda.", "ShieldAlert"); exit(); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--warning)", fontSize: "var(--t-xs)", fontWeight: 600, marginTop: 12 }}><Icon name="ShieldAlert" size={14} /> Pausar y gestionar en privado</button>;
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "", wide = false;
+    if (step === "relations") { fsub = "Encuadre: anónimo y confidencial. Los miembros escriben."; fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-explore)" }}>{total}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>aportes</div>{sensitiveNote}</div>; faction = <Button full size="lg" icon="Eye" disabled={busy || total === 0} onClick={fNext}>Revelar ({total})</Button>; }
+    else if (step === "relations_reveal") { wide = true; fsub = "Leé en voz alta sin atribuir. Atendé los patrones que se repiten."; fbody = <>{MultiReveal(RCOLS)}<div style={{ textAlign: "center" }}>{privateBtn}</div></>; faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Cerrar con una palabra</Button>; }
+    else { fsub = "¿Cómo se va el equipo? Una palabra por persona."; fbody = <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", minHeight: 40 }}>{feelings.map((w, i) => <Pill key={i} color="var(--st-explore)" bg="color-mix(in srgb, var(--st-explore) 14%, transparent)">{w}</Pill>)}{!feelings.length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Esperando las palabras del equipo…</span>}</div>; faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar la retro"}</Button>; }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>{Header(fsub)}<Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
   }
 
   // ════════ APRENDIZAJE · "¿Qué sigue?" (learn_next) ════════
