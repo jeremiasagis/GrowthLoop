@@ -231,7 +231,7 @@ export default function InitiativeDetailPage() {
     if (res.error) show(res.error, "TriangleAlert"); else { show("Actualizada", "Check"); refresh(); }
   };
   const scrollTo = (st: StageKey) => document.getElementById(`stage-${st}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const startLivePulse = async () => {
+  const startLive = async () => {
     const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: init.stage });
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
     router.push(`/sala/${res.session.id}`);
@@ -263,12 +263,9 @@ export default function InitiativeDetailPage() {
             {!done && nextStage && <Button variant="secondary" icon="ChevronsRight" onClick={() => changeStage(nextStage)}>Avanzar a {STAGES[nextStage].label}</Button>}
             {done
               ? <Button variant="secondary" icon="RotateCcw" onClick={() => changeStatus("active")}>Reabrir</Button>
-              : (
-                <>
-                  <Button variant="secondary" icon="Radio" onClick={() => router.push(`/sesion/${team.id}?init=${init.id}`)}>Abrir sesión</Button>
-                  <Button icon="Users" onClick={startLivePulse}>Pulso en vivo</Button>
-                </>
-              )}
+              : init.stage === "explore"
+                ? <Button icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>
+                : <Button icon="Radio" onClick={() => router.push(`/sesion/${team.id}?init=${init.id}`)}>Abrir sesión</Button>}
           </div>
         )}
       </div>
@@ -329,7 +326,9 @@ export default function InitiativeDetailPage() {
                 <StageBody st={st} init={init} />
                 {current && isFacil && (
                   <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-                    <Button size="sm" icon="Radio" onClick={() => router.push(`/sesion/${team.id}?init=${init.id}&stage=${st}`)}>Abrir sesión de {meta.label}</Button>
+                    {st === "explore"
+                      ? <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>
+                      : <Button size="sm" icon="Radio" onClick={() => router.push(`/sesion/${team.id}?init=${init.id}&stage=${st}`)}>Abrir sesión de {meta.label}</Button>}
                   </div>
                 )}
               </Card>
