@@ -280,7 +280,10 @@ export async function finalizeSession(session: LiveSession, opts: {
     const { data: initRow } = await supabase.from("initiatives").select("stage,data").eq("id", session.initiativeId).maybeSingle();
     const patch: Record<string, unknown> = {};
     if (opts.dataKey) {
-      patch.data = { ...((initRow?.data as Record<string, unknown>) ?? {}), [opts.dataKey]: opts.dataValue };
+      const prev = (initRow?.data as Record<string, unknown>) ?? {};
+      const prevK = (prev[opts.dataKey] as Record<string, unknown>) ?? {};
+      const dv = opts.dataValue && typeof opts.dataValue === "object" ? (opts.dataValue as Record<string, unknown>) : {};
+      patch.data = { ...prev, [opts.dataKey]: { ...prevK, ...dv } };
     }
     const ns = opts.stageOverride ?? (opts.noAdvance ? undefined : nextStageForward(initRow?.stage as string, session.type));
     if (ns && ns !== (initRow?.stage as string)) patch.stage = ns;

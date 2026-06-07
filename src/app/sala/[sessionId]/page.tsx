@@ -59,6 +59,7 @@ export default function SalaPage() {
   const [cardDraft, setCardDraft] = useState<Record<string, string>>({ works: "", blocks: "", unsaid: "" });
   const [anon, setAnon] = useState(true);
   const [sel, setSel] = useState<string[]>([]);
+  const [iceDraft, setIceDraft] = useState<Record<string, { i: number; c: number; e: number }>>({});
   const joinedRef = useRef(false);
   const sessionId = params.sessionId;
 
@@ -73,7 +74,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -221,6 +222,122 @@ export default function SalaPage() {
       {!ranked.length && <div style={{ padding: 20, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>Sin tensiones</div>}
     </Card>
   );
+
+  // ════════ PRUEBA · "¿Cuál elegimos?" (proof_choose) ════════
+  if (session.retro === "proof_choose") {
+    const ideaCards = allCards.filter((c) => c.columnKey === "idea");
+    const myIdeas = myCards.filter((c) => c.columnKey === "idea");
+    const ideaCount = counts["idea"] ?? 0;
+    const iceFor = (id: string) => {
+      const rows = inputs.filter((i) => i.key === `ice:${id}`).map((i) => i.value as { i: number; c: number; e: number });
+      if (!rows.length) return 0;
+      return Math.round((rows.reduce((a, r) => a + (Number(r.i) + Number(r.c) + Number(r.e)) / 3, 0) / rows.length) * 10) / 10;
+    };
+    const ranked = [...ideaCards].sort((a, b) => iceFor(b.id) - iceFor(a.id));
+    const chosen = (session.result.chosen as string) ?? (ranked[0]?.text ?? "");
+    const myIce = inputs.some((i) => i.userId === user.id && i.key.startsWith("ice:"));
+    const iceSubmitters = new Set(inputs.filter((i) => i.key.startsWith("ice:")).map((i) => i.userId)).size;
+    const maxIce = Math.max(1, ...ideaCards.map((c) => iceFor(c.id)));
+    const ICE_DIMS: [keyof { i: number; c: number; e: number }, string][] = [["i", "Impacto"], ["c", "Confianza"], ["e", "Facilidad"]];
+    const RankedIce = (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {ranked.map((c, idx) => (
+          <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="num" style={{ width: 20, fontWeight: 700, color: idx === 0 ? "var(--st-proof)" : "var(--ink-3)" }}>{idx + 1}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{c.text}</div>
+              <Bar value={(iceFor(c.id) / maxIce) * 100} color={idx === 0 ? "var(--st-proof)" : "var(--violet)"} height={7} />
+            </div>
+            <span className="num" style={{ fontWeight: 700, width: 34, textAlign: "right" }}>{iceFor(c.id)}</span>
+          </div>
+        ))}
+        {!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin ideas.</p>}
+      </div>
+    );
+
+    if (!isFacil) {
+      if (step === "ideas") {
+        const add = async () => { const t = (cardDraft.idea ?? "").trim(); if (!t) return; await addCard(sessionId, "idea", t, true); setCardDraft((d) => ({ ...d, idea: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return (
+          <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("¿Qué opciones tenemos para resolver esto? Tirá ideas.")}
+            <Card pad={24}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <input autoFocus value={cardDraft.idea ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, idea: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Una opción…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
+                <Button icon="Plus" onClick={add}>Sumar</Button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myIdeas.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}{!myIdeas.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Sumá la primera opción…</div>}</div>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center" }}>{ideaCount} opciones entre todos</p>
+            </Card></div></Shell>
+        );
+      }
+      if (step === "ideas_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Las opciones, a la vista. Ahora las puntuamos.")}<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</div></div></Shell>;
+      if (step === "ice") {
+        if (myIce) return <Shell onExit={exit}><Card pad={28} style={{ textAlign: "center", maxWidth: 440 }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Check" size={28} /></div><h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>¡Puntuaste!</h2><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>Esperá a que el facilitador cierre la elección.</p></Card></Shell>;
+        const dr = (id: string) => iceDraft[id] ?? { i: 5, c: 5, e: 5 };
+        const submitIce = async () => { setBusy(true); for (const c of ideaCards) await setMyInput(sessionId, `ice:${c.id}`, dr(c.id)); setBusy(false); };
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 600 }}>
+              {Header("Puntuá cada opción del 1 al 10. Impacto, Confianza y Facilidad.")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {ideaCards.map((c) => (
+                  <Card key={c.id} pad={16}>
+                    <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 10 }}>{c.text}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {ICE_DIMS.map(([k, label]) => (
+                        <div key={k}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-xs)", marginBottom: 4 }}><span className="muted">{label}</span><span className="num" style={{ fontWeight: 700 }}>{dr(c.id)[k]}</span></div>
+                          <input type="range" min={1} max={10} value={dr(c.id)[k]} onChange={(e) => setIceDraft((p) => ({ ...p, [c.id]: { ...dr(c.id), [k]: Number(e.target.value) } }))} style={{ width: "100%", accentColor: "var(--st-proof)" }} />
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <Button full size="lg" icon="Send" disabled={busy || !ideaCards.length} onClick={submitIce} style={{ marginTop: 16 }}>{busy ? "Enviando…" : "Enviar mis puntuaciones"}</Button>
+            </div>
+          </Shell>
+        );
+      }
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("La opción elegida por el equipo.")}{chosen && <Card pad={16} style={{ marginBottom: 14, borderColor: "var(--st-proof)" }}><div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 4 }}>Elegimos</div><div style={{ fontWeight: 700 }}>{chosen}</div></Card>}<Card pad={18}>{RankedIce}</Card></div></Shell>;
+    }
+
+    // facilitador
+    const fSteps = ["ideas", "ideas_reveal", "ice", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `Elegimos: ${chosen}`, dataKey: "proof", dataValue: { chosenIdea: chosen }, noAdvance: true }); setBusy(false); exit(); };
+    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "ideas") {
+      fsub = "Junten las opciones posibles (los miembros las cargan).";
+      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-proof)" }}>{ideaCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>opciones</div></div>;
+      faction = <Button full size="lg" icon="Eye" disabled={busy || ideaCount === 0} onClick={fNext}>Revelar opciones ({ideaCount})</Button>;
+    } else if (step === "ideas_reveal") {
+      fsub = "Repasen las opciones antes de puntuarlas.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Puntuar con ICE</Button>;
+    } else if (step === "ice") {
+      fsub = "Cada miembro puntúa Impacto·Confianza·Facilidad. Ranking en vivo.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{RankedIce}<div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>{iceSubmitters} de {totalInRoom} puntuaron</div></div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Cerrar la elección</Button>;
+    } else {
+      fsub = "La opción ganadora (tocá para elegir otra si hace falta).";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {ranked.map((c, idx) => { const on = c.text === chosen; return (
+            <button key={c.id} onClick={() => setResult(sessionId, { chosen: c.text })} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", fontSize: "var(--t-sm)" }}>
+              <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
+              <span style={{ flex: 1 }}>{c.text}</span>
+              <span className="num" style={{ fontWeight: 700, color: "var(--ink-2)" }}>ICE {iceFor(c.id)}</span>
+              {idx === 0 && <Pill color="var(--st-proof)" bg="color-mix(in srgb, var(--st-proof) 14%, transparent)">top</Pill>}
+            </button>
+          ); })}
+        </div>
+      );
+      faction = <Button full size="lg" icon="Check" disabled={busy || !chosen} onClick={fFinish}>{busy ? "Guardando…" : "Confirmar elección"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
 
   // ════════ PRUEBA · "Diseño de la prueba" (proof_design) ════════
   if (session.retro === "proof_design") {
