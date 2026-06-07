@@ -12,7 +12,7 @@ import { useToast } from "@/components/Toast";
 import {
   getFacilitators, getInitiatives, getTeam, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
-import { RetroPickerModal } from "@/components/RetroPickerModal";
+import { createLiveSession } from "@/lib/session";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 function fmtDate(iso?: string): string {
@@ -195,7 +195,6 @@ export default function InitiativeDetailPage() {
   const { show } = useToast();
   const [, setNonce] = useState(0);
   const refresh = () => setNonce((n) => n + 1);
-  const [picking, setPicking] = useState(false);
 
   const teamId = params.id || "";
   const team = getTeam(teamId);
@@ -223,6 +222,11 @@ export default function InitiativeDetailPage() {
       ? { label: "Pausada", color: "var(--warning)", bg: "var(--warning-bg)", icon: "Pause" }
       : { label: "En curso", color: "var(--green)", bg: "var(--success-bg)", icon: "Activity" };
 
+  const startLive = async () => {
+    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: init.stage });
+    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
+    router.push(`/sala/${res.session.id}`);
+  };
   const changeStage = async (s: StageKey) => {
     const res = await setInitiativeStage(init.id, s);
     if (res.error) show(res.error, "TriangleAlert"); else { show(`Etapa: ${STAGES[s].label}`, "Check"); refresh(); }
@@ -259,7 +263,7 @@ export default function InitiativeDetailPage() {
             {!done && nextStage && <Button variant="secondary" icon="ChevronsRight" onClick={() => changeStage(nextStage)}>Avanzar a {STAGES[nextStage].label}</Button>}
             {done
               ? <Button variant="secondary" icon="RotateCcw" onClick={() => changeStatus("active")}>Reabrir</Button>
-              : <Button icon="Users" onClick={() => setPicking(true)}>Abrir sesión en vivo</Button>}
+              : <Button icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>}
           </div>
         )}
       </div>
@@ -320,7 +324,7 @@ export default function InitiativeDetailPage() {
                 <StageBody st={st} init={init} />
                 {current && isFacil && (
                   <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-                    <Button size="sm" icon="Users" onClick={() => setPicking(true)}>Abrir sesión en vivo</Button>
+                    <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>
                   </div>
                 )}
               </Card>
@@ -405,7 +409,6 @@ export default function InitiativeDetailPage() {
         </div>
       </div>
 
-      {picking && <RetroPickerModal stage={init.stage} teamId={team.id} initiativeId={init.id} onClose={() => setPicking(false)} />}
     </div>
   );
 }
