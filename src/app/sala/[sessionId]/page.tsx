@@ -387,52 +387,36 @@ export default function SalaPage() {
     const stuckCount: Record<number, number> = { 0: 0, 1: 0, 2: 0 };
     stuckVals.forEach((v) => { stuckCount[v] = (stuckCount[v] ?? 0) + 1; });
 
-    if (!isFacil) {
-      if (step === "report") {
-        const mine = (inputs.find((i) => i.userId === user.id && i.key === "stuck")?.value as { v?: number })?.v;
-        return (
-          <Shell onExit={exit}>
-            <div style={{ width: "100%", maxWidth: 520 }}>
-              {Header(`Pasaron ~30 días. ¿Se mantuvo "${change}"?`)}
-              <Card pad={24}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {STUCK.map((s) => { const on = mine === s.v; return (
-                    <button key={s.v} onClick={() => setMyInput(sessionId, "stuck", { v: s.v })} style={{ padding: "13px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-learn) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-learn)" : "var(--line)"}`, fontWeight: 600, fontSize: "var(--t-sm)", textAlign: "left" }}>{s.l}</button>
-                  ); })}
-                </div>
-                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center" }}>El facilitador cierra la consolidación con el equipo.</p>
-              </Card>
-            </div>
-          </Shell>
-        );
-      }
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("Consolidación del equipo.")}<Card pad={24} style={{ textAlign: "center" }}>{ol ? <><Pill color={ol.c} bg={`color-mix(in srgb, ${ol.c} 14%, transparent)`} icon={ol.i}>{ol.l}</Pill>{cnote && <p style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>{cnote}</p>}</> : <span className="muted">Definiendo…</span>}</Card></div></Shell>;
-    }
-
-    // facilitador
+    const myStuck = (inputs.find((i) => i.userId === user.id && i.key === "stuck")?.value as { v?: number })?.v;
+    const maxS = Math.max(1, ...STUCK.map((s) => stuckCount[s.v] ?? 0));
     const fSteps = ["report", "decide", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `Consolidación: ${ol?.l ?? "—"}`, dataKey: "consolidate", dataValue: { outcome, note: cnote, date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) }, noAdvance: true, status: "done" }); setBusy(false); exit(); };
-    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "report") {
-      fsub = `¿El equipo sostuvo "${change}"? Mirá cómo lo ve cada uno.`;
-      const maxS = Math.max(1, ...STUCK.map((s) => stuckCount[s.v] ?? 0));
-      fbody = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {STUCK.map((s) => (
-            <div key={s.v} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{s.l}</span>
-              <div style={{ width: 120 }}><Bar value={((stuckCount[s.v] ?? 0) / maxS) * 100} color="var(--st-learn)" height={7} /></div>
-              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{stuckCount[s.v] ?? 0}</span>
-            </div>
-          ))}
-          <div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", marginTop: 4 }}>{stuckVals.length} de {totalInRoom} respondieron</div>
-        </div>
+      sub = `Pasaron ~30 días. ¿Se mantuvo "${change}"? Cada uno responde y el conteo se ve en vivo.`;
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {STUCK.map((s) => { const on = myStuck === s.v; return (
+              <button key={s.v} onClick={() => setMyInput(sessionId, "stuck", { v: s.v })} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-learn) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-learn)" : "var(--line)"}`, textAlign: "left" }}>
+                <span style={{ color: on ? "var(--st-learn)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
+                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{s.l}</span>
+                <div style={{ width: 110 }}><Bar value={((stuckCount[s.v] ?? 0) / maxS) * 100} color="var(--st-learn)" height={7} /></div>
+                <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{stuckCount[s.v] ?? 0}</span>
+              </button>
+            ); })}
+          </div>
+          <div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", marginTop: 12 }}>{stuckVals.length} de {totalInRoom} respondieron</div>
+        </Card>
       );
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Definir el resultado</Button>;
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Definir el resultado</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define el resultado con el equipo.</p>;
     } else if (step === "decide") {
-      fsub = "Con el equipo, definí si el cambio se consolidó y dejá una nota.";
-      fbody = (
+      sub = "¿El cambio se consolidó? El facilitador lo define con el equipo.";
+      content = isFacil ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 10 }}>
             {CONS.map((o) => { const on = outcome === o.k; return (
@@ -444,10 +428,28 @@ export default function SalaPage() {
           </div>
           <textarea defaultValue={cnote} onBlur={(e) => setResult(sessionId, { cnote: e.target.value.trim() })} rows={3} placeholder="¿Qué ayudó o qué faltó para sostenerlo? Una nota para el equipo." style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
         </div>
+      ) : (
+        <Card pad={24} style={{ textAlign: "center" }}>{ol ? <><Pill color={ol.c} bg={`color-mix(in srgb, ${ol.c} 14%, transparent)`} icon={ol.i}>{ol.l}</Pill>{cnote && <p style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>{cnote}</p>}</> : <span className="muted">Definiendo en equipo…</span>}</Card>
       );
-      faction = <Button full size="lg" icon="Check" disabled={busy || !outcome} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar consolidación"}</Button>;
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !outcome} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar consolidación"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra cuando esté definido.</p>;
+    } else {
+      sub = "Consolidación del equipo.";
+      content = <Card pad={24} style={{ textAlign: "center" }}>{ol ? <><Pill color={ol.c} bg={`color-mix(in srgb, ${ol.c} 14%, transparent)`} icon={ol.i}>{ol.l}</Pill>{cnote && <p style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>{cnote}</p>}</> : <span className="muted">—</span>}</Card>;
+      controls = isFacil ? <Button full size="lg" icon="ArrowLeft" onClick={exit}>Volver</Button> : null;
     }
-    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header(fsub)}<Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+
+    return (
+      <Shell onExit={exit}>
+        <div style={{ width: "100%", maxWidth: 560 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
   }
 
   // ════════ FOCO (¿Por qué pasa esto?) ════════
@@ -885,67 +887,63 @@ export default function SalaPage() {
       </div>
     );
 
-    if (!isFacil) {
-      if (step === "progress") {
-        const mySee = (inputs.find((i) => i.userId === user.id && i.key === "see")?.value as { v?: number })?.v;
-        const SEE = [{ v: 0, l: "Sin avance" }, { v: 1, l: "Algo" }, { v: 2, l: "Bien" }, { v: 3, l: "Logrado" }];
-        return (
-          <Shell onExit={exit}>
-            <div style={{ width: "100%", maxWidth: 520 }}>
-              {Header(`¿Cómo ves vos "${signalName}"? Tu lectura suma al promedio del equipo.`)}
-              <Card pad={24}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
-                  {SEE.map((s) => { const on = mySee === s.v; return (
-                    <button key={s.v} onClick={() => setMyInput(sessionId, "see", { v: s.v })} style={{ padding: "14px 12px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-follow) 16%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-follow)" : "var(--line)"}`, fontWeight: 600, fontSize: "var(--t-sm)", color: on ? "var(--ink-0)" : "var(--ink-1)" }}>{s.l}</button>
-                  ); })}
-                </div>
-                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center" }}>El facilitador define el avance oficial con el equipo.</p>
-              </Card>
-            </div>
-          </Shell>
-        );
-      }
-      if (step === "decide") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("¿Cómo sigue la prueba? El facilitador define con el equipo.")}<Card pad={24} style={{ textAlign: "center" }}>{fdl ? <Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill> : <span className="muted">Definiendo…</span>}</Card></div></Shell>;
-      if (step === "blockers") {
-        const add = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
-        return (
-          <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("¿Qué nos está trabando para sostener la prueba?")}
-            <Card pad={24}>
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <input autoFocus value={cardDraft.blocker ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, blocker: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Algo que nos traba…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
-                <Button icon="Plus" onClick={add}>Sumar</Button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {myBlockers.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}
-                {!myBlockers.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Si no hay trabas, esperá al facilitador.</div>}
-              </div>
-            </Card></div></Shell>
-        );
-      }
-      if (step === "blockers_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Las trabas, a la vista.")}<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{blockerCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin trabas. 🙌</p>}</div></div></Shell>;
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Avance registrado.")}<Card pad={24}>{Gauge}</Card></div></Shell>;
-    }
-
+    const mySee = (inputs.find((i) => i.userId === user.id && i.key === "see")?.value as { v?: number })?.v;
+    const SEE = [{ v: 0, l: "Sin avance" }, { v: 1, l: "Algo" }, { v: 2, l: "Bien" }, { v: 3, l: "Logrado" }];
     const fSteps = ["progress", "blockers", "blockers_reveal", "decide", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => { setBusy(true); await finalizeSession(session, { cardCount: blockerCount, summaryText: `Avance: ${current}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current, signal: signalName, blockers: blockerCards.map((c) => c.text), decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
-    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
-    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    const addBlocker = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "progress") {
-      fsub = "El equipo reporta cómo ve la señal. Definí el avance oficial.";
-      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{Gauge}{seeVals.length > 0 && <div style={{ padding: "10px 12px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)" }}><span className="muted">Lectura del equipo: </span><b style={{ color: "var(--st-follow)" }}>~{seeAvg}%</b> <span className="muted">({seeVals.length} {seeVals.length === 1 ? "voto" : "votos"})</span></div>}<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{PROG.map((p) => { const on = current === p.v; return <button key={p.v} onClick={() => setResult(sessionId, { current: p.v })} style={{ padding: "9px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-follow)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-follow)" : "var(--line-2)") }}>{p.l}</button>; })}</div></div>;
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: trabas</Button>;
+      sub = "¿Cómo viene la prueba? Cada uno marca cómo ve la señal; el facilitador define el avance oficial.";
+      content = (
+        <Card pad={20}>
+          {Gauge}
+          <div style={{ marginTop: 16 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>¿Cómo lo ves vos?</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
+              {SEE.map((s) => { const on = mySee === s.v; return (
+                <button key={s.v} onClick={() => setMyInput(sessionId, "see", { v: s.v })} style={{ padding: "12px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-follow) 16%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-follow)" : "var(--line)"}`, fontWeight: 600, fontSize: "var(--t-sm)" }}>{s.l}</button>
+              ); })}
+            </div>
+            {seeVals.length > 0 && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 8, textAlign: "center" }}>Lectura del equipo: ~{seeAvg}% ({seeVals.length} {seeVals.length === 1 ? "voto" : "votos"})</p>}
+          </div>
+        </Card>
+      );
+      controls = isFacil ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Avance oficial</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{PROG.map((p) => { const on = current === p.v; return <button key={p.v} onClick={() => setResult(sessionId, { current: p.v })} style={{ padding: "9px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-follow)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-follow)" : "var(--line-2)") }}>{p.l}</button>; })}</div>
+          </div>
+          <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: trabas</Button>
+        </div>
+      ) : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define el avance oficial.</p>;
     } else if (step === "blockers") {
-      fsub = "Los miembros escriben las trabas a ciegas.";
-      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--warning)" }}>{blockerCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>trabas señaladas</div></div>;
-      faction = <Button full size="lg" icon="Eye" disabled={busy} onClick={fNext}>Revelar trabas ({blockerCount})</Button>;
+      sub = "¿Qué nos está trabando para sostener la prueba? Se escriben a ciegas.";
+      content = (
+        <Card pad={20}>
+          <div style={{ textAlign: "center", marginBottom: isFacil ? 0 : 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--warning)" }}>{blockerCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>trabas señaladas</div></div>
+          {!isFacil && (
+            <>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input autoFocus value={cardDraft.blocker ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, blocker: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addBlocker()} placeholder="Algo que nos traba…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
+                <Button icon="Plus" onClick={addBlocker}>Sumar</Button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myBlockers.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>
+            </>
+          )}
+        </Card>
+      );
+      controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={fNext}>Revelar trabas ({blockerCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá las trabas que veas. El facilitador las revela.</p>;
     } else if (step === "blockers_reveal") {
-      fsub = "Las trabas del equipo.";
-      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{blockerCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin trabas. 🙌</p>}</div>;
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Decidir cómo sigue</Button>;
+      sub = "Las trabas del equipo, a la vista.";
+      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{blockerCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin trabas. 🙌</p>}</div>;
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Decidir cómo sigue</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador decide cómo sigue.</p>;
     } else if (step === "decide") {
-      fsub = "Con el equipo: ¿la prueba continúa, se ajusta o hay que escalar?";
-      fbody = (
+      sub = "¿La prueba continúa, se ajusta o hay que escalar?";
+      content = isFacil ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
           {FDECIDE.map((o) => { const on = fdecision === o.k; return (
             <button key={o.k} onClick={() => setResult(sessionId, { fdecision: o.k })} style={{ textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}` }}>
@@ -954,14 +952,24 @@ export default function SalaPage() {
             </button>
           ); })}
         </div>
-      );
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !fdecision} onClick={fNext}>Revisar y cerrar</Button>;
+      ) : <Card pad={24} style={{ textAlign: "center" }}>{fdl ? <Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill> : <span className="muted">Definiendo en equipo…</span>}</Card>;
+      controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy || !fdecision} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar check-in"}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra el check-in.</p>;
     } else {
-      fsub = "Check-in registrado. La prueba sigue en curso (no cambia de etapa).";
-      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{Gauge}{fdl && <Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill>}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{blockerCount} {blockerCount === 1 ? "traba" : "trabas"} registradas</div></div>;
-      faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar check-in"}</Button>;
+      sub = "Check-in registrado. La prueba sigue en curso.";
+      content = <Card pad={20}>{Gauge}{fdl && <div style={{ marginTop: 12 }}><Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill></div>}</Card>;
+      controls = isFacil ? <Button full size="lg" icon="ArrowLeft" onClick={exit}>Volver</Button> : null;
     }
-    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+
+    return (
+      <Shell onExit={exit}>
+        <div style={{ width: "100%", maxWidth: 600 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
   }
 
   // ════════ APRENDIZAJE (Cerrar el ciclo) ════════
