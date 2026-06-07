@@ -33,7 +33,7 @@ export interface SessionVote { id: string; clusterId: string; userId: string; }
 export interface SessionInput { userId: string; key: string; value: Record<string, unknown>; }
 
 const RETRO_NAME: Record<string, string> = {
-  founding: "Sesión Fundacional",
+  founding: "Sesión Fundacional", consolidate: "Consolidación (30 días)",
   explore: "¿Dónde estamos?", focus: "¿Por qué pasa esto?", proof: "Diseñar la apuesta",
   follow: "¿Cómo vamos?", learn: "Cerrar el ciclo",
 };
@@ -98,7 +98,7 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
-  const FIRST: Record<string, string> = { founding: "welcome", focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
+  const FIRST: Record<string, string> = { founding: "welcome", consolidate: "report", focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
   const RETRO_FIRST: Record<string, string> = { proof_design: "context", focus_impact: "problems", explore_flow: "funnel", focus_where: "funnel", proof_premortem: "risks", follow_blockers: "blockers", learn_learned: "learnings", learn_next: "decision", learn_team: "process", explore_purpose: "answers", focus_client: "perceptions", explore_relations: "relations" };
   const firstStep = (p.retro && RETRO_FIRST[p.retro]) || FIRST[p.type] || "pulse";
   const { data, error } = await supabase.from("sessions").insert({

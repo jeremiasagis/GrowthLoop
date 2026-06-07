@@ -227,6 +227,13 @@ export default function InitiativeDetailPage() {
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
     router.push(`/sala/${res.session.id}`);
   };
+  const startConsolidate = async () => {
+    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: "consolidate" });
+    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
+    router.push(`/sala/${res.session.id}`);
+  };
+  const canConsolidate = init.data?.learn?.decision === "consolidate" && !init.data?.consolidate;
+  const consolidated = init.data?.consolidate;
   const changeStage = async (s: StageKey) => {
     const res = await setInitiativeStage(init.id, s);
     if (res.error) show(res.error, "TriangleAlert"); else { show(`Etapa: ${STAGES[s].label}`, "Check"); refresh(); }
@@ -267,6 +274,29 @@ export default function InitiativeDetailPage() {
           </div>
         )}
       </div>
+
+      {isFacil && canConsolidate && (
+        <Card pad={18} style={{ marginBottom: 20, borderColor: "color-mix(in srgb, var(--st-learn) 40%, var(--line))", background: "color-mix(in srgb, var(--st-learn) 8%, transparent)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+            <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--st-learn) 20%, transparent)", color: "var(--st-learn)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Anchor" size={22} /></div>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>Consolidación a 30 días</div>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>El equipo decidió consolidar este cambio. Pasados ~30 días, hacé una micro-sesión para confirmar si se volvió hábito.</p>
+            </div>
+            <Button icon="Anchor" onClick={startConsolidate}>Hacer consolidación</Button>
+          </div>
+        </Card>
+      )}
+      {consolidated && (
+        <Card pad={16} style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Icon name="Anchor" size={16} style={{ color: "var(--st-learn)" }} />
+            <span className="eyebrow">Consolidación{consolidated.date ? ` · ${consolidated.date}` : ""}</span>
+            <Pill color="var(--st-learn)" bg="color-mix(in srgb, var(--st-learn) 14%, transparent)">{consolidated.outcome === "habit" ? "Se volvió hábito" : consolidated.outcome === "partial" ? "Parcial" : "Se perdió"}</Pill>
+          </div>
+          {consolidated.note && <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, lineHeight: 1.5 }}>{consolidated.note}</p>}
+        </Card>
+      )}
 
       {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px,1fr))", gap: 14, marginBottom: 24 }}>

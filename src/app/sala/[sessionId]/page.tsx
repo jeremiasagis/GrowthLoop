@@ -387,6 +387,83 @@ export default function SalaPage() {
     );
   }
 
+  // ════════ CONSOLIDACIÓN · micro-sesión a 30 días ════════
+  if (session.type === "consolidate") {
+    const R = session.result;
+    const outcome = (R.outcome as string) ?? "";
+    const cnote = (R.cnote as string) ?? "";
+    const bet = initiative?.data?.proof as { betThen?: string } | undefined;
+    const change = bet?.betThen || initiative?.title || "el cambio probado";
+    const CONS = [{ k: "habit", l: "Se volvió hábito", c: "var(--success)", i: "Anchor", d: "Ya es parte de cómo trabajamos" }, { k: "partial", l: "Parcial", c: "var(--warning)", i: "CircleDot", d: "A veces sí, a veces no" }, { k: "lost", l: "Se perdió", c: "var(--risk)", i: "CircleX", d: "Volvimos a lo de antes" }];
+    const ol = CONS.find((x) => x.k === outcome);
+    const STUCK = [{ v: 0, l: "No se mantuvo" }, { v: 1, l: "A veces" }, { v: 2, l: "Sí, se mantuvo" }];
+    const stuckVals = inputs.filter((i) => i.key === "stuck").map((i) => Number((i.value as { v?: number })?.v ?? 0));
+    const stuckCount: Record<number, number> = { 0: 0, 1: 0, 2: 0 };
+    stuckVals.forEach((v) => { stuckCount[v] = (stuckCount[v] ?? 0) + 1; });
+
+    if (!isFacil) {
+      if (step === "report") {
+        const mine = (inputs.find((i) => i.userId === user.id && i.key === "stuck")?.value as { v?: number })?.v;
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 520 }}>
+              {Header(`Pasaron ~30 días. ¿Se mantuvo "${change}"?`)}
+              <Card pad={24}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {STUCK.map((s) => { const on = mine === s.v; return (
+                    <button key={s.v} onClick={() => setMyInput(sessionId, "stuck", { v: s.v })} style={{ padding: "13px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-learn) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-learn)" : "var(--line)"}`, fontWeight: 600, fontSize: "var(--t-sm)", textAlign: "left" }}>{s.l}</button>
+                  ); })}
+                </div>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center" }}>El facilitador cierra la consolidación con el equipo.</p>
+              </Card>
+            </div>
+          </Shell>
+        );
+      }
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("Consolidación del equipo.")}<Card pad={24} style={{ textAlign: "center" }}>{ol ? <><Pill color={ol.c} bg={`color-mix(in srgb, ${ol.c} 14%, transparent)`} icon={ol.i}>{ol.l}</Pill>{cnote && <p style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>{cnote}</p>}</> : <span className="muted">Definiendo…</span>}</Card></div></Shell>;
+    }
+
+    // facilitador
+    const fSteps = ["report", "decide", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `Consolidación: ${ol?.l ?? "—"}`, dataKey: "consolidate", dataValue: { outcome, note: cnote, date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) }, noAdvance: true, status: "done" }); setBusy(false); exit(); };
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "report") {
+      fsub = `¿El equipo sostuvo "${change}"? Mirá cómo lo ve cada uno.`;
+      const maxS = Math.max(1, ...STUCK.map((s) => stuckCount[s.v] ?? 0));
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {STUCK.map((s) => (
+            <div key={s.v} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{s.l}</span>
+              <div style={{ width: 120 }}><Bar value={((stuckCount[s.v] ?? 0) / maxS) * 100} color="var(--st-learn)" height={7} /></div>
+              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{stuckCount[s.v] ?? 0}</span>
+            </div>
+          ))}
+          <div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", marginTop: 4 }}>{stuckVals.length} de {totalInRoom} respondieron</div>
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Definir el resultado</Button>;
+    } else if (step === "decide") {
+      fsub = "Con el equipo, definí si el cambio se consolidó y dejá una nota.";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 10 }}>
+            {CONS.map((o) => { const on = outcome === o.k; return (
+              <button key={o.k} onClick={() => setResult(sessionId, { outcome: o.k })} style={{ textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{o.l}</span></div>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p>
+              </button>
+            ); })}
+          </div>
+          <textarea defaultValue={cnote} onBlur={(e) => setResult(sessionId, { cnote: e.target.value.trim() })} rows={3} placeholder="¿Qué ayudó o qué faltó para sostenerlo? Una nota para el equipo." style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+        </div>
+      );
+      faction = <Button full size="lg" icon="Check" disabled={busy || !outcome} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar consolidación"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header(fsub)}<Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
   // ════════ PRUEBA · "¿Cuál elegimos?" (proof_choose) ════════
   if (session.retro === "proof_choose") {
     const ideaCards = allCards.filter((c) => c.columnKey === "idea");

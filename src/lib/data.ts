@@ -142,11 +142,12 @@ export interface SessionLog {
 // Varias pueden convivir en paralelo, en etapas distintas.
 // Resultados que va dejando cada etapa del ciclo (los escribe el conductor).
 export interface InitiativeData {
-  explore?: { priority?: string; tensions?: { name: string; signals: number; dots: number }[]; pausedCount?: number };
-  focus?: { rootCause?: string; causes?: string[]; whys?: string[] };
-  proof?: { betIf?: string; betThen?: string; signal?: string; responsible?: string; deadline?: string };
-  follow?: { current?: number; target?: number; unit?: string; signalName?: string; onTrack?: boolean; blockers?: string[] };
+  explore?: { priority?: string; tensions?: { name: string; signals: number; dots: number }[]; pausedCount?: number; purpose?: string; criticalStage?: string };
+  focus?: { rootCause?: string; cause?: string; causes?: string[]; whys?: string[] };
+  proof?: { betIf?: string; betThen?: string; signal?: string; responsible?: string; deadline?: string; risks?: string[]; committed?: number };
+  follow?: { current?: number; target?: number; unit?: string; signalName?: string; onTrack?: boolean; blockers?: string[]; decision?: string };
   learn?: { result?: string; learnings?: string[]; decision?: string };
+  consolidate?: { outcome?: string; note?: string; date?: string };
 }
 
 export interface Initiative {
