@@ -143,7 +143,7 @@ export interface SessionLog {
 // Resultados que va dejando cada etapa del ciclo (los escribe el conductor).
 export interface InitiativeData {
   explore?: { priority?: string; tensions?: { name: string; signals: number; dots: number }[]; pausedCount?: number; purpose?: string; criticalStage?: string };
-  focus?: { rootCause?: string; cause?: string; causes?: string[]; whys?: string[] };
+  focus?: { rootCause?: string; cause?: string; causes?: string[]; whys?: string[]; secondaryCauses?: { name: string; votes: number; signals?: number }[] };
   proof?: { betIf?: string; betThen?: string; signal?: string; responsible?: string; deadline?: string; risks?: string[]; committed?: number };
   follow?: { current?: number; target?: number; unit?: string; signalName?: string; onTrack?: boolean; blockers?: string[]; decision?: string };
   learn?: { result?: string; learnings?: string[]; decision?: string };

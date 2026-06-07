@@ -43,7 +43,7 @@ const STEP_SEQ: Record<string, string[]> = {
   founding: ["welcome", "contract", "sign", "close"],
   consolidate: ["report", "decide", "close"],
   explore: STEPS,
-  focus: ["causes", "causes_reveal", "vote", "deepen", "close"],
+  focus: ["causes", "causes_reveal", "group", "vote", "deepen", "close"],
   proof: ["ideas", "ideas_reveal", "vote", "premortem", "premortem_reveal", "bet", "commit", "close"],
   follow: ["progress", "blockers", "blockers_reveal", "decide", "close"],
   learn: ["result", "reflect", "learnings", "learnings_reveal", "decision", "close"],
@@ -101,7 +101,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "group", "deepen", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -508,25 +508,34 @@ export default function SalaPage() {
     const myCauses = myCards.filter((c) => c.columnKey === "cause");
     const causeCount = counts["cause"] ?? 0;
     const whys = (session.result?.whys as string[]) ?? [];
-    const votedCause = (session.result?.cause as string) ?? "";
-    const root = [...whys].reverse().find((w) => (w ?? "").trim()) || (session.result?.rootCause as string) || votedCause || "";
-    const cvoteCount: Record<string, number> = {};
-    inputs.forEach((i) => { if (i.key === "cvote") { const id = (i.value as { id?: string })?.id; if (id) cvoteCount[id] = (cvoteCount[id] ?? 0) + 1; } });
-    const topCause = [...causeCards].sort((a, b) => (cvoteCount[b.id] ?? 0) - (cvoteCount[a.id] ?? 0))[0];
-
-    const myVote = (inputs.find((i) => i.userId === user.id && i.key === "cvote")?.value as { id?: string })?.id;
     const cleanWhys = whys.filter((w) => (w ?? "").trim());
+    const chosenId = (session.result?.causeClusterId as string) ?? "";
+    const chosenCluster = clusters.find((c) => c.id === chosenId);
+    const votedCause = chosenCluster?.name ?? (session.result?.cause as string) ?? "";
+    const root = [...whys].reverse().find((w) => (w ?? "").trim()) || (session.result?.rootCause as string) || votedCause || "";
+    const purposeNote = (initiative?.data?.explore?.purpose as string) ?? "";
     const addCause = async () => { const t = (cardDraft.cause ?? "").trim(); if (!t) return; await addCard(sessionId, "cause", t, true); setCardDraft((d) => ({ ...d, cause: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
-    const fSteps = ["causes", "causes_reveal", "vote", "deepen", "close"];
+    const groupCauses = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Causa ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
+    const voteCause = async (clusterId: string, delta: number) => { if (delta > 0 && remaining <= 0) return; if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId); };
+    const fSteps = ["causes", "causes_reveal", "group", "vote", "deepen", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const setWhy = (idx: number, val: string) => { const next = [...whys]; next[idx] = val; setResult(sessionId, { whys: next }); };
+    const topCluster = ranked[0];
     const fFinish = async () => {
       setBusy(true);
-      await finalizeSession(session, { cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, cause: votedCause, whys: cleanWhys, causes: causeCards.map((c) => c.text) } });
+      const secondary = ranked.filter((c) => c.id !== (chosenId || topCluster?.id)).map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0, signals: cardsOf(c.id).length }));
+      await finalizeSession(session, { cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, cause: votedCause, whys: cleanWhys, causes: causeCards.map((c) => c.text), secondaryCauses: secondary } });
       setBusy(false); exit();
     };
+    const focusReminder = (subject || purposeNote) ? (
+      <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-explore) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <Icon name="Star" size={13} style={{ color: "var(--st-explore)" }} />
+        <span className="muted">De Exploración:</span> <b style={{ color: "var(--ink-0)" }}>{subject}</b>
+        {purposeNote && <span className="muted" style={{ width: "100%" }}><Icon name="Compass" size={12} /> {purposeNote}</span>}
+      </div>
+    ) : null;
 
-    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
     if (step === "causes") {
       sub = `¿Por qué pasa "${subject}"? Tirá causas a ciegas. Hablamos de causas, no de personas.`;
       content = (
@@ -545,47 +554,87 @@ export default function SalaPage() {
       );
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || causeCount === 0} onClick={fNext}>Revelar causas ({causeCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá las causas que veas. Se revelan todas juntas.</p>;
     } else if (step === "causes_reveal") {
-      sub = "Las causas, a la vista. Después el equipo vota cuál pesa más.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{causeCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron causas.</p>}</div>;
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Votar causas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo va a votar la causa que más pesa.</p>;
+      sub = "Las causas, a la vista. Después las agrupamos por tema.";
+      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{causeCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron causas.</p>}</div>;
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Agrupar causas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa las causas parecidas.</p>;
+    } else if (step === "group") {
+      wide = true; sub = isFacil ? "Juntá las causas que hablan de lo mismo. Seleccioná varias y armá un grupo." : "El facilitador agrupa las causas parecidas. Mirá cómo se arman.";
+      content = (
+        <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span className="eyebrow">Sueltas ({loose.length})</span>
+              {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={groupCauses}>Agrupar {sel.length}</Button>}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 10 }}>
+              {loose.map((c) => { const on = sel.includes(c.id); const st: React.CSSProperties = { textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "10px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4, position: "relative" };
+                return isFacil ? <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))} style={st}>{on && <span style={{ position: "absolute", top: 6, right: 6, color: "var(--green)" }}><Icon name="CheckCircle2" size={14} /></span>}{c.text}</button> : <div key={c.id} style={st}>{c.text}</div>;
+              })}
+              {!loose.length && <div style={{ gridColumn: "1/-1", color: "var(--ink-3)", fontSize: "var(--t-sm)", padding: 16, textAlign: "center" }}>Todas agrupadas.</div>}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <span className="eyebrow">Grupos de causas ({clusters.length})</span>
+            {clusters.map((cl) => (
+              <Card key={cl.id} pad={12}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ color: "var(--st-focus)" }}><Icon name="Layers" size={15} /></span>
+                  {isFacil ? <input defaultValue={cl.name} onBlur={(e) => renameCluster(cl.id, e.target.value)} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed var(--line-2)" }} /> : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
+                  {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "5px 7px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-focus)" }}>{c.text}</div>)}</div>
+              </Card>
+            ))}
+            {!clusters.length && <div style={{ border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", padding: 18, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>{isFacil ? "Seleccioná causas y agrupalas." : "Todavía no hay grupos."}</div>}
+          </div>
+        </div>
+      );
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={fNext}>Votar los grupos</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mirá cómo se agrupan las causas.</p>;
     } else if (step === "vote") {
       const shown = !!session.result.cvoteShown;
-      const cVoters = new Set(inputs.filter((i) => i.key === "cvote").map((i) => i.userId)).size;
-      const maxC = Math.max(1, ...causeCards.map((c) => cvoteCount[c.id] ?? 0));
-      sub = shown ? "Resultado: cuál causa pesa más. El facilitador confirma cuál profundizar." : "¿Cuál causa pesa más? Votá una. La votación está oculta hasta que el facilitador la muestre.";
+      const cVoters = new Set(votes.map((v) => v.userId)).size;
+      const maxC = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
+      sub = shown ? "Resultado: qué grupo de causas pesa más. El facilitador confirma cuál profundizar." : "¿Qué grupo de causas pesa más? Repartí tus puntos. La votación está oculta hasta que el facilitador la muestre.";
       content = shown ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[...causeCards].sort((a, b) => (cvoteCount[b.id] ?? 0) - (cvoteCount[a.id] ?? 0)).map((c) => { const on = c.text === votedCause; return (
-            <button key={c.id} onClick={() => isFacil && setResult(sessionId, { cause: c.text })} disabled={!isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default" }}>
-              <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
-              <span style={{ flex: 1 }}>{c.text}</span>
-              <div style={{ width: 80 }}><Bar value={((cvoteCount[c.id] ?? 0) / maxC) * 100} color="var(--st-focus)" height={6} /></div>
-              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{cvoteCount[c.id] ?? 0}</span>
+          {ranked.map((cl, i) => { const on = cl.id === (chosenId || topCluster?.id); return (
+            <button key={cl.id} onClick={() => isFacil && setResult(sessionId, { causeClusterId: cl.id, cause: cl.name })} disabled={!isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default" }}>
+              <span className="num" style={{ width: 18, fontWeight: 700, color: i === 0 ? "var(--st-focus)" : "var(--ink-3)" }}>{i + 1}</span>
+              <span style={{ flex: 1 }}>{cl.name} <span className="faint" style={{ fontSize: 10 }}>· {cardsOf(cl.id).length}</span></span>
+              <div style={{ width: 80 }}><Bar value={((votesByCluster[cl.id] ?? 0) / maxC) * 100} color="var(--st-focus)" height={6} /></div>
+              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
             </button>
           ); })}
-          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 4 }}>Tocá la causa a profundizar (la más votada queda sugerida).</p>}
+          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 4 }}>Tocá el grupo a profundizar (el más votado queda sugerido). Los demás quedan como causas secundarias.</p>}
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {causeCards.map((c) => { const on = !isFacil && myVote === c.id; return (
-              <button key={c.id} onClick={() => { if (!isFacil) setMyInput(sessionId, "cvote", { id: c.id }); }} disabled={isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "default" : "pointer" }}>
-                <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span><span style={{ flex: 1 }}>{c.text}</span>
-              </button>
+          {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--st-focus)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
+              <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name} <span className="faint" style={{ fontSize: 10 }}>· {cardsOf(cl.id).length}</span></div>
+                {isFacil
+                  ? (mine > 0 ? <span className="num" style={{ color: "var(--st-focus)", fontWeight: 700 }}>{mine}</span> : <span className="faint" style={{ fontSize: "var(--t-xs)" }}>—</span>)
+                  : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <button onClick={() => voteCause(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
+                      <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
+                      <button onClick={() => voteCause(cl.id, 1)} disabled={remaining === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--st-focus)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#08120c" }}><Icon name="Plus" size={15} /></button>
+                    </div>}
+              </div>
             ); })}
-            {!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron causas.</p>}
           </div>
           <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {cVoters} de {totalInRoom} votaron</p>
         </>
       );
       controls = isFacil
-        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !votedCause} onClick={() => { if (!votedCause && topCause) setResult(sessionId, { cause: topCause.text }); fNext(); }}>Profundizar con 5 Porqués</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { cvoteShown: true })}>Mostrar votación ({cVoters}/{totalInRoom})</Button>)
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la causa que más pesa. El facilitador muestra el resultado cuando todos voten.</p>;
+        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || (!chosenId && !topCluster)} onClick={() => { if (!chosenId && topCluster) setResult(sessionId, { causeClusterId: topCluster.id, cause: topCluster.name }); fNext(); }}>Profundizar con 5 Porqués</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { cvoteShown: true })}>Mostrar votación ({cVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado cuando todos voten.</p>;
     } else if (step === "deepen") {
       sub = 'Los "5 Porqués": preguntamos hasta la raíz. La última respuesta es la causa raíz.';
       content = (
         <Card pad={20}>
-          <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Causa votada</div>
+          <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Grupo de causas elegido</div>
           <div style={{ fontWeight: 700, marginBottom: 14 }}>{votedCause || "—"}</div>
           {isFacil ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -604,10 +653,12 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !root} onClick={fNext}>Confirmar causa raíz</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador profundiza con el equipo.</p>;
     } else {
       sub = "Causa raíz definida. Al cerrar, la iniciativa avanza a Prueba.";
+      const secondaryNow = ranked.filter((c) => c.id !== (chosenId || topCluster?.id));
       content = (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Card pad={18} style={{ textAlign: "center", borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causa raíz</div><div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{root || "—"}</div></Card>
           {cleanWhys.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{cleanWhys.map((w, i) => <div key={i} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}><b style={{ color: "var(--st-focus)" }}>{i + 1}.</b> {w}</div>)}</div>}
+          {secondaryNow.length > 0 && <div style={{ padding: "10px 12px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><div className="eyebrow" style={{ marginBottom: 6 }}><Icon name="Archive" size={12} /> Causas secundarias (quedan guardadas)</div>{secondaryNow.map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)", display: "flex", justifyContent: "space-between" }}><span>{c.name}</span><span className="num">{votesByCluster[c.id] ?? 0} votos</span></div>)}</div>}
         </div>
       );
       controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button> : null;
@@ -615,9 +666,10 @@ export default function SalaPage() {
 
     return (
       <Shell onExit={exit}>
-        <div style={{ width: "100%", maxWidth: 600 }}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {focusReminder}
           {content}
           <div style={{ marginTop: 18 }}>{controls}</div>
         </div>

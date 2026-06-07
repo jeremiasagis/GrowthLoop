@@ -94,6 +94,19 @@ function StageBody({ st, init }: { st: StageKey; init: Initiative }) {
             </div>
           </div>
         )}
+        {!!d?.secondaryCauses?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Archive" size={13} /> Causas secundarias (para retomar)</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {d.secondaryCauses.map((c, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}>
+                  <span>{c.name}</span>
+                  <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{c.votes} {c.votes === 1 ? "voto" : "votos"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
