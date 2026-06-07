@@ -11,7 +11,7 @@ import { retroByKey } from "@/lib/retros";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS } from "@/lib/data";
 import {
-  addCard, addVote, assignCardToCluster, averagePulse, createCluster, deleteCluster,
+  addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, deleteCluster,
   finalizeSession, getCardCounts, getCards, getClusters, getInputs, getMyCards, getParticipants,
   getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
   renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession,
@@ -141,7 +141,12 @@ export default function SalaPage() {
   const criticalStage = (session.result.critical as string) || flowRanked[0]?.key;
   const criticalMeta = FLOW_COLS.find((f) => f.key === criticalStage);
   const myCritical = (inputs.find((i) => i.userId === user.id && i.key === "critical")?.value as { stage?: string })?.stage;
-  const exit = () => router.push(isFacil ? `/equipos/${session.teamId}` : "/member");
+  // Si el facilitador sale de una sesión en vivo (sin haberla cerrado), la cerramos:
+  // no hay nadie conduciendo, así que deja de estar "iniciada" para los miembros.
+  const exit = () => {
+    if (isFacil && session.status === "live") { closeSession(sessionId); }
+    router.push(isFacil ? `/equipos/${session.teamId}` : "/member");
+  };
 
   if (closed) {
     return (

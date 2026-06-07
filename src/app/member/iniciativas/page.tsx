@@ -47,7 +47,8 @@ export default function MemberIniciativas() {
     const load = async () => { const s = await getOpenSessionForTeam(user.teamId!); if (active) setLive(s); };
     load();
     const unsub = subscribeTeamSessions(user.teamId, load);
-    return () => { active = false; unsub(); };
+    const poll = setInterval(load, 3000);
+    return () => { active = false; unsub(); clearInterval(poll); };
   }, [user?.teamId]);
 
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo.</p></Card></div>;

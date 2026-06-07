@@ -101,6 +101,10 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   const FIRST: Record<string, string> = { founding: "welcome", consolidate: "report", focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
   const RETRO_FIRST: Record<string, string> = { proof_design: "context", focus_impact: "problems", explore_flow: "funnel", focus_where: "funnel", proof_premortem: "risks", follow_blockers: "blockers", learn_learned: "learnings", learn_next: "decision", learn_team: "process", explore_purpose: "answers", focus_client: "perceptions", explore_relations: "relations" };
   const firstStep = (p.retro && RETRO_FIRST[p.retro]) || FIRST[p.type] || "pulse";
+  // Cerrar cualquier sesión anterior que haya quedado abierta en el equipo
+  // (evita "fantasmas" en vivo y garantiza una sola sesión activa por equipo).
+  await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() })
+    .eq("team_id", p.teamId).eq("status", "live");
   const { data, error } = await supabase.from("sessions").insert({
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,
     mode: "live", status: "live", step_key: firstStep, step_index: 0,
