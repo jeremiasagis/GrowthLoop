@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Card } from "@/components/ui";
 import { SessionTimer } from "@/components/session/Timer";
 import { AnonCard, CardBoard, CardComposer, type BoardCard } from "@/components/session/Cards";
+import {
+  BetTemplate, CausesTree, DotVote, Filters3, IceForm, IceRanking, Matrix2x2, PulseForm, PulseResult, VoteTally,
+  type CauseNode, type Ice, type Pulse, type VoteItem,
+} from "@/components/session/blocks";
 
 function Sub({ children }: { children: React.ReactNode }) {
   return <div className="eyebrow" style={{ marginBottom: 10 }}>{children}</div>;
@@ -44,6 +48,23 @@ export default function LabPage() {
   const [bReveal, setBReveal] = useState(false);
   const bId = useRef(0);
   const addB = (key: string) => { const t = (bDrafts[key] ?? "").trim(); if (!t) return; setBCards((c) => [...c, { id: `me${++bId.current}`, columnKey: key, text: t, mine: true }]); setBDrafts((d) => ({ ...d, [key]: "" })); };
+
+  // ── Votación ──
+  const [vItems, setVItems] = useState<VoteItem[]>([{ id: "a", label: "Reuniones sin decisiones", votes: 2, mine: 1 }, { id: "b", label: "Traspaso entre turnos", votes: 1, mine: 0 }, { id: "c", label: "Retrabajo en reportes", votes: 0, mine: 0 }]);
+  const vRemaining = 3 - vItems.reduce((s, i) => s + (i.mine ?? 0), 0);
+  const vAdd = (id: string) => { if (vRemaining <= 0) return; setVItems((x) => x.map((i) => i.id === id ? { ...i, mine: (i.mine ?? 0) + 1, votes: i.votes + 1 } : i)); };
+  const vRemove = (id: string) => setVItems((x) => x.map((i) => i.id === id && (i.mine ?? 0) > 0 ? { ...i, mine: (i.mine ?? 0) - 1, votes: i.votes - 1 } : i));
+  // ── ICE ──
+  const iceItems = [{ id: "i1", label: "Acta de 3 líneas al cerrar" }, { id: "i2", label: "Un dueño por decisión" }, { id: "i3", label: "Timebox de 10' por tema" }];
+  const [iceD, setIceD] = useState<Record<string, Ice>>({});
+  const iceRank = iceItems.map((it) => { const d = iceD[it.id] ?? { i: 5, c: 5, e: 5 }; return { id: it.id, label: it.label, score: Math.round((d.i + d.c + d.e) / 3 * 10) / 10 }; });
+  // ── Árbol ──
+  const [nodes, setNodes] = useState<CauseNode[]>([{ id: "n1", parentId: null, text: "La agenda no se prepara con tiempo", level: 0 }]);
+  const addNode = (parentId: string | null, text: string) => setNodes((n) => { const parent = n.find((x) => x.id === parentId); return [...n, { id: `n${n.length + 1}`, parentId, text, level: parent ? parent.level + 1 : 0 }]; });
+  // ── Apuesta / filtros / pulso ──
+  const [bet, setBet] = useState({ betIf: "", betThen: "", signal: "", deadline: "" });
+  const [filters, setFilters] = useState<{ observable?: boolean; medible?: boolean; equipo?: boolean }>({});
+  const [pulseD, setPulseD] = useState<Pulse>({ confianza: 60, comunic: 60, claridad: 60, foco: 60, seguridad: 60 });
 
   return (
     <div className="screen-pad" style={{ maxWidth: 760 }}>
@@ -89,6 +110,36 @@ export default function LabPage() {
         <Button size="sm" variant={bReveal ? "secondary" : "primary"} icon={bReveal ? "EyeOff" : "Eye"} onClick={() => setBReveal((r) => !r)}>{bReveal ? "Ocultar" : "Revelar tablero"}</Button>
       </div>
       <CardBoard columns={BOARD_COLS} cards={bCards} revealed={bReveal} drafts={bReveal ? undefined : bDrafts} onDraft={(k, v) => setBDrafts((d) => ({ ...d, [k]: v }))} onAdd={bReveal ? undefined : addB} />
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>4 · Votación de puntos</h2>
+      <div className="team-grid">
+        <Card pad={20}><Sub>Miembro · te quedan {vRemaining} puntos</Sub><DotVote items={vItems} remaining={vRemaining} onAdd={vAdd} onRemove={vRemove} /></Card>
+        <Card pad={20}><Sub>Facilitador · ranking en vivo</Sub><VoteTally items={vItems} /></Card>
+      </div>
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>5 · ICE Score</h2>
+      <div className="team-grid">
+        <Card pad={20}><Sub>Miembro · puntúa cada idea</Sub><IceForm items={iceItems} drafts={iceD} onChange={(id, ice) => setIceD((d) => ({ ...d, [id]: ice }))} /></Card>
+        <Card pad={20}><Sub>Ranking ICE</Sub><IceRanking items={iceRank} /></Card>
+      </div>
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>6 · Matriz 2×2</h2>
+      <Card pad={20}><Matrix2x2 axisX="Frecuencia" axisY="Gravedad" items={[{ id: "1", label: "Reuniones", x: 0.8, y: 0.7, rank: 0 }, { id: "2", label: "Reportes", x: 0.4, y: 0.8 }, { id: "3", label: "Onboarding", x: 0.2, y: 0.3 }]} /></Card>
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>7 · Árbol de causas</h2>
+      <Card pad={20}><CausesTree root="Las reuniones no terminan en decisiones" nodes={nodes} onAddChild={addNode} editable /></Card>
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>8 · Template de apuesta</h2>
+      <Card pad={20}><BetTemplate {...bet} editable onChange={(f, v) => setBet((b) => ({ ...b, [f]: v }))} /></Card>
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>9 · 3 filtros de validación</h2>
+      <Card pad={20}><Filters3 filters={filters} editable onToggle={(k) => setFilters((f) => ({ ...f, [k]: !f[k] }))} /></Card>
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>10 · Pulso del equipo</h2>
+      <div className="team-grid">
+        <Card pad={20}><Sub>Miembro · responde (anónimo)</Sub><PulseForm draft={pulseD} onChange={setPulseD} /></Card>
+        <Card pad={20}><Sub>Resultado (promedio)</Sub><PulseResult avg={pulseD} /></Card>
+      </div>
     </div>
   );
 }
