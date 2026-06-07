@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Card } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { SessionTimer } from "@/components/session/Timer";
+import { AnonCard, CardComposer } from "@/components/session/Cards";
 
 function Sub({ children }: { children: React.ReactNode }) {
   return <div className="eyebrow" style={{ marginBottom: 10 }}>{children}</div>;
@@ -20,6 +21,13 @@ export default function LabPage() {
       return () => { if (ref.current) clearInterval(ref.current); };
     }
   }, [running]);
+
+  // ── Tarjeta anónima demo ──
+  const [draft, setDraft] = useState("");
+  const [mine, setMine] = useState<string[]>([]);
+  const others = ["Esto lo escribió otra persona", "Una tarjeta ajena más"];
+  const [revealed, setRevealed] = useState(false);
+  const addMine = () => { const t = draft.trim(); if (!t) return; setMine((m) => [...m, t]); setDraft(""); };
 
   return (
     <div className="screen-pad" style={{ maxWidth: 760 }}>
@@ -45,6 +53,20 @@ export default function LabPage() {
           <SessionTimer secs={Math.min(secs, 18)} total={TOTAL} running={running} />
         </Card>
       </div>
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>2 · Tarjeta anónima</h2>
+      <Card pad={20} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <Sub>{revealed ? "Reveladas (todas iguales)" : "Escribiendo (tuyas en verde, ajenas ocultas)"}</Sub>
+          <Button size="sm" variant={revealed ? "secondary" : "primary"} icon={revealed ? "EyeOff" : "Eye"} onClick={() => setRevealed((r) => !r)}>{revealed ? "Ocultar" : "Revelar"}</Button>
+        </div>
+        <CardComposer value={draft} onChange={setDraft} onAdd={addMine} placeholder="Escribí una tarjeta…" disabled={revealed} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {mine.map((t, i) => <AnonCard key={`m${i}`} text={t} mine revealed={revealed} color="var(--violet)" />)}
+          {others.map((t, i) => <AnonCard key={`o${i}`} text={t} revealed={revealed} color="var(--violet)" />)}
+          {!mine.length && <p className="muted" style={{ fontSize: "var(--t-xs)" }}>Escribí una arriba para ver tu tarjeta en verde.</p>}
+        </div>
+      </Card>
     </div>
   );
 }
