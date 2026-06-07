@@ -270,6 +270,18 @@ export async function setInitiativeStatus(id: string, status: Initiative["status
   return {};
 }
 
+/** Invita un integrante a un equipo existente (copy-link). */
+export async function inviteMember(input: { teamId: string; orgId: string; email: string; name?: string }): Promise<{ token?: string; error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const name = input.name?.trim()
+    || input.email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const { error } = await supabase.from("team_members").insert({ team_id: input.teamId, name, initials: initialsOf(name) });
+  if (error) return { error: error.message };
+  const inv = await createInvitation({ email: input.email, name, role: "member", orgId: input.orgId, teamId: input.teamId });
+  await reloadData();
+  return { token: inv.token, error: inv.error };
+}
+
 export async function createAdmin(input: { name: string; email: string }): Promise<{ error?: string; token?: string }> {
   const supabase = getSupabaseBrowserClient();
   // El admin se crea sin org: él mismo crea y gestiona sus organizaciones.

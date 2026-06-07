@@ -4,11 +4,11 @@ import { useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
-  AlertBanner, AvatarStack, Avatar, Bar, Button, Card, EmptyState, Pill,
+  AlertBanner, AvatarStack, Avatar, Bar, Button, Card, CopyLink, EmptyState, Pill,
   PulseChart, ProgressRing, SectionTitle, StageBadge, Trend,
 } from "@/components/ui";
 import {
-  createInitiative, getFacilitators, getInitiatives, getTeam,
+  createInitiative, getFacilitators, getInitiatives, getTeam, inviteMember,
   setInitiativeStage, setInitiativeStatus, updateInitiative,
 } from "@/lib/repository";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
@@ -443,6 +443,52 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse }: { team: Team; isFacil:
   );
 }
 
+function InviteMemberModal({ team, onClose }: { team: Team; onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const valid = /\S+@\S+\.\S+/.test(email);
+
+  const invite = async () => {
+    if (!valid || busy) return;
+    setBusy(true);
+    const res = await inviteMember({ teamId: team.id, orgId: team.orgId, email });
+    setBusy(false);
+    if (res.error) setError(res.error); else if (res.token) setToken(res.token);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center" }}><Icon name="UserPlus" size={20} /></div>
+          <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>Invitar integrante</h3>
+        </div>
+        <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 18 }}>A <b style={{ color: "var(--ink-1)" }}>{team.name}</b>. Se genera un link para que la persona se registre y participe de las sesiones.</p>
+        {token ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="Check" size={16} /> Invitación lista. Pasale este link:</div>
+            <CopyLink path={`/invite/${token}`} />
+            <Button variant="ghost" onClick={onClose} style={{ alignSelf: "flex-end" }}>Listo</Button>
+          </div>
+        ) : (
+          <>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Email del integrante</label>
+            <input autoFocus value={email} onChange={(e) => { setEmail(e.target.value); setError(null); }} onKeyDown={(e) => e.key === "Enter" && invite()} placeholder="persona@empresa.com"
+              style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
+            {error && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#ff8b8b", fontSize: "var(--t-sm)", fontWeight: 600, marginTop: 12 }}><Icon name="TriangleAlert" size={16} /> {error}</div>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+              <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+              <Button icon="Link" disabled={!valid || busy} onClick={invite}>{busy ? "Generando…" : "Generar link"}</Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function TeamPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -451,6 +497,7 @@ export default function TeamPage() {
   const isFacil = user?.role === "facilitator";
   const team = getTeam(params.id || "t1");
   const [tab, setTab] = useState("seguimiento");
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   if (!team) return <div className="screen-pad">Equipo no encontrado.</div>;
   const lead = team.facilitatorId ? getFacilitators().find((f) => f.id === team.facilitatorId) : undefined;
@@ -494,6 +541,7 @@ export default function TeamPage() {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Button variant="secondary" icon="Spline" onClick={() => router.push(`/equipos/${team.id}/mapa`)}>Ver mapa</Button>
           <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
+          {isFacil && <Button icon="UserPlus" onClick={() => setInviteOpen(true)}>Invitar integrante</Button>}
         </div>
       </div>
 
@@ -521,6 +569,8 @@ export default function TeamPage() {
           </Card>
         )
       )}
+
+      {inviteOpen && <InviteMemberModal team={team} onClose={() => setInviteOpen(false)} />}
     </div>
   );
 }
