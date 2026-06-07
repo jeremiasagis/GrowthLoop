@@ -32,6 +32,43 @@ export function AnonCard({ text, mine, revealed, color = "var(--green)", author 
   );
 }
 
+export interface BoardCol { key: string; label: string; color: string; icon: string; sub?: string }
+export interface BoardCard { id: string; columnKey: string; text: string; mine?: boolean; author?: string }
+
+/** Tablero de columnas con tarjetas. Si se pasan drafts/onAdd, muestra el composer (modo escritura). */
+export function CardBoard({ columns, cards, counts, revealed, drafts, onDraft, onAdd }: {
+  columns: BoardCol[]; cards: BoardCard[]; counts?: Record<string, number>; revealed?: boolean;
+  drafts?: Record<string, string>; onDraft?: (key: string, v: string) => void; onAdd?: (key: string) => void;
+}) {
+  return (
+    <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: `repeat(${columns.length}, 1fr)`, gap: 14 }}>
+      {columns.map((col) => {
+        const colCards = cards.filter((c) => c.columnKey === col.key);
+        const count = counts?.[col.key] ?? colCards.length;
+        return (
+          <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 14, display: "flex", flexDirection: "column", minHeight: 240 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: col.sub ? 4 : 12 }}>
+              <span style={{ color: col.color, display: "inline-flex" }}><Icon name={col.icon} size={17} /></span>
+              <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{col.label}</span>
+              <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "2px 8px" }}>{count}</span>
+            </div>
+            {col.sub && <div className="muted" style={{ fontSize: 10, marginBottom: 12 }}>{col.sub}</div>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
+              {colCards.map((c) => <AnonCard key={c.id} text={c.text} mine={c.mine} revealed={revealed} color={col.color} author={c.author} />)}
+              {!colCards.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 20 }}>Sin tarjetas aún…</div>}
+            </div>
+            {onAdd && drafts && (
+              <div style={{ marginTop: 12 }}>
+                <CardComposer value={drafts[col.key] ?? ""} onChange={(v) => onDraft?.(col.key, v)} onAdd={() => onAdd(col.key)} color={col.color} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function CardComposer({ value, onChange, onAdd, placeholder = "Sumar tarjeta…", color = "var(--green)", disabled }: { value: string; onChange: (v: string) => void; onAdd: () => void; placeholder?: string; color?: string; disabled?: boolean }) {
   return (
     <div style={{ display: "flex", gap: 6 }}>

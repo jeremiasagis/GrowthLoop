@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Card } from "@/components/ui";
 import { SessionTimer } from "@/components/session/Timer";
-import { AnonCard, CardComposer } from "@/components/session/Cards";
+import { AnonCard, CardBoard, CardComposer, type BoardCard } from "@/components/session/Cards";
 
 function Sub({ children }: { children: React.ReactNode }) {
   return <div className="eyebrow" style={{ marginBottom: 10 }}>{children}</div>;
@@ -28,6 +28,22 @@ export default function LabPage() {
   const others = ["Esto lo escribió otra persona", "Una tarjeta ajena más"];
   const [revealed, setRevealed] = useState(false);
   const addMine = () => { const t = draft.trim(); if (!t) return; setMine((m) => [...m, t]); setDraft(""); };
+
+  // ── Tablero demo ──
+  const BOARD_COLS = [
+    { key: "works", label: "Funciona", color: "var(--success)", icon: "ThumbsUp" },
+    { key: "blocks", label: "Nos traba", color: "var(--warning)", icon: "Construction" },
+    { key: "unsaid", label: "Nadie dice", color: "var(--violet)", icon: "EyeOff" },
+  ];
+  const [bCards, setBCards] = useState<BoardCard[]>([
+    { id: "o1", columnKey: "works", text: "Nos cubrimos en los picos" },
+    { id: "o2", columnKey: "blocks", text: "Las reuniones no cierran en decisiones" },
+    { id: "o3", columnKey: "unsaid", text: "Hay temas que evitamos" },
+  ]);
+  const [bDrafts, setBDrafts] = useState<Record<string, string>>({ works: "", blocks: "", unsaid: "" });
+  const [bReveal, setBReveal] = useState(false);
+  const bId = useRef(0);
+  const addB = (key: string) => { const t = (bDrafts[key] ?? "").trim(); if (!t) return; setBCards((c) => [...c, { id: `me${++bId.current}`, columnKey: key, text: t, mine: true }]); setBDrafts((d) => ({ ...d, [key]: "" })); };
 
   return (
     <div className="screen-pad" style={{ maxWidth: 760 }}>
@@ -67,6 +83,12 @@ export default function LabPage() {
           {!mine.length && <p className="muted" style={{ fontSize: "var(--t-xs)" }}>Escribí una arriba para ver tu tarjeta en verde.</p>}
         </div>
       </Card>
+
+      <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, margin: "30px 0 14px" }}>3 · Tablero de tarjetas</h2>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <Button size="sm" variant={bReveal ? "secondary" : "primary"} icon={bReveal ? "EyeOff" : "Eye"} onClick={() => setBReveal((r) => !r)}>{bReveal ? "Ocultar" : "Revelar tablero"}</Button>
+      </div>
+      <CardBoard columns={BOARD_COLS} cards={bCards} revealed={bReveal} drafts={bReveal ? undefined : bDrafts} onDraft={(k, v) => setBDrafts((d) => ({ ...d, [k]: v }))} onAdd={bReveal ? undefined : addB} />
     </div>
   );
 }
