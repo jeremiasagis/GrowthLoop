@@ -26,11 +26,20 @@ export interface PulseResponse {
 }
 export interface Participant { userId: string; name: string; initials: string; }
 export interface SessionCard { id: string; columnKey: string; text: string; anonymous: boolean; authorId?: string; clusterId?: string; }
+export interface SessionCluster { id: string; name: string; }
+export interface SessionVote { id: string; clusterId: string; userId: string; }
 
 const RETRO_NAME: Record<string, string> = {
   explore: "¿Dónde estamos?", focus: "¿Por qué pasa esto?", proof: "Diseñar la apuesta",
   follow: "¿Cómo vamos?", learn: "Cerrar el ciclo",
 };
+
+const CYCLE = ["explore", "focus", "proof", "follow", "learn"];
+function nextStageForward(current: string | undefined | null, completed: string): string | undefined {
+  const want = CYCLE[Math.min(CYCLE.length - 1, CYCLE.indexOf(completed) + 1)];
+  if (!current) return want;
+  return CYCLE.indexOf(want) > CYCLE.indexOf(current) ? want : current;
+}
 
 const newId = (p: string) => `${p}${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
 
@@ -161,9 +170,56 @@ export async function getCardCounts(sessionId: string): Promise<Record<string, n
   return c;
 }
 
+// ── Agrupar (clusters / tensiones) ──
+export async function getClusters(sessionId: string): Promise<SessionCluster[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.from("session_clusters").select("id,name").eq("session_id", sessionId).order("created_at", { ascending: true });
+  return (data ?? []).map((r: any) => ({ id: r.id, name: r.name }));
+}
+export async function createCluster(sessionId: string, name: string): Promise<string | null> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.from("session_clusters").insert({ session_id: sessionId, name }).select("id").single();
+  return error ? null : data.id;
+}
+export async function renameCluster(id: string, name: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  await supabase.from("session_clusters").update({ name }).eq("id", id);
+}
+export async function deleteCluster(id: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  await supabase.from("session_clusters").delete().eq("id", id); // cards.cluster_id -> null por FK
+}
+export async function assignCardToCluster(cardId: string, clusterId: string | null): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  await supabase.from("session_cards").update({ cluster_id: clusterId }).eq("id", cardId);
+}
+
+// ── Votar (un punto por fila) ──
+export async function getVotes(sessionId: string): Promise<SessionVote[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.from("session_votes").select("id,cluster_id,user_id").eq("session_id", sessionId);
+  return (data ?? []).map((r: any) => ({ id: r.id, clusterId: r.cluster_id, userId: r.user_id }));
+}
+export async function addVote(sessionId: string, clusterId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return;
+  await supabase.from("session_votes").insert({ session_id: sessionId, cluster_id: clusterId, user_id: auth.user.id });
+}
+export async function removeVote(sessionId: string, clusterId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return;
+  const { data } = await supabase.from("session_votes").select("id")
+    .eq("session_id", sessionId).eq("cluster_id", clusterId).eq("user_id", auth.user.id).limit(1);
+  if (data && data[0]) await supabase.from("session_votes").delete().eq("id", data[0].id);
+}
+
 /** Cierra la sesión: persiste el pulso como punto real del equipo (si hubo),
  *  lo registra en el log de sesiones y marca la sesión como cerrada. */
-export async function finalizeSession(session: LiveSession, opts: { pulseAvg?: PulseResponse | null; cardCount?: number }): Promise<{ error?: string }> {
+export interface ExploreSummary { priority: string; tensions: { name: string; signals: number; dots: number }[]; pausedNames: string[]; }
+
+export async function finalizeSession(session: LiveSession, opts: { pulseAvg?: PulseResponse | null; cardCount?: number; exploreSummary?: ExploreSummary }): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const date = new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
   const avg = opts.pulseAvg;
@@ -177,6 +233,7 @@ export async function finalizeSession(session: LiveSession, opts: { pulseAvg?: P
     });
   }
   const parts: string[] = [];
+  if (opts.exploreSummary?.priority) parts.push(`prioridad: ${opts.exploreSummary.priority}`);
   if (opts.cardCount) parts.push(`${opts.cardCount} ${opts.cardCount === 1 ? "señal" : "señales"}`);
   if (hasPulse) parts.push(`pulso ${overall}/100`);
   await supabase.from("session_logs").insert({
@@ -184,6 +241,29 @@ export async function finalizeSession(session: LiveSession, opts: { pulseAvg?: P
     date, stage: session.type, retro: RETRO_NAME[session.type] ?? "Sesión en vivo",
     out_text: parts.join(" · ") || "Sesión realizada", pulse: overall, delta: 0,
   });
+
+  // Iniciativa: guardar resultados de la etapa, avanzar etapa, y dejar las demás tensiones como pausadas.
+  if (session.initiativeId) {
+    const { data: initRow } = await supabase.from("initiatives").select("stage,data").eq("id", session.initiativeId).maybeSingle();
+    const patch: Record<string, unknown> = {};
+    if (opts.exploreSummary) {
+      patch.data = {
+        ...((initRow?.data as Record<string, unknown>) ?? {}),
+        explore: { priority: opts.exploreSummary.priority, tensions: opts.exploreSummary.tensions, pausedCount: opts.exploreSummary.pausedNames.length },
+      };
+    }
+    const ns = nextStageForward(initRow?.stage as string, session.type);
+    if (ns && ns !== (initRow?.stage as string)) patch.stage = ns;
+    if (Object.keys(patch).length) await supabase.from("initiatives").update(patch).eq("id", session.initiativeId);
+
+    if (opts.exploreSummary?.pausedNames?.length) {
+      const rows = opts.exploreSummary.pausedNames.map((n) => ({
+        id: newId("i"), team_id: session.teamId, title: n, stage: "explore", status: "paused", data: {},
+      }));
+      await supabase.from("initiatives").insert(rows);
+    }
+  }
+
   const { error } = await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", session.id);
   await reloadData();
   return { error: error?.message };
@@ -203,6 +283,8 @@ export function subscribeSession(sessionId: string, onChange: () => void): () =>
     .on("postgres_changes", { event: "*", schema: "public", table: "session_pulse_responses", filter: `session_id=eq.${sessionId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "session_participants", filter: `session_id=eq.${sessionId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "session_cards", filter: `session_id=eq.${sessionId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "session_clusters", filter: `session_id=eq.${sessionId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "session_votes", filter: `session_id=eq.${sessionId}` }, onChange)
     .subscribe();
   return () => { supabase.removeChannel(channel); };
 }
