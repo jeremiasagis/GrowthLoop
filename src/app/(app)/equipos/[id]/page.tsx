@@ -14,6 +14,7 @@ import {
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
+import { RetroPickerModal } from "@/components/RetroPickerModal";
 
 function Hl({ children, c = "var(--green)" }: { children: ReactNode; c?: string }) {
   return (
@@ -252,6 +253,7 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
   const router = useRouter();
   const { show } = useToast();
   const [busy, setBusy] = useState(false);
+  const [pick, setPick] = useState(false);
   const done = init.status === "done";
   const paused = init.status === "paused";
   const stageIdx = Math.max(0, CYCLE_STAGES.indexOf(init.stage));
@@ -338,12 +340,13 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
               <>
                 <Button size="sm" variant="ghost" icon="Pause" disabled={busy} onClick={() => changeStatus("paused")}>Pausar</Button>
                 <Button size="sm" variant="ghost" icon="CircleCheck" disabled={busy} onClick={() => changeStatus("done")}>Cerrar</Button>
-                <Button size="sm" icon="Radio" disabled={busy} onClick={() => router.push(`/sesion/${team.id}?init=${init.id}`)}>Abrir sesión</Button>
+                <Button size="sm" icon="Users" disabled={busy} onClick={() => setPick(true)}>Abrir sesión</Button>
               </>
             )}
           </div>
         )}
       </div>
+      {pick && <RetroPickerModal stage={init.stage} teamId={team.id} initiativeId={init.id} onClose={() => setPick(false)} />}
     </Card>
   );
 }
