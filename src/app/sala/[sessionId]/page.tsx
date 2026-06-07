@@ -258,16 +258,23 @@ export default function SalaPage() {
   );
 
   // helpers de escritura/revelado multi-columna (reusados por varias retros)
-  const MultiWrite = (cols: { key: string; label: string }[], color: string) => (
+  const MultiWrite = (cols: { key: string; label: string }[], color: string, editable = true) => (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
       {cols.map((col) => {
         const mine = myCards.filter((c) => c.columnKey === col.key);
+        const n = counts[col.key] ?? 0;
         const add = async () => { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, true); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
         return (
           <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12, display: "flex", flexDirection: "column", minHeight: 200 }}>
-            <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label} <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{counts[col.key] ?? 0}</span></div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>{mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div>
-            <div style={{ marginTop: 8, display: "flex", gap: 5 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "6px 8px", fontSize: "var(--t-xs)", outline: "none" }} /><button onClick={add} style={{ background: color, color: "#08120c", borderRadius: "var(--r-sm)", padding: "0 9px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button></div>
+            <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label} <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{n}</span></div>
+            {editable ? (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>{mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div>
+                <div style={{ marginTop: 8, display: "flex", gap: 5 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "6px 8px", fontSize: "var(--t-xs)", outline: "none" }} /><button onClick={add} style={{ background: color, color: "#08120c", borderRadius: "var(--r-sm)", padding: "0 9px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button></div>
+              </>
+            ) : (
+              <div style={{ flex: 1, display: "grid", placeItems: "center", color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", gap: 6, minHeight: 120 }}><Icon name="Lock" size={16} /><span className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, color: "var(--ink-1)" }}>{n}</span>{n === 1 ? "respuesta · oculta" : "respuestas · ocultas"}</div>
+            )}
           </div>
         );
       })}
@@ -416,20 +423,15 @@ export default function SalaPage() {
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define el resultado con el equipo.</p>;
     } else if (step === "decide") {
       sub = "¿El cambio se consolidó? El facilitador lo define con el equipo.";
-      content = isFacil ? (
+      content = (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 10 }}>
-            {CONS.map((o) => { const on = outcome === o.k; return (
-              <button key={o.k} onClick={() => setResult(sessionId, { outcome: o.k })} style={{ textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{o.l}</span></div>
-                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p>
-              </button>
-            ); })}
+            {CONS.map((o) => { const on = outcome === o.k; const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: isFacil || on ? 1 : 0.5 }; const inner = (<><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p></>); return isFacil ? <button key={o.k} onClick={() => setResult(sessionId, { outcome: o.k })} style={st}>{inner}</button> : <div key={o.k} style={st}>{inner}</div>; })}
           </div>
-          <textarea defaultValue={cnote} onBlur={(e) => setResult(sessionId, { cnote: e.target.value.trim() })} rows={3} placeholder="¿Qué ayudó o qué faltó para sostenerlo? Una nota para el equipo." style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+          {isFacil
+            ? <textarea defaultValue={cnote} onBlur={(e) => setResult(sessionId, { cnote: e.target.value.trim() })} rows={3} placeholder="¿Qué ayudó o qué faltó para sostenerlo? Una nota para el equipo." style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+            : cnote ? <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, padding: "0 4px" }}>{cnote}</p> : null}
         </div>
-      ) : (
-        <Card pad={24} style={{ textAlign: "center" }}>{ol ? <><Pill color={ol.c} bg={`color-mix(in srgb, ${ol.c} 14%, transparent)`} icon={ol.i}>{ol.l}</Pill>{cnote && <p style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>{cnote}</p>}</> : <span className="muted">Definiendo en equipo…</span>}</Card>
       );
       controls = isFacil
         ? <Button full size="lg" icon="Check" disabled={busy || !outcome} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar consolidación"}</Button>
@@ -819,17 +821,12 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Decidir cómo sigue</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador decide cómo sigue.</p>;
     } else if (step === "decide") {
       sub = "¿La prueba continúa, se ajusta o hay que escalar?";
-      content = isFacil ? (
+      content = (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
-          {FDECIDE.map((o) => { const on = fdecision === o.k; return (
-            <button key={o.k} onClick={() => setResult(sessionId, { fdecision: o.k })} style={{ textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div>
-              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p>
-            </button>
-          ); })}
+          {FDECIDE.map((o) => { const on = fdecision === o.k; const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: isFacil || on ? 1 : 0.5 }; const inner = (<><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p></>); return isFacil ? <button key={o.k} onClick={() => setResult(sessionId, { fdecision: o.k })} style={st}>{inner}</button> : <div key={o.k} style={st}>{inner}</div>; })}
         </div>
-      ) : <Card pad={24} style={{ textAlign: "center" }}>{fdl ? <Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill> : <span className="muted">Definiendo en equipo…</span>}</Card>;
-      controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy || !fdecision} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar check-in"}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra el check-in.</p>;
+      );
+      controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy || !fdecision} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar check-in"}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define cómo sigue y cierra.</p>;
     } else {
       sub = "Check-in registrado. La prueba sigue en curso.";
       content = <Card pad={20}>{Gauge}{fdl && <div style={{ marginTop: 12 }}><Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill></div>}</Card>;
@@ -882,21 +879,25 @@ export default function SalaPage() {
       });
       setBusy(false); exit();
     };
-    const PickRow = (opts: { k: string; l: string; c: string; i: string; d?: string }[], value: string, key: string) => (
+    const PickRow = (opts: { k: string; l: string; c: string; i: string; d?: string }[], value: string, key: string, editable = true) => (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
-        {opts.map((o) => { const on = value === o.k; return (
-          <button key={o.k} onClick={() => setResult(sessionId, { [key]: o.k })} style={{ textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}` }}>
+        {opts.map((o) => { const on = value === o.k; const inner = (
+          <>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div>
             {o.d && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p>}
-          </button>
-        ); })}
+          </>
+        ); const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: editable || on ? 1 : 0.5 };
+          return editable
+            ? <button key={o.k} onClick={() => setResult(sessionId, { [key]: o.k })} style={st}>{inner}</button>
+            : <div key={o.k} style={st}>{inner}</div>;
+        })}
       </div>
     );
 
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "result") {
       sub = "¿Funcionó la prueba? La mirada honesta del equipo. El facilitador la marca.";
-      content = isFacil ? PickRow(RESULTS, resultKey, "result") : <Card pad={24} style={{ textAlign: "center" }}>{rl ? <Pill color={rl.c} bg={`color-mix(in srgb, ${rl.c} 14%, transparent)`} icon="Flag">{rl.l}</Pill> : <span className="muted">Definiendo en equipo…</span>}</Card>;
+      content = PickRow(RESULTS, resultKey, "result", isFacil);
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !resultKey} onClick={fNext}>Siguiente: reflexión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador marca el resultado con el equipo.</p>;
     } else if (step === "reflect") {
       sub = "Un minuto de silencio para pensar. Lo que cada uno escribe es privado: el facilitador no lo ve.";
@@ -939,7 +940,7 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: decisión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define cómo sigue la iniciativa.</p>;
     } else if (step === "decision") {
       sub = "¿Cómo sigue esta iniciativa?";
-      content = isFacil ? PickRow(DECISIONS, decision, "decision") : <Card pad={24} style={{ textAlign: "center" }}>{dl ? <Pill color={dl.c} bg={`color-mix(in srgb, ${dl.c} 14%, transparent)`} icon="GitFork">{dl.l}</Pill> : <span className="muted">Definiendo en equipo…</span>}</Card>;
+      content = PickRow(DECISIONS, decision, "decision", isFacil);
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !decision} onClick={fNext}>Revisar y cerrar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define la decisión con el equipo.</p>;
     } else {
       sub = decision === "iterate" ? "Al cerrar, la iniciativa vuelve a Prueba." : "Al cerrar, la iniciativa queda cerrada.";
@@ -1097,7 +1098,7 @@ export default function SalaPage() {
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: propósito</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador cierra la votación.</p>;
   } else if (step === "purpose") {
     wide = true; sub = "¿Para qué existe este equipo? Tres preguntas públicas.";
-    content = isFacil ? <Card pad={20}><div style={{ display: "flex", gap: 12 }}>{PURPOSE_COLS.map((col) => (<div key={col.key} style={{ flex: 1, textAlign: "center", padding: "16px 8px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0", color: "var(--st-explore)" }}>{counts[col.key] ?? 0}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div></div>))}</div></Card> : MultiWrite(PURPOSE_COLS, "var(--st-explore)");
+    content = MultiWrite(PURPOSE_COLS, "var(--st-explore)", !isFacil);
     controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres. El facilitador revela cuando todos terminen.</p>;
   } else if (step === "purpose_reveal") {
     wide = true; sub = "¿Hay acuerdo o dispersión? Esa lectura es el dato.";
@@ -1111,7 +1112,7 @@ export default function SalaPage() {
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: flujo de trabajo</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador escribe el propósito con el equipo.</p>;
   } else if (step === "flow") {
     wide = true; sub = "Mapeamos el flujo de trabajo del equipo, etapa por etapa.";
-    content = isFacil ? <Card pad={20}><div style={{ display: "flex", gap: 10 }}>{FLOW_COLS.map((col) => (<div key={col.key} style={{ flex: 1, textAlign: "center", padding: "14px 6px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><span style={{ color: col.color }}><Icon name={col.icon} size={17} /></span><div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0" }}>{counts[col.key] ?? 0}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div></div>))}</div></Card> : MultiWrite(FLOW_COLS, "var(--st-explore)");
+    content = MultiWrite(FLOW_COLS, "var(--st-explore)", !isFacil);
     controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá lo que veas en cada etapa del flujo.</p>;
   } else if (step === "flow_reveal") {
     wide = true; sub = "El flujo completo. Ahora votamos la etapa más crítica.";
