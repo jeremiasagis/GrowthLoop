@@ -11,7 +11,7 @@ import {
   createInitiative, getFacilitators, getInitiatives, getTeam, inviteMember,
   setInitiativeStage, setInitiativeStatus, updateInitiative,
 } from "@/lib/repository";
-import { CYCLE_STAGES, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
+import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { createLiveSession } from "@/lib/session";
@@ -198,6 +198,52 @@ function fmtDate(iso?: string): string {
   return d.toLocaleDateString("es", { day: "2-digit", month: "short" });
 }
 
+function ContractCard({ team }: { team: Team }) {
+  const c = team.data?.contract;
+  const [open, setOpen] = useState(false);
+  if (!c) return null;
+  return (
+    <Card pad={20}>
+      <SectionTitle icon="Handshake" sub={`Firmado · ${c.date}`}
+        right={<button onClick={() => setOpen((o) => !o)} style={{ color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}>{open ? "Ocultar" : "Ver"}</button>}>
+        Contrato del equipo
+      </SectionTitle>
+      {c.answers?.purpose && <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, marginTop: 4 }}>{c.answers.purpose}</p>}
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+          {FOUNDING_QUESTIONS.map((q) => (
+            <div key={q.key}>
+              <div className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>{q.q}</div>
+              <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45, color: c.answers?.[q.key] ? "var(--ink-0)" : "var(--ink-3)" }}>{c.answers?.[q.key] || "—"}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!!(c.signedNames?.length) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+          {c.signedNames!.map((n) => <span key={n} className="num" style={{ fontSize: "var(--t-xs)", color: "var(--green)", background: "var(--success-bg)", borderRadius: 99, padding: "2px 9px", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="PenLine" size={11} />{n}</span>)}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function FoundingGateModal({ launching, onClose, onStart }: { launching: boolean; onClose: () => void; onStart: () => void }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)", textAlign: "center" }}>
+        <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 18%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Handshake" size={28} /></div>
+        <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>Antes de arrancar: la Sesión Fundacional</h3>
+        <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, lineHeight: 1.55 }}>Todavía no hicieron la Sesión Fundacional. Es donde el equipo acuerda <b style={{ color: "var(--ink-0)" }}>cómo va a funcionar</b> —propósito, decisiones, comunicación, desacuerdos y compromisos— y firma su contrato. Es el cimiento de todas las iniciativas.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
+          <Button full size="lg" icon="Handshake" disabled={launching} onClick={onStart}>{launching ? "Abriendo…" : "Iniciar Sesión Fundacional"}</Button>
+          <Button full variant="ghost" onClick={onClose}>Ahora no</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string; editing?: Initiative; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(editing?.title ?? "");
   const [desc, setDesc] = useState(editing?.description ?? "");
@@ -354,11 +400,25 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
 }
 
 function SeguimientoPanel({ team, isFacil, onOpenPulse }: { team: Team; isFacil: boolean; onOpenPulse: () => void }) {
+  const router = useRouter();
+  const { show } = useToast();
   const [, setNonce] = useState(0);
   const refresh = () => setNonce((n) => n + 1);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Initiative | null>(null);
+  const [gate, setGate] = useState(false);
+  const [launching, setLaunching] = useState(false);
   const [filter, setFilter] = useState<Initiative["status"]>("active");
+  const hasContract = !!team.data?.contract;
+  const startFounding = async () => {
+    if (launching) return;
+    setLaunching(true);
+    const res = await createLiveSession({ teamId: team.id, type: "founding" });
+    setLaunching(false);
+    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
+    router.push(`/sala/${res.session.id}`);
+  };
+  const newInitiative = () => { if (!hasContract) setGate(true); else setModal(true); };
   const inits = getInitiatives(team.id);
   const counts = {
     active: inits.filter((i) => i.status === "active").length,
@@ -381,8 +441,21 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse }: { team: Team; isFacil:
             <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, letterSpacing: "-0.02em" }}>Iniciativas</h2>
             <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Lo que el equipo está trabajando para mejorar. Cada una recorre su propio ciclo.</p>
           </div>
-          {isFacil && <Button icon="Plus" onClick={() => setModal(true)}>Nueva iniciativa</Button>}
+          {isFacil && <Button icon="Plus" onClick={newInitiative}>Nueva iniciativa</Button>}
         </div>
+
+        {isFacil && !hasContract && (
+          <Card pad={18} style={{ borderColor: "color-mix(in srgb, var(--st-explore) 40%, var(--line))", background: "color-mix(in srgb, var(--st-explore) 8%, transparent)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--st-explore) 20%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Handshake" size={22} /></div>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>Hagan la Sesión Fundacional</div>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>Antes de la primera iniciativa, acuerden cómo va a funcionar el equipo. Es el contrato que firman todos.</p>
+              </div>
+              <Button icon="Handshake" disabled={launching} onClick={startFounding}>{launching ? "Abriendo…" : "Iniciar Fundacional"}</Button>
+            </div>
+          </Card>
+        )}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {FILTERS.map((f) => {
@@ -401,7 +474,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse }: { team: Team; isFacil:
         {inits.length === 0 ? (
           <Card pad={0}>
             <EmptyState icon="Target" title="Todavía no hay iniciativas"
-              action={isFacil ? <Button icon="Plus" onClick={() => setModal(true)}>Crear la primera</Button> : undefined}>
+              action={isFacil ? <Button icon="Plus" onClick={newInitiative}>Crear la primera</Button> : undefined}>
               Una iniciativa nace de una sesión de exploración: definís qué quieren mejorar y empieza a recorrer las etapas. Pueden convivir varias en paralelo.
             </EmptyState>
           </Card>
@@ -437,10 +510,12 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse }: { team: Team; isFacil:
             <Row label="Sesiones realizadas" value={team.sessions.length} />
           </div>
         </Card>
+        {hasContract && <ContractCard team={team} />}
       </div>
 
       {modal && <InitiativeModal teamId={team.id} onClose={() => setModal(false)} onSaved={refresh} />}
       {editing && <InitiativeModal teamId={team.id} editing={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
+      {gate && <FoundingGateModal launching={launching} onClose={() => setGate(false)} onStart={startFounding} />}
     </div>
   );
 }

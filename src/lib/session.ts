@@ -33,6 +33,7 @@ export interface SessionVote { id: string; clusterId: string; userId: string; }
 export interface SessionInput { userId: string; key: string; value: Record<string, unknown>; }
 
 const RETRO_NAME: Record<string, string> = {
+  founding: "Sesión Fundacional",
   explore: "¿Dónde estamos?", focus: "¿Por qué pasa esto?", proof: "Diseñar la apuesta",
   follow: "¿Cómo vamos?", learn: "Cerrar el ciclo",
 };
@@ -97,7 +98,7 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
-  const FIRST: Record<string, string> = { focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
+  const FIRST: Record<string, string> = { founding: "welcome", focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
   const RETRO_FIRST: Record<string, string> = { proof_design: "context", focus_impact: "problems", explore_flow: "funnel", focus_where: "funnel", proof_premortem: "risks", follow_blockers: "blockers", learn_learned: "learnings", learn_next: "decision", learn_team: "process", explore_purpose: "answers", focus_client: "perceptions", explore_relations: "relations" };
   const firstStep = (p.retro && RETRO_FIRST[p.retro]) || FIRST[p.type] || "pulse";
   const { data, error } = await supabase.from("sessions").insert({
@@ -252,6 +253,7 @@ export async function finalizeSession(session: LiveSession, opts: {
   pulseAvg?: PulseResponse | null; cardCount?: number; summaryText?: string;
   dataKey?: string; dataValue?: unknown; pausedNames?: string[];
   noAdvance?: boolean; status?: string; stageOverride?: string;
+  teamData?: Record<string, unknown>;
 }): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const date = new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
@@ -296,6 +298,13 @@ export async function finalizeSession(session: LiveSession, opts: {
       }));
       await supabase.from("initiatives").insert(rows);
     }
+  }
+
+  // Equipo: guardar datos a nivel equipo (p.ej. el contrato de la Sesión Fundacional).
+  if (opts.teamData) {
+    const { data: teamRow } = await supabase.from("teams").select("data").eq("id", session.teamId).maybeSingle();
+    const prev = (teamRow?.data as Record<string, unknown>) ?? {};
+    await supabase.from("teams").update({ data: { ...prev, ...opts.teamData } }).eq("id", session.teamId);
   }
 
   const { error } = await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", session.id);

@@ -182,7 +182,30 @@ export interface Team {
   initiatives?: Initiative[];
   blocked?: boolean;
   facilitatorId?: string;
+  data?: TeamData;
 }
+
+/** Datos a nivel equipo guardados en teams.data (jsonb). */
+export interface TeamData {
+  contract?: TeamContract;
+}
+
+/** Contrato de equipo acordado y firmado en la Sesión Fundacional. */
+export interface TeamContract {
+  answers: Record<string, string>; // clave de pregunta -> acuerdo escrito
+  signedBy: string[];              // ids de quienes firmaron
+  signedNames?: string[];
+  date: string;                    // fecha de la sesión fundacional
+}
+
+/** Las 5 preguntas del contrato fundacional. */
+export const FOUNDING_QUESTIONS: { key: string; q: string; hint: string }[] = [
+  { key: "purpose", q: "¿Para qué existe este equipo?", hint: "El propósito que nos une, más allá de las tareas." },
+  { key: "decide", q: "¿Cómo tomamos las decisiones?", hint: "Quién decide qué, y cómo resolvemos cuando urge." },
+  { key: "talk", q: "¿Cómo nos hablamos cuando algo no funciona?", hint: "El acuerdo de comunicación honesta y respetuosa." },
+  { key: "disagree", q: "¿Qué hacemos cuando no estamos de acuerdo?", hint: "Cómo procesamos el conflicto sin romper el equipo." },
+  { key: "commit", q: "¿Qué nos comprometemos a sostener?", hint: "Los compromisos mínimos que todos firmamos." },
+];
 
 // ── Variables for the core team (Operaciones Centro) ──
 const T1_VARS: Variable[] = [

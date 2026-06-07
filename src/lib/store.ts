@@ -117,6 +117,7 @@ function mapTeam(t: any, initiatives: Initiative[] = []): Team {
     psychSafety: t.psych_safety, stage: t.stage as StageKey, activeVar: t.active_var,
     daysLeft: t.days_left, pulse, vars, experiment, sessions, initiatives,
     blocked: t.blocked || undefined, facilitatorId: t.facilitator_id ?? undefined,
+    data: (t.data as Team["data"]) ?? undefined,
   };
 }
 
