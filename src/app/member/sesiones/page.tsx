@@ -49,7 +49,7 @@ export default function MemberSesiones() {
         <Card pad={20}>
           <div style={{ position: "relative" }}>
             <div style={{ position: "absolute", left: 6, top: 8, bottom: 8, width: 2, background: "var(--line)" }} />
-            {sessions.map((s, i) => { const meta = STAGES[s.stage]; return (
+            {sessions.map((s, i) => { const meta = STAGES[s.stage] ?? { color: "var(--ink-3)" }; return (
               <div key={s.id} style={{ display: "flex", gap: 14, paddingBottom: i < sessions.length - 1 ? 16 : 0, position: "relative" }}>
                 <span style={{ width: 14, height: 14, borderRadius: 99, background: "var(--bg-1)", border: "2px solid " + meta.color, marginTop: 2, flex: "none", zIndex: 1 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>

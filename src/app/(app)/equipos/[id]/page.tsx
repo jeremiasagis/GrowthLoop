@@ -98,7 +98,7 @@ function SessionsLog({ team }: { team: Team }) {
       <div style={{ position: "relative" }}>
         <div style={{ position: "absolute", left: 6, top: 8, bottom: 8, width: 2, background: "var(--line)" }} />
         {team.sessions.map((s, i) => {
-          const st = STAGES[s.stage];
+          const st = STAGES[s.stage] ?? { color: "var(--ink-3)" };
           return (
             <div key={s.id} style={{ display: "flex", gap: 14, paddingBottom: i < team.sessions.length - 1 ? 16 : 0, position: "relative" }}>
               <span style={{ width: 14, height: 14, borderRadius: 99, background: "var(--bg-1)", border: "2px solid " + st.color, marginTop: 2, flex: "none", zIndex: 1 }} />
