@@ -152,9 +152,9 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit}>
         <Card pad={28} style={{ textAlign: "center", maxWidth: 440 }}>
-          <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Check" size={28} /></div>
-          <h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>La sesión terminó</h2>
-          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6, marginBottom: 18 }}>Gracias por participar. Lo trabajado quedó guardado en el equipo.</p>
+          <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name={user?.role === "member" ? "PartyPopper" : "Check"} size={28} /></div>
+          <h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{user?.role === "member" ? "¡Gracias por participar!" : "La sesión terminó"}</h2>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6, marginBottom: 18 }}>{user?.role === "member" ? "Lo que trabajaron quedó guardado en el equipo. ¡Nos vemos en la próxima sesión! 👋" : "Lo trabajado quedó guardado en el equipo."}</p>
           <Button full icon="ArrowLeft" onClick={exit}>Volver</Button>
         </Card>
       </Shell>
@@ -263,12 +263,12 @@ export default function SalaPage() {
   );
 
   // helpers de escritura/revelado multi-columna (reusados por varias retros)
-  const MultiWrite = (cols: { key: string; label: string }[], color: string, editable = true) => (
+  const MultiWrite = (cols: { key: string; label: string }[], color: string, editable = true, anonymous = true) => (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
       {cols.map((col) => {
         const mine = myCards.filter((c) => c.columnKey === col.key);
         const n = counts[col.key] ?? 0;
-        const add = async () => { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, true); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        const add = async () => { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, anonymous); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
         return (
           <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12, display: "flex", flexDirection: "column", minHeight: 200 }}>
             <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label} <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{n}</span></div>
@@ -285,9 +285,9 @@ export default function SalaPage() {
       })}
     </div>
   );
-  const MultiReveal = (cols: { key: string; label: string }[]) => (
+  const MultiReveal = (cols: { key: string; label: string }[], showAuthor = false) => (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-      {cols.map((col) => <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12 }}><div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label}</div><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{allCards.filter((c) => c.columnKey === col.key).map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div></div>)}
+      {cols.map((col) => <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12 }}><div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label}</div><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{allCards.filter((c) => c.columnKey === col.key).map((c) => { const author = showAuthor && c.authorId ? participants.find((p) => p.userId === c.authorId)?.name : undefined; return <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}{author && <span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· {author}</span>}</div>; })}</div></div>)}
     </div>
   );
   const facBar = (
@@ -407,25 +407,25 @@ export default function SalaPage() {
 
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "report") {
-      sub = `Pasaron ~30 días. ¿Se mantuvo "${change}"? Cada uno responde y el conteo se ve en vivo.`;
+      const shown = !!session.result.stuckShown;
+      sub = shown ? `Resultado: ¿se mantuvo "${change}"?` : `Pasaron ~30 días. ¿Se mantuvo "${change}"? Respondé. El conteo está oculto hasta que el facilitador lo muestre.`;
       content = (
         <Card pad={20}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {STUCK.map((s) => { const on = myStuck === s.v; return (
-              <button key={s.v} onClick={() => setMyInput(sessionId, "stuck", { v: s.v })} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-learn) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-learn)" : "var(--line)"}`, textAlign: "left" }}>
+              <button key={s.v} onClick={() => { if (!shown) setMyInput(sessionId, "stuck", { v: s.v }); }} disabled={shown} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-learn) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-learn)" : "var(--line)"}`, textAlign: "left", cursor: shown ? "default" : "pointer" }}>
                 <span style={{ color: on ? "var(--st-learn)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
                 <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{s.l}</span>
-                <div style={{ width: 110 }}><Bar value={((stuckCount[s.v] ?? 0) / maxS) * 100} color="var(--st-learn)" height={7} /></div>
-                <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{stuckCount[s.v] ?? 0}</span>
+                {shown && <><div style={{ width: 110 }}><Bar value={((stuckCount[s.v] ?? 0) / maxS) * 100} color="var(--st-learn)" height={7} /></div><span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{stuckCount[s.v] ?? 0}</span></>}
               </button>
             ); })}
           </div>
-          <div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", marginTop: 12 }}>{stuckVals.length} de {totalInRoom} respondieron</div>
+          <div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", marginTop: 12 }}>{!shown && <Icon name="EyeOff" size={13} />} {stuckVals.length} de {totalInRoom} respondieron</div>
         </Card>
       );
       controls = isFacil
-        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Definir el resultado</Button>
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define el resultado con el equipo.</p>;
+        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Definir el resultado</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { stuckShown: true })}>Mostrar respuestas ({stuckVals.length}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador muestra el resultado y lo define con el equipo.</p>;
     } else if (step === "decide") {
       sub = "¿El cambio se consolidó? El facilitador lo define con el equipo.";
       content = (
@@ -506,22 +506,38 @@ export default function SalaPage() {
       content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{causeCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron causas.</p>}</div>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Votar causas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo va a votar la causa que más pesa.</p>;
     } else if (step === "vote") {
-      sub = "¿Cuál causa pesa más? Cada uno vota; el facilitador confirma cuál profundizar.";
+      const shown = !!session.result.cvoteShown;
+      const cVoters = new Set(inputs.filter((i) => i.key === "cvote").map((i) => i.userId)).size;
       const maxC = Math.max(1, ...causeCards.map((c) => cvoteCount[c.id] ?? 0));
-      content = (
+      sub = shown ? "Resultado: cuál causa pesa más. El facilitador confirma cuál profundizar." : "¿Cuál causa pesa más? Votá una. La votación está oculta hasta que el facilitador la muestre.";
+      content = shown ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[...causeCards].sort((a, b) => (cvoteCount[b.id] ?? 0) - (cvoteCount[a.id] ?? 0)).map((c) => { const on = isFacil ? c.text === votedCause : myVote === c.id; return (
-            <button key={c.id} onClick={() => isFacil ? setResult(sessionId, { cause: c.text }) : setMyInput(sessionId, "cvote", { id: c.id })} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
+          {[...causeCards].sort((a, b) => (cvoteCount[b.id] ?? 0) - (cvoteCount[a.id] ?? 0)).map((c) => { const on = c.text === votedCause; return (
+            <button key={c.id} onClick={() => isFacil && setResult(sessionId, { cause: c.text })} disabled={!isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default" }}>
               <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
               <span style={{ flex: 1 }}>{c.text}</span>
               <div style={{ width: 80 }}><Bar value={((cvoteCount[c.id] ?? 0) / maxC) * 100} color="var(--st-focus)" height={6} /></div>
               <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{cvoteCount[c.id] ?? 0}</span>
             </button>
           ); })}
-          {!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron causas.</p>}
+          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 4 }}>Tocá la causa a profundizar (la más votada queda sugerida).</p>}
         </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {causeCards.map((c) => { const on = !isFacil && myVote === c.id; return (
+              <button key={c.id} onClick={() => { if (!isFacil) setMyInput(sessionId, "cvote", { id: c.id }); }} disabled={isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "default" : "pointer" }}>
+                <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span><span style={{ flex: 1 }}>{c.text}</span>
+              </button>
+            ); })}
+            {!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron causas.</p>}
+          </div>
+          <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {cVoters} de {totalInRoom} votaron</p>
+        </>
       );
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !votedCause} onClick={() => { if (!votedCause && topCause) setResult(sessionId, { cause: topCause.text }); fNext(); }}>Profundizar con 5 Porqués</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la causa que más pesa. El facilitador cierra la votación.</p>;
+      controls = isFacil
+        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !votedCause} onClick={() => { if (!votedCause && topCause) setResult(sessionId, { cause: topCause.text }); fNext(); }}>Profundizar con 5 Porqués</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { cvoteShown: true })}>Mostrar votación ({cVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la causa que más pesa. El facilitador muestra el resultado cuando todos voten.</p>;
     } else if (step === "deepen") {
       sub = 'Los "5 Porqués": preguntamos hasta la raíz. La última respuesta es la causa raíz.';
       content = (
@@ -666,21 +682,37 @@ export default function SalaPage() {
       content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron ideas.</p>}</div>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Votar la mejor idea</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo va a votar la mejor apuesta.</p>;
     } else if (step === "vote") {
-      sub = "¿Cuál es la mejor apuesta? Cada uno vota; el facilitador confirma cuál apostar.";
+      const shown = !!session.result.ivoteShown;
+      const iVoters = new Set(inputs.filter((i) => i.key === "ivote").map((i) => i.userId)).size;
       const maxV = Math.max(1, ...ideaCards.map((c) => ivoteCount[c.id] ?? 0));
-      content = (
+      sub = shown ? "Resultado: la mejor apuesta según el equipo. El facilitador confirma cuál." : "¿Cuál es la mejor apuesta? Votá una. La votación está oculta hasta que el facilitador la muestre.";
+      content = shown ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[...ideaCards].sort((a, b) => (ivoteCount[b.id] ?? 0) - (ivoteCount[a.id] ?? 0)).map((c) => { const on = isFacil ? c.text === chosen : myVote === c.id; return (
-            <button key={c.id} onClick={() => isFacil ? setResult(sessionId, { idea: c.text }) : setMyInput(sessionId, "ivote", { id: c.id })} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
+          {[...ideaCards].sort((a, b) => (ivoteCount[b.id] ?? 0) - (ivoteCount[a.id] ?? 0)).map((c) => { const on = c.text === chosen; return (
+            <button key={c.id} onClick={() => isFacil && setResult(sessionId, { idea: c.text })} disabled={!isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default" }}>
               <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
               <span style={{ flex: 1 }}>{c.text}</span>
               <div style={{ width: 80 }}><Bar value={((ivoteCount[c.id] ?? 0) / maxV) * 100} color="var(--st-proof)" height={6} /></div>
               <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{ivoteCount[c.id] ?? 0}</span>
             </button>
           ); })}
+          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 4 }}>Tocá la idea a apostar (la más votada queda sugerida).</p>}
         </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {ideaCards.map((c) => { const on = !isFacil && myVote === c.id; return (
+              <button key={c.id} onClick={() => { if (!isFacil) setMyInput(sessionId, "ivote", { id: c.id }); }} disabled={isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "default" : "pointer" }}>
+                <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span><span style={{ flex: 1 }}>{c.text}</span>
+              </button>
+            ); })}
+          </div>
+          <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {iVoters} de {totalInRoom} votaron</p>
+        </>
       );
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !chosen} onClick={() => { if (!chosen && topIdea) setResult(sessionId, { idea: topIdea.text }); fNext(); }}>Pre-mortem de la idea</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la idea que más te convence. El facilitador cierra la votación.</p>;
+      controls = isFacil
+        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !chosen} onClick={() => { if (!chosen && topIdea) setResult(sessionId, { idea: topIdea.text }); fNext(); }}>Pre-mortem de la idea</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { ivoteShown: true })}>Mostrar votación ({iVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la idea que más te convence. El facilitador muestra el resultado cuando todos voten.</p>;
     } else if (step === "premortem") {
       sub = "Pre-mortem: imaginá que en 15 días la prueba fracasó. ¿Qué salió mal? (anónimo)";
       content = (
@@ -997,7 +1029,7 @@ export default function SalaPage() {
       content = <Card pad={28} style={{ textAlign: "center" }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Check" size={28} /></div><h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>¡Listo!</h2><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>Tu pulso quedó guardado (anónimo). {responses.length} de {totalInRoom} respondieron.</p></Card>;
       controls = <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá a que el facilitador continúe.</p>;
     } else {
-      content = <Card pad={24}><div style={{ display: "flex", flexDirection: "column", gap: 20 }}>{PULSE_DIMS.map((d) => (<div key={d.key}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span><span className="num" style={{ fontWeight: 700, color: d.color }}>{draft[d.key]}</span></div><input type="range" min={0} max={100} value={draft[d.key]} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: Number(e.target.value) }))} style={{ width: "100%", accentColor: d.color }} /></div>))}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="Lock" size={13} /> Anónimo: solo se muestra el promedio.</p></Card>;
+      content = <Card pad={24}><div style={{ display: "flex", flexDirection: "column", gap: 20 }}>{PULSE_DIMS.map((d) => (<div key={d.key}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span><span className="num" style={{ fontWeight: 700, color: d.color }}>{draft[d.key]}</span></div><input type="range" min={0} max={100} value={draft[d.key]} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: Number(e.target.value) }))} style={{ width: "100%", accentColor: d.color }} /></div>))}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="Lock" size={13} /> Anónimo: solo se muestra el promedio.</p><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 6, textAlign: "center" }}>{responses.length} de {totalInRoom} respondieron</p></Card>;
       controls = <Button full size="lg" icon="Send" disabled={busy} onClick={submitMyPulse}>{busy ? "Enviando…" : "Enviar mi pulso"}</Button>;
     }
   } else if (step === "pulse_reveal") {
@@ -1075,21 +1107,32 @@ export default function SalaPage() {
     );
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={goNext}>Siguiente: votar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa y pasa a la votación.</p>;
   } else if (step === "vote") {
-    sub = "¿Qué tensión atendemos primero? Cada uno reparte sus puntos.";
+    const shown = !!session.result.voteShown;
+    const voters = new Set(votes.map((v) => v.userId)).size;
     const max = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
-    content = (
+    sub = shown ? "Resultado de la votación: qué tensión atendemos primero." : "¿Qué tensión atendemos primero? Repartí tus puntos. La votación está oculta hasta que el facilitador la muestre.";
+    content = shown ? (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {ranked.map((cl, i) => (
+          <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="num" style={{ width: 20, fontWeight: 700, color: i === 0 ? "var(--green)" : "var(--ink-3)" }}>{i + 1}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}</div>
+              <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i === 0 ? "var(--green)" : "var(--violet)"} height={7} />
+            </div>
+            <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
+          </div>
+        ))}
+      </div>
+    ) : (
       <>
         {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--green)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {ranked.map((cl, i) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
-            <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span className="num" style={{ width: 20, fontWeight: 700, color: i === 0 ? "var(--green)" : "var(--ink-3)" }}>{i + 1}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}</div>
-                <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i === 0 ? "var(--green)" : "var(--violet)"} height={7} />
-              </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
+            <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+              <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
               {isFacil
-                ? <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
+                ? (mine > 0 ? <span className="num" style={{ color: "var(--green)", fontWeight: 700 }}>{mine}</span> : <span className="faint" style={{ fontSize: "var(--t-xs)" }}>—</span>)
                 : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <button onClick={() => voteCluster(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
                     <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
@@ -1098,16 +1141,19 @@ export default function SalaPage() {
             </div>
           ); })}
         </div>
+        <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {voters} de {totalInRoom} votaron</p>
       </>
     );
-    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: propósito</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador cierra la votación.</p>;
+    controls = isFacil
+      ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: propósito</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { voteShown: true })}>Mostrar votación ({voters}/{totalInRoom})</Button>)
+      : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado cuando todos terminen.</p>;
   } else if (step === "purpose") {
-    wide = true; sub = "¿Para qué existe este equipo? Tres preguntas públicas.";
-    content = MultiWrite(PURPOSE_COLS, "var(--st-explore)", !isFacil);
+    wide = true; sub = "¿Para qué existe este equipo? Tres preguntas. Las respuestas son públicas (con tu nombre).";
+    content = MultiWrite(PURPOSE_COLS, "var(--st-explore)", !isFacil, false);
     controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres. El facilitador revela cuando todos terminen.</p>;
   } else if (step === "purpose_reveal") {
     wide = true; sub = "¿Hay acuerdo o dispersión? Esa lectura es el dato.";
-    content = MultiReveal(PURPOSE_COLS);
+    content = MultiReveal(PURPOSE_COLS, true);
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Redactar el propósito</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador redacta el propósito del equipo.</p>;
   } else if (step === "purpose_decide") {
     sub = "El propósito del equipo, en una frase que todos puedan firmar.";
@@ -1124,20 +1170,36 @@ export default function SalaPage() {
     content = MultiReveal(FLOW_COLS);
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Votar etapa crítica</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo vota la etapa más crítica.</p>;
   } else if (step === "flow_vote") {
-    sub = "¿Cuál es la etapa más crítica del flujo? Cada uno elige una.";
+    const shown = !!session.result.flowShown;
+    const fVoters = new Set(inputs.filter((i) => i.key === "critical").map((i) => i.userId)).size;
     const maxF = Math.max(1, ...FLOW_COLS.map((f) => flowVotes[f.key] ?? 0));
-    content = (
+    sub = shown ? "Resultado: la etapa más crítica del flujo." : "¿Cuál es la etapa más crítica del flujo? Elegí una. La votación está oculta hasta que el facilitador la muestre.";
+    content = shown ? (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {flowRanked.map((f, i) => { const on = !isFacil && myCritical === f.key; return (
-          <button key={f.key} onClick={() => { if (!isFacil) setMyInput(sessionId, "critical", { stage: f.key }); }} disabled={isFacil} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}`, cursor: isFacil ? "default" : "pointer" }}>
-            <span style={{ color: on ? "var(--st-explore)" : (i === 0 ? "var(--st-explore)" : f.color) }}><Icon name={on ? "CircleCheck" : f.icon} size={17} /></span>
+        {flowRanked.map((f, i) => (
+          <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 0" }}>
+            <span style={{ color: i === 0 ? "var(--st-explore)" : f.color }}><Icon name={f.icon} size={17} /></span>
             <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{f.label}</div><Bar value={((flowVotes[f.key] ?? 0) / maxF) * 100} color={i === 0 ? "var(--st-explore)" : "var(--violet)"} height={6} /></div>
             <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{flowVotes[f.key] ?? 0}</span>
-          </button>
-        ); })}
+          </div>
+        ))}
       </div>
+    ) : (
+      <>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {FLOW_COLS.map((f) => { const on = !isFacil && myCritical === f.key; return (
+            <button key={f.key} onClick={() => { if (!isFacil) setMyInput(sessionId, "critical", { stage: f.key }); }} disabled={isFacil} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}`, cursor: isFacil ? "default" : "pointer" }}>
+              <span style={{ color: on ? "var(--st-explore)" : f.color }}><Icon name={on ? "CircleCheck" : f.icon} size={17} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{f.label}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{f.sub}</div></div>
+            </button>
+          ); })}
+        </div>
+        <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {fVoters} de {totalInRoom} votaron</p>
+      </>
     );
-    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Cerrar y ver el mapa</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la etapa más crítica. El facilitador cierra la votación.</p>;
+    controls = isFacil
+      ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Cerrar y ver el mapa</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { flowShown: true })}>Mostrar votación ({fVoters}/{totalInRoom})</Button>)
+      : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la etapa más crítica. El facilitador muestra el resultado cuando todos elijan.</p>;
   } else {
     sub = "El mapa final. Al cerrar, se guarda y la iniciativa avanza de etapa.";
     content = (
