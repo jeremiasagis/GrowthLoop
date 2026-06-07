@@ -19,6 +19,7 @@ export interface LiveSession {
   stepKey?: string;   // paso actual (lo maneja el facilitador)
   stepIndex: number;
   createdBy?: string;
+  retro?: string;     // qué retrospectiva eligió el facilitador (catálogo)
   result: Record<string, unknown>;  // resultado vivo del paso (causa raíz, etc.)
 }
 
@@ -50,7 +51,7 @@ function mapSession(r: any): LiveSession {
     id: r.id, teamId: r.team_id, initiativeId: r.initiative_id ?? undefined,
     type: r.type, mode: r.mode, status: r.status,
     stepKey: r.step_key ?? undefined, stepIndex: r.step_index ?? 0, createdBy: r.created_by ?? undefined,
-    result: (r.result as Record<string, unknown>) ?? {},
+    retro: r.retro ?? undefined, result: (r.result as Record<string, unknown>) ?? {},
   };
 }
 
@@ -92,7 +93,7 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 }
 
 // ── Escritura ──
-export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string }): Promise<{ session?: LiveSession; error?: string }> {
+export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
   const FIRST: Record<string, string> = { focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
@@ -100,7 +101,7 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   const { data, error } = await supabase.from("sessions").insert({
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,
     mode: "live", status: "live", step_key: firstStep, step_index: 0,
-    created_by: auth.user?.id ?? null,
+    created_by: auth.user?.id ?? null, retro: p.retro ?? null,
   }).select().single();
   if (error) return { error: error.message };
   return { session: mapSession(data) };

@@ -7,6 +7,7 @@ import { Logo } from "@/components/AppShell";
 import { Avatar, Bar, Button, Card, Pill } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getInitiatives, getTeam } from "@/lib/repository";
+import { retroByKey } from "@/lib/retros";
 import { PULSE_DIMS } from "@/lib/data";
 import {
   addCard, addVote, assignCardToCluster, averagePulse, createCluster, deleteCluster,
@@ -126,11 +127,12 @@ export default function SalaPage() {
     );
   }
 
+  const retroLabel = retroByKey(session.retro)?.name;
   const Header = (sub: string) => (
     <div style={{ textAlign: "center", marginBottom: 24 }}>
       <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <span style={{ width: 9, height: 9, borderRadius: 99, background: "var(--green)", boxShadow: "0 0 8px var(--green)", animation: "glow-pulse 1.4s infinite" }} />
-        <span className="eyebrow" style={{ color: "var(--green)" }}>Sesión en vivo</span>
+        <span className="eyebrow" style={{ color: "var(--green)" }}>{retroLabel ?? "Sesión en vivo"}</span>
       </div>
       <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>{team?.name ?? "Equipo"}</h1>
       <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 4 }}>{sub}</p>
