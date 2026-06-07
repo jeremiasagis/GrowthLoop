@@ -74,7 +74,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -452,6 +452,109 @@ export default function SalaPage() {
       faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y lanzar la prueba"}</Button>;
     }
     return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ EMBUDO · "¿Cómo fluye?" (explore_flow) / "¿Dónde se traba?" (focus_where) ════════
+  if (session.retro === "explore_flow" || session.retro === "focus_where") {
+    const isFlow = session.retro === "explore_flow";
+    const FUNNEL: { key: string; label: string; sub: string }[] = isFlow
+      ? [
+          { key: "in", label: "Entrada", sub: "¿Cómo nos llega el trabajo?" },
+          { key: "start", label: "Arranque", sub: "¿Cómo decidimos qué hacer primero?" },
+          { key: "exec", label: "Ejecución", sub: "¿Dónde se traba habitualmente?" },
+          { key: "deliver", label: "Entrega", sub: "¿Cómo sabemos que terminamos bien?" },
+        ]
+      : [
+          { key: "in", label: "Entrada", sub: "¿Cómo llega una tarea?" },
+          { key: "def", label: "Definición", sub: "¿Cómo se aclara qué hacer?" },
+          { key: "exec", label: "Ejecución", sub: "¿Dónde aparece la traba?" },
+          { key: "val", label: "Cierre", sub: "¿Cómo validamos antes de entregar?" },
+        ];
+    const votesByStage: Record<string, number> = {};
+    inputs.filter((i) => i.key === "critical").forEach((i) => { const s = (i.value as { stage?: string }).stage; if (s) votesByStage[s] = (votesByStage[s] ?? 0) + 1; });
+    const rankedStages = [...FUNNEL].sort((a, b) => (votesByStage[b.key] ?? 0) - (votesByStage[a.key] ?? 0));
+    const criticalKey = (session.result.critical as string) ?? rankedStages[0]?.key ?? "";
+    const criticalMeta = FUNNEL.find((f) => f.key === criticalKey);
+    const myCrit = (inputs.find((i) => i.userId === user.id && i.key === "critical")?.value as { stage?: string } | undefined)?.stage;
+    const totalFunnelCards = FUNNEL.reduce((a, f) => a + (counts[f.key] ?? 0), 0);
+    const critSubmitters = new Set(inputs.filter((i) => i.key === "critical").map((i) => i.userId)).size;
+    const maxStageVotes = Math.max(1, ...FUNNEL.map((f) => votesByStage[f.key] ?? 0));
+
+    if (!isFacil) {
+      if (step === "funnel") {
+        const add = async (k: string) => { const t = (cardDraft[k] ?? "").trim(); if (!t) return; await addCard(sessionId, k, t, true); setCardDraft((d) => ({ ...d, [k]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 920 }}>
+              {Header(isFlow ? "¿Qué pasa en cada etapa de nuestro trabajo? Una percepción por tarjeta." : `Mapeemos el flujo de "${subject}". ¿Qué pasa en cada etapa?`)}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                {FUNNEL.map((f) => { const mine = myCards.filter((c) => c.columnKey === f.key); return (
+                  <div key={f.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12, display: "flex", flexDirection: "column", minHeight: 200 }}>
+                    <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{f.label} <span className="num" style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)" }}>{counts[f.key] ?? 0}</span></div>
+                    <div className="muted" style={{ fontSize: 10, marginBottom: 8 }}>{f.sub}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>{mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-explore)", borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div>
+                    <div style={{ marginTop: 8, display: "flex", gap: 5 }}>
+                      <input value={cardDraft[f.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [f.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add(f.key)} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "6px 8px", fontSize: "var(--t-xs)", outline: "none" }} />
+                      <button onClick={() => add(f.key)} style={{ background: "var(--st-explore)", color: "#08120c", borderRadius: "var(--r-sm)", padding: "0 9px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button>
+                    </div>
+                  </div>
+                ); })}
+              </div>
+            </div>
+          </Shell>
+        );
+      }
+      if (step === "funnel_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("El flujo, a la vista.")}<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 12 }}>{FUNNEL.map((f) => <div key={f.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12 }}><div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{f.label}</div><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{allCards.filter((c) => c.columnKey === f.key).map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div></div>)}</div></div></Shell>;
+      if (step === "funnel_vote") {
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 520 }}>
+              {Header("¿En qué etapa se pierde más? Elegí una.")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {FUNNEL.map((f) => { const on = myCrit === f.key; return (
+                  <button key={f.key} onClick={() => setMyInput(sessionId, "critical", { stage: f.key })} style={{ textAlign: "left", padding: "13px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ color: on ? "var(--st-explore)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span><b style={{ fontSize: "var(--t-sm)" }}>{f.label}</b></div>
+                    <div className="muted" style={{ fontSize: "var(--t-xs)", marginLeft: 27 }}>{f.sub}</div>
+                  </button>
+                ); })}
+              </div>
+            </div>
+          </Shell>
+        );
+      }
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("Etapa crítica identificada.")}<Card pad={20} style={{ textAlign: "center", borderColor: "var(--st-explore)" }}><div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 6 }}>Donde más se pierde</div><div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{criticalMeta?.label ?? "—"}</div><div className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 4 }}>{criticalMeta?.sub}</div></Card></div></Shell>;
+    }
+
+    // facilitador
+    const fSteps = ["funnel", "funnel_reveal", "funnel_vote", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => {
+      setBusy(true);
+      const label = criticalMeta?.label ?? "—";
+      if (isFlow) await finalizeSession(session, { summaryText: `Etapa crítica: ${label}`, dataKey: "explore", dataValue: { priority: label, criticalStage: label } });
+      else await finalizeSession(session, { summaryText: `Traba en: ${label}`, dataKey: "focus", dataValue: { where: label, priority: label }, noAdvance: true });
+      setBusy(false); exit();
+    };
+    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "", wide = false;
+    if (step === "funnel") {
+      fsub = "Los miembros cargan percepciones por etapa del flujo.";
+      fbody = <div style={{ display: "flex", gap: 10 }}>{FUNNEL.map((f) => <div key={f.key} style={{ flex: 1, textAlign: "center", padding: "14px 6px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{counts[f.key] ?? 0}</div><div className="muted" style={{ fontSize: 10 }}>{f.label}</div></div>)}</div>;
+      faction = <Button full size="lg" icon="Eye" disabled={busy || totalFunnelCards === 0} onClick={fNext}>Revelar ({totalFunnelCards})</Button>;
+    } else if (step === "funnel_reveal") {
+      wide = true; fsub = "El flujo completo. Después votan la etapa crítica.";
+      fbody = <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 12 }}>{FUNNEL.map((f) => <div key={f.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12 }}><div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{f.label}</div><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{allCards.filter((c) => c.columnKey === f.key).map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div></div>)}</div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Votar etapa crítica</Button>;
+    } else if (step === "funnel_vote") {
+      fsub = "¿En qué etapa se pierde más? (votación en vivo)";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{rankedStages.map((f, i) => <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 12 }}><span className="num" style={{ width: 20, fontWeight: 700, color: i === 0 ? "var(--st-explore)" : "var(--ink-3)" }}>{i + 1}</span><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{f.label}</div><Bar value={((votesByStage[f.key] ?? 0) / maxStageVotes) * 100} color={i === 0 ? "var(--st-explore)" : "var(--violet)"} height={7} /></div><span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByStage[f.key] ?? 0}</span></div>)}<div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>{critSubmitters} de {totalInRoom} votaron</div></div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Cerrar</Button>;
+    } else {
+      fsub = isFlow ? "Etapa crítica del flujo. Al cerrar, queda como foco a trabajar." : "La traba está en esta etapa. Después: ¿Por qué está pasando?";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{rankedStages.map((f, i) => { const on = f.key === criticalKey; return <button key={f.key} onClick={() => setResult(sessionId, { critical: f.key })} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}`, borderRadius: "var(--r-md)", fontSize: "var(--t-sm)" }}><span style={{ color: on ? "var(--st-explore)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span><span style={{ flex: 1 }}>{f.label} <span className="muted" style={{ fontSize: "var(--t-xs)" }}>· {f.sub}</span></span><span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{votesByStage[f.key] ?? 0}</span>{i === 0 && <Pill color="var(--st-explore)" bg="color-mix(in srgb, var(--st-explore) 14%, transparent)">top</Pill>}</button>; })}</div>;
+      faction = <Button full size="lg" icon="Check" disabled={busy || !criticalKey} onClick={fFinish}>{busy ? "Guardando…" : "Confirmar etapa crítica"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
   }
 
   // ════════ FOCO · "Impacto y frecuencia" (focus_impact) ════════
