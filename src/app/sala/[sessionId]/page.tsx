@@ -70,7 +70,7 @@ export default function SalaPage() {
       ]);
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -304,6 +304,310 @@ export default function SalaPage() {
       fsub = "Causa raíz definida. Al cerrar, la iniciativa avanza a Prueba.";
       fbody = <Card pad={18} style={{ textAlign: "center", borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causa raíz</div><div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{root || "—"}</div></Card>;
       faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ PRUEBA (Diseñar la apuesta) ════════
+  if (session.type === "proof") {
+    const ideaCards = allCards.filter((c) => c.columnKey === "idea");
+    const myIdeas = myCards.filter((c) => c.columnKey === "idea");
+    const ideaCount = counts["idea"] ?? 0;
+    const R = session.result;
+    const chosen = (R.idea as string) ?? "";
+    const betIf = (R.betIf as string) ?? "";
+    const betThen = (R.betThen as string) ?? "";
+    const signal = (R.signal as string) ?? "";
+    const responsible = (R.responsible as string) ?? "";
+    const deadline = (R.deadline as string) ?? "";
+    const field: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" };
+    const BetCard = (
+      <div style={{ padding: "14px 16px", background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 30%, transparent)", borderRadius: "var(--r-md)" }}>
+        <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>La apuesta</div>
+        <p style={{ fontSize: "var(--t-md)", lineHeight: 1.55 }}>Creemos que si <b style={{ color: "var(--green)" }}>{betIf || "…"}</b>, lograremos que <b style={{ color: "var(--st-proof)" }}>{betThen || "…"}</b>.</p>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10, fontSize: "var(--t-sm)" }}>
+          <span className="muted">Señal: <b style={{ color: "var(--ink-0)" }}>{signal || "—"}</b></span>
+          <span className="muted">Responsable: <b style={{ color: "var(--ink-0)" }}>{responsible || "—"}</b></span>
+          <span className="muted">Plazo: <b style={{ color: "var(--ink-0)" }}>{deadline || "—"}</b></span>
+        </div>
+      </div>
+    );
+
+    if (!isFacil) {
+      if (step === "ideas") {
+        const add = async () => {
+          const t = (cardDraft.idea ?? "").trim(); if (!t) return;
+          await addCard(sessionId, "idea", t, true);
+          setCardDraft((d) => ({ ...d, idea: "" }));
+          if (user) setMyCards(await getMyCards(sessionId, user.id));
+        };
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 560 }}>
+              {Header(`¿Qué podríamos probar para mover "${subject}"? Tirá ideas. Cantidad primero.`)}
+              <Card pad={24}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                  <input autoFocus value={cardDraft.idea ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, idea: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Una idea para probar…" style={field} />
+                  <Button icon="Plus" onClick={add}>Sumar</Button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {myIdeas.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}
+                  {!myIdeas.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Sumá la primera idea…</div>}
+                </div>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center" }}>{ideaCount} ideas entre todos · se revelan juntas</p>
+              </Card>
+            </div>
+          </Shell>
+        );
+      }
+      if (step === "ideas_reveal") {
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 560 }}>
+              {Header("Las ideas, a la vista. El facilitador elige cuál apostar.")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {ideaCards.map((c) => <div key={c.id} style={{ background: c.text === chosen ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${c.text === chosen ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}
+              </div>
+            </div>
+          </Shell>
+        );
+      }
+      if (step === "bet") {
+        return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("El facilitador está diseñando la apuesta con el equipo.")}{BetCard}</div></Shell>;
+      }
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("La apuesta quedó definida. ¡A probar!")}{BetCard}</div></Shell>;
+    }
+
+    // FACILITADOR (prueba)
+    const fSteps = ["ideas", "ideas_reveal", "bet", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, { cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosen, betIf, betThen, signal, responsible, deadline } });
+      setBusy(false); exit();
+    };
+    const partsBar = (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+        <div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div>
+        <span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span>
+      </div>
+    );
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "ideas") {
+      fsub = "Los miembros tiran ideas a ciegas. El contenido se revela todo junto.";
+      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-proof)" }}>{ideaCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>ideas propuestas</div></div>;
+      faction = <Button full size="lg" icon="Eye" disabled={busy || ideaCount === 0} onClick={fNext}>Revelar ideas ({ideaCount})</Button>;
+    } else if (step === "ideas_reveal") {
+      fsub = "Elegí la idea más simple y de más impacto para apostar.";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {ideaCards.map((c) => { const on = c.text === chosen; return (
+            <button key={c.id} onClick={() => setResult(sessionId, { idea: c.text })} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>{c.text}
+            </button>
+          ); })}
+          {!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>No se cargaron ideas.</p>}
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !chosen} onClick={fNext}>Diseñar la apuesta</Button>;
+    } else if (step === "bet") {
+      fsub = "Escribí la apuesta con el equipo. Se ve en vivo en las pantallas de todos.";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Creemos que si… <span className="faint">(acción)</span></label>
+            <textarea defaultValue={betIf || chosen} onBlur={(e) => setResult(sessionId, { betIf: e.target.value })} rows={2} placeholder="cerramos cada reunión con decisiones por escrito" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>…lograremos que <span className="faint">(resultado)</span></label>
+            <textarea defaultValue={betThen} onBlur={(e) => setResult(sessionId, { betThen: e.target.value })} rows={2} placeholder="el equipo avance sin volver a discutir lo mismo" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Señal a mirar</label>
+            <input defaultValue={signal} onBlur={(e) => setResult(sessionId, { signal: e.target.value })} placeholder="% de reuniones con decisiones registradas" style={field} />
+          </div>
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 9 }}>Responsable</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(team?.members ?? []).map((m, i) => { const on = responsible === m.name; return (
+                <button key={i} onClick={() => setResult(sessionId, { responsible: m.name })} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px 6px 6px", borderRadius: "var(--r-full)", background: on ? "color-mix(in srgb, var(--st-proof) 16%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line-2)"}`, fontSize: "var(--t-sm)", fontWeight: 600 }}>
+                  <Avatar name={m.name} initials={m.initials} size={24} idx={i} />{m.name}
+                </button>
+              ); })}
+              {!(team?.members ?? []).length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>El equipo no tiene integrantes cargados.</span>}
+            </div>
+          </div>
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 9 }}>Plazo para revisar</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {["1 semana", "15 días", "30 días"].map((d) => { const on = deadline === d; return <button key={d} onClick={() => setResult(sessionId, { deadline: d })} style={{ padding: "9px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-proof)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-proof)" : "var(--line-2)") }}>{d}</button>; })}
+            </div>
+          </div>
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>;
+    } else {
+      fsub = "La apuesta quedó definida. Al cerrar, la iniciativa avanza a Seguimiento.";
+      fbody = BetCard;
+      faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ SEGUIMIENTO (¿Cómo vamos?) ════════
+  if (session.type === "follow") {
+    const R = session.result;
+    const current = Number(R.current ?? 0);
+    const proof = initiative?.data?.proof as { signal?: string } | undefined;
+    const signalName = proof?.signal || "Señal de avance";
+    const onTrack = current >= 50;
+    const blockerCards = allCards.filter((c) => c.columnKey === "blocker");
+    const myBlockers = myCards.filter((c) => c.columnKey === "blocker");
+    const blockerCount = counts["blocker"] ?? 0;
+    const PROG = [{ l: "Sin avance", v: 0 }, { l: "Algo", v: 33 }, { l: "Bien", v: 66 }, { l: "Logrado", v: 100 }];
+    const Gauge = (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{signalName}</span>
+          <Pill color={onTrack ? "var(--success)" : "var(--warning)"} bg={onTrack ? "var(--success-bg)" : "var(--warning-bg)"} icon={onTrack ? "TrendingUp" : "TriangleAlert"}>{onTrack ? "En camino" : "Necesita atención"}</Pill>
+        </div>
+        <div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-follow)", marginBottom: 8 }}>{current}%</div>
+        <Bar value={current} glow color={onTrack ? "var(--green)" : "var(--warning)"} />
+      </div>
+    );
+
+    if (!isFacil) {
+      if (step === "progress") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("¿Cómo viene la prueba? El facilitador reporta el avance.")}<Card pad={24}>{Gauge}</Card></div></Shell>;
+      if (step === "blockers") {
+        const add = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return (
+          <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("¿Qué nos está trabando para sostener la prueba?")}
+            <Card pad={24}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <input autoFocus value={cardDraft.blocker ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, blocker: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Algo que nos traba…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
+                <Button icon="Plus" onClick={add}>Sumar</Button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {myBlockers.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}
+                {!myBlockers.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Si no hay trabas, esperá al facilitador.</div>}
+              </div>
+            </Card></div></Shell>
+        );
+      }
+      if (step === "blockers_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Las trabas, a la vista.")}<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{blockerCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin trabas. 🙌</p>}</div></div></Shell>;
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Avance registrado.")}<Card pad={24}>{Gauge}</Card></div></Shell>;
+    }
+
+    const fSteps = ["progress", "blockers", "blockers_reveal", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { cardCount: blockerCount, summaryText: `Avance: ${current}%`, dataKey: "follow", dataValue: { current, signal: signalName, blockers: blockerCards.map((c) => c.text) }, noAdvance: true }); setBusy(false); exit(); };
+    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "progress") {
+      fsub = "Reportá el avance de la prueba (con el equipo).";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{Gauge}<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{PROG.map((p) => { const on = current === p.v; return <button key={p.v} onClick={() => setResult(sessionId, { current: p.v })} style={{ padding: "9px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-follow)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-follow)" : "var(--line-2)") }}>{p.l}</button>; })}</div></div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: trabas</Button>;
+    } else if (step === "blockers") {
+      fsub = "Los miembros escriben las trabas a ciegas.";
+      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--warning)" }}>{blockerCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>trabas señaladas</div></div>;
+      faction = <Button full size="lg" icon="Eye" disabled={busy} onClick={fNext}>Revelar trabas ({blockerCount})</Button>;
+    } else if (step === "blockers_reveal") {
+      fsub = "Las trabas del equipo.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{blockerCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin trabas. 🙌</p>}</div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>;
+    } else {
+      fsub = "Check-in registrado. La prueba sigue en curso (no cambia de etapa).";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{Gauge}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{blockerCount} {blockerCount === 1 ? "traba" : "trabas"} registradas</div></div>;
+      faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar check-in"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ APRENDIZAJE (Cerrar el ciclo) ════════
+  if (session.type === "learn") {
+    const R = session.result;
+    const resultKey = (R.result as string) ?? "";
+    const decision = (R.decision as string) ?? "";
+    const learnCards = allCards.filter((c) => c.columnKey === "learning");
+    const myLearn = myCards.filter((c) => c.columnKey === "learning");
+    const learnCount = counts["learning"] ?? 0;
+    const RESULTS = [{ k: "yes", l: "Funcionó", c: "var(--success)", i: "CircleCheck" }, { k: "partial", l: "A medias", c: "var(--warning)", i: "CircleDot" }, { k: "no", l: "No funcionó", c: "var(--risk)", i: "CircleX" }];
+    const DECISIONS = [{ k: "consolidate", l: "Consolidar", c: "var(--success)", i: "Anchor", d: "Volverlo hábito" }, { k: "iterate", l: "Iterar", c: "var(--st-proof)", i: "RefreshCw", d: "Nueva apuesta" }, { k: "drop", l: "Soltar", c: "var(--ink-2)", i: "Archive", d: "Atender otra" }];
+    const rl = RESULTS.find((x) => x.k === resultKey);
+    const dl = DECISIONS.find((x) => x.k === decision);
+    const Picked = (
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {rl && <Pill color={rl.c} bg={`color-mix(in srgb, ${rl.c} 14%, transparent)`} icon="Flag">Resultado: {rl.l}</Pill>}
+        {dl && <Pill color={dl.c} bg={`color-mix(in srgb, ${dl.c} 14%, transparent)`} icon="GitFork">Decisión: {dl.l}</Pill>}
+      </div>
+    );
+
+    if (!isFacil) {
+      if (step === "result") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("¿Funcionó la prueba? El facilitador marca el resultado con el equipo.")}<Card pad={24} style={{ textAlign: "center" }}>{rl ? <Pill color={rl.c} bg={`color-mix(in srgb, ${rl.c} 14%, transparent)`} icon="Flag">{rl.l}</Pill> : <span className="muted">Definiendo…</span>}</Card></div></Shell>;
+      if (step === "learnings") {
+        const add = async () => { const t = (cardDraft.learning ?? "").trim(); if (!t) return; await addCard(sessionId, "learning", t, true); setCardDraft((d) => ({ ...d, learning: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return (
+          <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("¿Qué aprendimos? Lo que nos llevamos, sirva o no la prueba.")}
+            <Card pad={24}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <input autoFocus value={cardDraft.learning ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, learning: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Un aprendizaje…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
+                <Button icon="Plus" onClick={add}>Sumar</Button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {myLearn.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}
+                {!myLearn.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Sumá tu aprendizaje…</div>}
+              </div>
+            </Card></div></Shell>
+        );
+      }
+      if (step === "learnings_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Los aprendizajes del equipo.")}<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{learnCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</div></div></Shell>;
+      if (step === "decision") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("¿Y ahora qué? El facilitador define la decisión con el equipo.")}<Card pad={24} style={{ textAlign: "center" }}>{dl ? <Pill color={dl.c} bg={`color-mix(in srgb, ${dl.c} 14%, transparent)`} icon="GitFork">{dl.l}</Pill> : <span className="muted">Definiendo…</span>}</Card></div></Shell>;
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Ciclo cerrado.")}<Card pad={24} style={{ display: "flex", justifyContent: "center" }}>{Picked}</Card></div></Shell>;
+    }
+
+    const fSteps = ["result", "learnings", "learnings_reveal", "decision", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        cardCount: learnCount, summaryText: `Resultado: ${rl?.l ?? "—"} · ${dl?.l ?? "—"}`,
+        dataKey: "learn", dataValue: { result: resultKey, learnings: learnCards.map((c) => c.text), decision },
+        noAdvance: true, status: decision === "iterate" ? "active" : "done", stageOverride: decision === "iterate" ? "proof" : undefined,
+      });
+      setBusy(false); exit();
+    };
+    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
+    const PickRow = (opts: { k: string; l: string; c: string; i: string; d?: string }[], value: string, key: string) => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
+        {opts.map((o) => { const on = value === o.k; return (
+          <button key={o.k} onClick={() => setResult(sessionId, { [key]: o.k })} style={{ textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div>
+            {o.d && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p>}
+          </button>
+        ); })}
+      </div>
+    );
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "result") {
+      fsub = "La mirada honesta del equipo sobre el resultado.";
+      fbody = PickRow(RESULTS, resultKey, "result");
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !resultKey} onClick={fNext}>Siguiente: aprendizajes</Button>;
+    } else if (step === "learnings") {
+      fsub = "Los miembros escriben aprendizajes a ciegas.";
+      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-learn)" }}>{learnCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>aprendizajes</div></div>;
+      faction = <Button full size="lg" icon="Eye" disabled={busy || learnCount === 0} onClick={fNext}>Revelar aprendizajes ({learnCount})</Button>;
+    } else if (step === "learnings_reveal") {
+      fsub = "Lo que se lleva el equipo.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{learnCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: decisión</Button>;
+    } else if (step === "decision") {
+      fsub = "¿Cómo sigue esta iniciativa?";
+      fbody = PickRow(DECISIONS, decision, "decision");
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !decision} onClick={fNext}>Revisar y cerrar</Button>;
+    } else {
+      fsub = decision === "iterate" ? "Al cerrar, la iniciativa vuelve a Prueba." : "Al cerrar, la iniciativa queda cerrada.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{Picked}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{learnCount} {learnCount === 1 ? "aprendizaje" : "aprendizajes"} registrados</div></div>;
+      faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar el ciclo"}</Button>;
     }
     return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
   }

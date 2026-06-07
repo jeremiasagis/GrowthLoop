@@ -95,7 +95,8 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
-  const firstStep = p.type === "focus" ? "causes" : "pulse";
+  const FIRST: Record<string, string> = { focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
+  const firstStep = FIRST[p.type] ?? "pulse";
   const { data, error } = await supabase.from("sessions").insert({
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,
     mode: "live", status: "live", step_key: firstStep, step_index: 0,
@@ -231,6 +232,7 @@ export async function removeVote(sessionId: string, clusterId: string): Promise<
 export async function finalizeSession(session: LiveSession, opts: {
   pulseAvg?: PulseResponse | null; cardCount?: number; summaryText?: string;
   dataKey?: string; dataValue?: unknown; pausedNames?: string[];
+  noAdvance?: boolean; status?: string; stageOverride?: string;
 }): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const date = new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
@@ -261,8 +263,9 @@ export async function finalizeSession(session: LiveSession, opts: {
     if (opts.dataKey) {
       patch.data = { ...((initRow?.data as Record<string, unknown>) ?? {}), [opts.dataKey]: opts.dataValue };
     }
-    const ns = nextStageForward(initRow?.stage as string, session.type);
+    const ns = opts.stageOverride ?? (opts.noAdvance ? undefined : nextStageForward(initRow?.stage as string, session.type));
     if (ns && ns !== (initRow?.stage as string)) patch.stage = ns;
+    if (opts.status) patch.status = opts.status;
     if (Object.keys(patch).length) await supabase.from("initiatives").update(patch).eq("id", session.initiativeId);
 
     if (opts.pausedNames?.length) {

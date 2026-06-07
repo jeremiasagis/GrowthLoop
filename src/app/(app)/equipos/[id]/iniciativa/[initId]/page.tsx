@@ -263,9 +263,7 @@ export default function InitiativeDetailPage() {
             {!done && nextStage && <Button variant="secondary" icon="ChevronsRight" onClick={() => changeStage(nextStage)}>Avanzar a {STAGES[nextStage].label}</Button>}
             {done
               ? <Button variant="secondary" icon="RotateCcw" onClick={() => changeStatus("active")}>Reabrir</Button>
-              : ["explore", "focus"].includes(init.stage)
-                ? <Button icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>
-                : <Button icon="Radio" onClick={() => router.push(`/sesion/${team.id}?init=${init.id}`)}>Abrir sesión</Button>}
+              : <Button icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>}
           </div>
         )}
       </div>
@@ -326,9 +324,7 @@ export default function InitiativeDetailPage() {
                 <StageBody st={st} init={init} />
                 {current && isFacil && (
                   <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-                    {["explore", "focus"].includes(st)
-                      ? <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>
-                      : <Button size="sm" icon="Radio" onClick={() => router.push(`/sesion/${team.id}?init=${init.id}&stage=${st}`)}>Abrir sesión de {meta.label}</Button>}
+                    <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>
                   </div>
                 )}
               </Card>
