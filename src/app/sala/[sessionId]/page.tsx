@@ -98,7 +98,9 @@ export default function SalaPage() {
   useEffect(() => {
     load();
     const unsub = subscribeSession(sessionId, load);
-    return unsub;
+    // Respaldo: si Realtime no entrega (p.ej. RLS), igual sincronizamos cada ~2.5s.
+    const poll = setInterval(load, 2000);
+    return () => { unsub(); clearInterval(poll); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
