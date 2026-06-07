@@ -285,20 +285,26 @@ export default function SalaPage() {
     </div>
   );
 
-  // ════════ SESIÓN FUNDACIONAL · contrato de equipo ════════
+  // ════════ SESIÓN FUNDACIONAL · contrato (pantalla compartida) ════════
   if (session.type === "founding") {
     const answers = (session.result.answers as Record<string, string>) ?? {};
-    const signs = inputs.filter((i) => i.key === "sign");
-    const signerIds = new Set(signs.map((i) => i.userId));
+    const signerIds = new Set(inputs.filter((i) => i.key === "sign").map((i) => i.userId));
     const iSigned = signerIds.has(user.id);
     const signerNames = participants.filter((p) => signerIds.has(p.userId)).map((p) => p.name);
-    const taF: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" };
     const answeredCount = FOUNDING_QUESTIONS.filter((q) => (answers[q.key] ?? "").trim()).length;
-
-    const ContractView = (editable: boolean) => (
+    const taF: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" };
+    const fSteps = ["welcome", "contract", "sign", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => {
+      setBusy(true);
+      const contract = { answers, signedBy: [...signerIds], signedNames: signerNames, date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) };
+      await finalizeSession(session, { summaryText: `Contrato firmado por ${signerIds.size}`, teamData: { contract } });
+      setBusy(false); exit();
+    };
+    const QuestionCards = (editable: boolean) => (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {FOUNDING_QUESTIONS.map((q, i) => (
-          <Card key={q.key} pad={16} style={editable ? undefined : { borderColor: answers[q.key] ? "var(--st-explore)" : "var(--line)" }}>
+          <Card key={q.key} pad={16}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <span className="num" style={{ fontWeight: 800, color: "var(--st-explore)" }}>{i + 1}</span>
               <div style={{ flex: 1 }}>
@@ -314,76 +320,54 @@ export default function SalaPage() {
       </div>
     );
 
-    // ── Miembro ──
-    if (!isFacil) {
-      if (step === "welcome") {
-        return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 480 }}>{Header("Antes de arrancar a trabajar, acordamos cómo vamos a funcionar como equipo.")}<Card pad={28} style={{ textAlign: "center" }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 18%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Handshake" size={28} /></div><h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>Sesión Fundacional</h2><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Vamos a construir juntos el contrato del equipo. Te vamos a pedir que lo firmes al final.</p></Card></div></Shell>;
-      }
-      if (step === "contract") {
-        return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 640 }}>{Header("Estamos acordando el contrato. Hablen y construyan cada respuesta juntos.")}{ContractView(false)}</div></Shell>;
-      }
-      if (step === "sign") {
-        return (
-          <Shell onExit={exit}>
-            <div style={{ width: "100%", maxWidth: 560 }}>
-              {Header("Leé el contrato del equipo. Si estás de acuerdo, firmalo.")}
-              {ContractView(false)}
-              <div style={{ marginTop: 16 }}>
-                {iSigned
-                  ? <div style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="CircleCheck" size={20} /> Firmaste el contrato</div>
-                  : <Button full size="lg" icon="PenLine" onClick={() => setMyInput(sessionId, "sign", { ok: true })}>Firmo este contrato</Button>}
-                <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)", marginTop: 10 }}>{signerIds.size} de {totalInRoom} firmaron</p>
-              </div>
-            </div>
-          </Shell>
-        );
-      }
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("¡Contrato firmado! Ya pueden arrancar con su primera iniciativa.")}{ContractView(false)}</div></Shell>;
-    }
-
-    // ── Facilitador ──
-    const fSteps = ["welcome", "contract", "sign", "close"];
-    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const fFinish = async () => {
-      setBusy(true);
-      const contract = { answers, signedBy: [...signerIds], signedNames: signerNames, date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) };
-      await finalizeSession(session, { summaryText: `Contrato firmado por ${signerIds.size}`, teamData: { contract } });
-      setBusy(false); exit();
-    };
-    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "", fwide = false;
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
     if (step === "welcome") {
-      fsub = "Explicá el sentido: acordar cómo funcionamos antes de trabajar. Cuando todos estén, arrancá.";
-      fbody = <div style={{ textAlign: "center", padding: "8px 0" }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 18%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", margin: "0 auto 12px" }}><Icon name="Handshake" size={28} /></div><p style={{ fontSize: "var(--t-md)", fontWeight: 700 }}>Sesión Fundacional</p><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 4 }}>Construyan el contrato del equipo y fírmenlo.</p></div>;
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Empezar el contrato</Button>;
+      sub = "Antes de trabajar, acordamos cómo vamos a funcionar como equipo.";
+      content = <Card pad={28} style={{ textAlign: "center" }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 18%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Handshake" size={28} /></div><h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>Sesión Fundacional</h2><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Vamos a construir juntos el contrato del equipo y firmarlo entre todos.</p></Card>;
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Empezar el contrato</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador va a arrancar cuando estén todos.</p>;
     } else if (step === "contract") {
-      fwide = true; fsub = "Facilitá la conversación. Escribí el acuerdo del equipo en cada pregunta.";
-      fbody = ContractView(true);
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || answeredCount === 0} onClick={fNext}>Pasar a la firma ({answeredCount}/{FOUNDING_QUESTIONS.length})</Button>;
+      wide = true;
+      sub = isFacil ? "Facilitá la conversación y escribí el acuerdo de cada pregunta." : "El equipo está construyendo el contrato. Lo que se acuerda aparece acá.";
+      content = QuestionCards(isFacil);
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || answeredCount === 0} onClick={fNext}>Pasar a la firma ({answeredCount}/{FOUNDING_QUESTIONS.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador escribe lo que acuerdan. Fijate que te represente.</p>;
     } else if (step === "sign") {
-      fsub = "Cada integrante firma desde su pantalla. El contrato queda guardado en el equipo.";
-      fbody = (
+      wide = true;
+      sub = "Leé el contrato del equipo. Si estás de acuerdo, firmalo.";
+      content = (
         <>
-          {ContractView(false)}
-          <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <span className="eyebrow">Firmas</span>
-              <span className="num" style={{ fontWeight: 800, color: "var(--green)" }}>{signerIds.size}/{totalInRoom}</span>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {signerNames.map((n) => <Pill key={n} color="var(--green)" bg="var(--success-bg)" icon="PenLine">{n}</Pill>)}
-              {!signerNames.length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Esperando firmas…</span>}
-            </div>
+          {QuestionCards(false)}
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}><span className="eyebrow">Firmas</span><span className="num" style={{ fontWeight: 800, color: "var(--green)" }}>{signerIds.size}/{totalInRoom}</span></div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{signerNames.map((n) => <Pill key={n} color="var(--green)" bg="var(--success-bg)" icon="PenLine">{n}</Pill>)}{!signerNames.length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Esperando firmas…</span>}</div>
           </div>
-          {!iSigned && <div style={{ marginTop: 12 }}><Button full variant="secondary" icon="PenLine" onClick={() => setMyInput(sessionId, "sign", { ok: true })}>Firmar yo también</Button></div>}
         </>
       );
-      faction = <Button full size="lg" icon="Check" disabled={busy || signerIds.size === 0} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar el contrato"}</Button>;
+      controls = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {iSigned
+            ? <div style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="CircleCheck" size={20} /> Firmaste el contrato</div>
+            : <Button full size="lg" icon="PenLine" disabled={busy} onClick={() => setMyInput(sessionId, "sign", { ok: true })}>Firmo este contrato</Button>}
+          {isFacil && <Button full size="lg" variant={iSigned ? "primary" : "secondary"} icon="Check" disabled={busy || signerIds.size === 0} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar el contrato"}</Button>}
+          {!isFacil && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}>El facilitador cierra cuando estén las firmas.</p>}
+        </div>
+      );
+    } else {
+      sub = "¡Contrato firmado! Ya pueden arrancar con su primera iniciativa.";
+      content = QuestionCards(false);
+      controls = isFacil ? <Button full size="lg" icon="ArrowLeft" onClick={exit}>Volver al equipo</Button> : null;
     }
+
     return (
       <Shell onExit={exit}>
-        <div style={{ width: "100%", maxWidth: fwide ? 720 : 560 }}>
-          {Header(fsub)}
-          <Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card>
+        <div style={{ width: "100%", maxWidth: wide ? 720 : 560 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
         </div>
       </Shell>
     );
