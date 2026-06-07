@@ -98,7 +98,7 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
   const FIRST: Record<string, string> = { focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
-  const RETRO_FIRST: Record<string, string> = { proof_design: "context", focus_impact: "problems", explore_flow: "funnel", focus_where: "funnel" };
+  const RETRO_FIRST: Record<string, string> = { proof_design: "context", focus_impact: "problems", explore_flow: "funnel", focus_where: "funnel", proof_premortem: "risks", follow_blockers: "blockers" };
   const firstStep = (p.retro && RETRO_FIRST[p.retro]) || FIRST[p.type] || "pulse";
   const { data, error } = await supabase.from("sessions").insert({
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,

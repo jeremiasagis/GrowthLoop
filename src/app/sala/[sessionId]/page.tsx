@@ -74,7 +74,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -451,6 +451,68 @@ export default function SalaPage() {
       fbody = <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{Bet}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{confirmCount} {confirmCount === 1 ? "compromiso" : "compromisos"} · 3 filtros validados</div></div>;
       faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y lanzar la prueba"}</Button>;
     }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ PRUEBA · "¿Qué podría fallar?" (proof_premortem) ════════
+  if (session.retro === "proof_premortem") {
+    const riskCards = allCards.filter((c) => c.columnKey === "risk");
+    const myRisks = myCards.filter((c) => c.columnKey === "risk");
+    const riskCount = counts["risk"] ?? 0;
+    const mitigation = (session.result.mitigation as string) ?? "";
+    const ta: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none", resize: "vertical", fontFamily: "inherit" };
+    const RisksList = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{riskCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!riskCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin riesgos cargados.</p>}</div>;
+    const MitBox = mitigation ? <Card pad={14} style={{ borderColor: "var(--st-proof)" }}><div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 4 }}>Mitigación</div><div style={{ fontSize: "var(--t-sm)", whiteSpace: "pre-wrap" }}>{mitigation}</div></Card> : null;
+
+    if (!isFacil) {
+      if (step === "risks") {
+        const add = async () => { const t = (cardDraft.risk ?? "").trim(); if (!t) return; await addCard(sessionId, "risk", t, true); setCardDraft((d) => ({ ...d, risk: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Imaginá que en 15 días la prueba fracasó. ¿Por qué? Una razón por tarjeta.")}<Card pad={24}><div style={{ display: "flex", gap: 8, marginBottom: 14 }}><input autoFocus value={cardDraft.risk ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, risk: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="La prueba fracasó porque…" style={{ flex: 1, minWidth: 0, ...ta, resize: "none" }} /><Button icon="Plus" onClick={add}>Sumar</Button></div><div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myRisks.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}{!myRisks.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Sumá el primer riesgo…</div>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center" }}>{riskCount} riesgos entre todos</p></Card></div></Shell>;
+      }
+      if (step === "risks_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Los riesgos, a la vista.")}{RisksList}</div></Shell>;
+      if (step === "mitigate") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("El facilitador define cómo mitigar los riesgos.")}{RisksList}{MitBox && <div style={{ marginTop: 12 }}>{MitBox}</div>}</div></Shell>;
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Prueba más robusta. ¡A diseñarla!")}{MitBox}</div></Shell>;
+    }
+    const fSteps = ["risks", "risks_reveal", "mitigate", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `${riskCount} riesgos mitigados`, dataKey: "proof", dataValue: { risks: riskCards.map((c) => c.text), mitigation }, noAdvance: true }); setBusy(false); exit(); };
+    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "risks") { fsub = "Pre-mortem: los miembros escriben por qué fracasaría."; fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--risk)" }}>{riskCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>riesgos imaginados</div></div>; faction = <Button full size="lg" icon="Eye" disabled={busy || riskCount === 0} onClick={fNext}>Revelar riesgos ({riskCount})</Button>; }
+    else if (step === "risks_reveal") { fsub = "Los riesgos del equipo."; fbody = RisksList; faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Diseñar mitigaciones</Button>; }
+    else if (step === "mitigate") { fsub = "¿Qué hacemos antes de arrancar para reducir estos riesgos?"; fbody = <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{RisksList}<textarea defaultValue={mitigation} onBlur={(e) => setResult(sessionId, { mitigation: e.target.value })} rows={3} placeholder="Acciones concretas de mitigación (con responsables)…" style={ta} /></div>; faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>; }
+    else { fsub = "La prueba queda más robusta. (No cambia de etapa.)"; fbody = <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{RisksList}{MitBox}</div>; faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar"}</Button>; }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ SEGUIMIENTO · "¿Qué nos está frenando?" (follow_blockers) ════════
+  if (session.retro === "follow_blockers") {
+    const blockerCards = allCards.filter((c) => c.columnKey === "blocker");
+    const myBlockers = myCards.filter((c) => c.columnKey === "blocker");
+    const blockerCount = counts["blocker"] ?? 0;
+    const plan = (session.result.plan as string) ?? "";
+    const ta: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none", resize: "vertical", fontFamily: "inherit" };
+    const BlockersList = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{blockerCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin obstáculos cargados.</p>}</div>;
+    const PlanBox = plan ? <Card pad={14} style={{ borderColor: "var(--st-follow)" }}><div className="eyebrow" style={{ color: "var(--st-follow)", marginBottom: 4 }}>Plan de destrabe</div><div style={{ fontSize: "var(--t-sm)", whiteSpace: "pre-wrap" }}>{plan}</div></Card> : null;
+
+    if (!isFacil) {
+      if (step === "blockers") {
+        const add = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("¿Qué nos está frenando para avanzar con la prueba?")}<Card pad={24}><div style={{ display: "flex", gap: 8, marginBottom: 14 }}><input autoFocus value={cardDraft.blocker ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, blocker: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Lo que más nos frena es…" style={{ flex: 1, minWidth: 0, ...ta, resize: "none" }} /><Button icon="Plus" onClick={add}>Sumar</Button></div><div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myBlockers.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}{!myBlockers.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Sumá el primer obstáculo…</div>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center" }}>{blockerCount} obstáculos entre todos</p></Card></div></Shell>;
+      }
+      if (step === "blockers_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Los obstáculos, a la vista.")}{BlockersList}</div></Shell>;
+      if (step === "plan") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("El facilitador define el plan de destrabe.")}{BlockersList}{PlanBox && <div style={{ marginTop: 12 }}>{PlanBox}</div>}</div></Shell>;
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Plan de destrabe definido.")}{PlanBox}</div></Shell>;
+    }
+    const fSteps = ["blockers", "blockers_reveal", "plan", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `${blockerCount} obstáculos · plan definido`, dataKey: "follow", dataValue: { blockers: blockerCards.map((c) => c.text), plan }, noAdvance: true }); setBusy(false); exit(); };
+    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "blockers") { fsub = "Los miembros escriben qué los frena."; fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--warning)" }}>{blockerCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>obstáculos</div></div>; faction = <Button full size="lg" icon="Eye" disabled={busy || blockerCount === 0} onClick={fNext}>Revelar ({blockerCount})</Button>; }
+    else if (step === "blockers_reveal") { fsub = "Los obstáculos del equipo."; fbody = BlockersList; faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Diseñar el destrabe</Button>; }
+    else if (step === "plan") { fsub = "¿Qué hacemos en las próximas 48hs? ¿Quién?"; fbody = <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{BlockersList}<textarea defaultValue={plan} onBlur={(e) => setResult(sessionId, { plan: e.target.value })} rows={3} placeholder="Acciones de destrabe con responsables y plazo…" style={ta} /></div>; faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>; }
+    else { fsub = "Acciones de destrabe registradas. (Sigue en Seguimiento.)"; fbody = <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{BlockersList}{PlanBox}</div>; faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar"}</Button>; }
     return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
   }
 
