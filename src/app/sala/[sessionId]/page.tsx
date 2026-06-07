@@ -89,7 +89,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -1064,7 +1064,12 @@ export default function SalaPage() {
     const causeCards = allCards.filter((c) => c.columnKey === "cause");
     const myCauses = myCards.filter((c) => c.columnKey === "cause");
     const causeCount = counts["cause"] ?? 0;
-    const root = (session.result?.rootCause as string) ?? "";
+    const whys = (session.result?.whys as string[]) ?? [];
+    const votedCause = (session.result?.cause as string) ?? "";
+    const root = [...whys].reverse().find((w) => (w ?? "").trim()) || (session.result?.rootCause as string) || votedCause || "";
+    const cvoteCount: Record<string, number> = {};
+    inputs.forEach((i) => { if (i.key === "cvote") { const id = (i.value as { id?: string })?.id; if (id) cvoteCount[id] = (cvoteCount[id] ?? 0) + 1; } });
+    const topCause = [...causeCards].sort((a, b) => (cvoteCount[b.id] ?? 0) - (cvoteCount[a.id] ?? 0))[0];
 
     if (!isFacil) {
       if (step === "causes") {
@@ -1097,11 +1102,50 @@ export default function SalaPage() {
         return (
           <Shell onExit={exit}>
             <div style={{ width: "100%", maxWidth: 560 }}>
-              {Header("Las causas, a la vista. El facilitador define la causa raíz.")}
-              {root && <Card pad={16} style={{ marginBottom: 14, borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Causa raíz</div><div style={{ fontWeight: 700 }}>{root}</div></Card>}
+              {Header("Las causas, a la vista. Después votamos cuál pesa más.")}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {causeCards.map((c) => <div key={c.id} style={{ background: c.text === root ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${c.text === root ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}
+                {causeCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}
               </div>
+            </div>
+          </Shell>
+        );
+      }
+      if (step === "vote") {
+        const myVote = (inputs.find((i) => i.userId === user.id && i.key === "cvote")?.value as { id?: string })?.id;
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 560 }}>
+              {Header("¿Cuál causa te parece la que más pesa? Elegí una.")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {causeCards.map((c) => { const on = myVote === c.id; return (
+                  <button key={c.id} onClick={() => setMyInput(sessionId, "cvote", { id: c.id })} style={{ textAlign: "left", padding: "12px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, display: "flex", alignItems: "center", gap: 11, fontSize: "var(--t-sm)" }}>
+                    <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={18} /></span>{c.text}
+                  </button>
+                ); })}
+              </div>
+              <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 14 }}>El facilitador cierra la votación.</p>
+            </div>
+          </Shell>
+        );
+      }
+      if (step === "deepen") {
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 560 }}>
+              {Header('Los "5 Porqués": el equipo profundiza la causa hasta la raíz.')}
+              <Card pad={20}>
+                <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causa</div>
+                <div style={{ fontWeight: 700, marginBottom: 12 }}>{votedCause || "—"}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {whys.filter((w) => (w ?? "").trim()).map((w, i) => (
+                    <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span className="num" style={{ color: "var(--st-focus)", fontWeight: 800 }}>{i + 1}.</span>
+                      <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45 }}>{w}</div>
+                    </div>
+                  ))}
+                  {!whys.filter((w) => (w ?? "").trim()).length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Profundizando…</span>}
+                </div>
+              </Card>
             </div>
           </Shell>
         );
@@ -1110,11 +1154,12 @@ export default function SalaPage() {
     }
 
     // FACILITADOR (foco)
-    const fSteps = ["causes", "causes_reveal", "close"];
+    const fSteps = ["causes", "causes_reveal", "vote", "deepen", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const setWhy = (idx: number, val: string) => { const next = [...whys]; next[idx] = val; setResult(sessionId, { whys: next }); };
     const fFinish = async () => {
       setBusy(true);
-      await finalizeSession(session, { cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, causes: causeCards.map((c) => c.text) } });
+      await finalizeSession(session, { cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, cause: votedCause, whys: whys.filter((w) => (w ?? "").trim()), causes: causeCards.map((c) => c.text) } });
       setBusy(false); exit();
     };
     const partsBar = (
@@ -1129,21 +1174,53 @@ export default function SalaPage() {
       fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-focus)" }}>{causeCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>causas propuestas</div></div>;
       faction = <Button full size="lg" icon="Eye" disabled={busy || causeCount === 0} onClick={fNext}>Revelar causas ({causeCount})</Button>;
     } else if (step === "causes_reveal") {
-      fsub = "Con el equipo, elegí la causa raíz (tocá una).";
+      fsub = "Repasen las causas. Después el equipo vota cuál pesa más.";
       fbody = (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {causeCards.map((c) => { const on = c.text === root; return (
-            <button key={c.id} onClick={() => setResult(sessionId, { rootCause: c.text })} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>{c.text}
+          {causeCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}
+          {!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>No se cargaron causas.</p>}
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Votar causas</Button>;
+    } else if (step === "vote") {
+      fsub = "El equipo vota la causa que más pesa. Confirmá cuál vamos a profundizar.";
+      const maxC = Math.max(1, ...causeCards.map((c) => cvoteCount[c.id] ?? 0));
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[...causeCards].sort((a, b) => (cvoteCount[b.id] ?? 0) - (cvoteCount[a.id] ?? 0)).map((c) => { const on = c.text === votedCause; return (
+            <button key={c.id} onClick={() => setResult(sessionId, { cause: c.text })} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
+              <span style={{ flex: 1 }}>{c.text}</span>
+              <div style={{ width: 80 }}><Bar value={((cvoteCount[c.id] ?? 0) / maxC) * 100} color="var(--st-focus)" height={6} /></div>
+              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{cvoteCount[c.id] ?? 0}</span>
             </button>
           ); })}
           {!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>No se cargaron causas.</p>}
         </div>
       );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !votedCause} onClick={() => { if (!votedCause && topCause) setResult(sessionId, { cause: topCause.text }); fNext(); }}>Profundizar con 5 Porqués</Button>;
+    } else if (step === "deepen") {
+      fsub = "Preguntá «¿por qué?» hasta llegar a la raíz. La última respuesta es la causa raíz.";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Card pad={14} style={{ borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Causa votada</div><div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{votedCause || "—"}</div></Card>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span className="num" style={{ color: "var(--st-focus)", fontWeight: 800, width: 18 }}>{i + 1}</span>
+              <input defaultValue={whys[i] ?? ""} onBlur={(e) => setWhy(i, e.target.value)} placeholder={`¿Por qué? (${i + 1})`} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} />
+            </div>
+          ))}
+        </div>
+      );
       faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !root} onClick={fNext}>Confirmar causa raíz</Button>;
     } else {
       fsub = "Causa raíz definida. Al cerrar, la iniciativa avanza a Prueba.";
-      fbody = <Card pad={18} style={{ textAlign: "center", borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causa raíz</div><div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{root || "—"}</div></Card>;
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Card pad={18} style={{ textAlign: "center", borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causa raíz</div><div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{root || "—"}</div></Card>
+          {!!whys.filter((w) => (w ?? "").trim()).length && <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{whys.filter((w) => (w ?? "").trim()).map((w, i) => <div key={i} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}><b style={{ color: "var(--st-focus)" }}>{i + 1}.</b> {w}</div>)}</div>}
+        </div>
+      );
       faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button>;
     }
     return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
@@ -1213,18 +1290,81 @@ export default function SalaPage() {
           </Shell>
         );
       }
+      if (step === "vote") {
+        const myVote = (inputs.find((i) => i.userId === user.id && i.key === "ivote")?.value as { id?: string })?.id;
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 560 }}>
+              {Header("¿Cuál idea te parece la mejor apuesta? Elegí una.")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {ideaCards.map((c) => { const on = myVote === c.id; return (
+                  <button key={c.id} onClick={() => setMyInput(sessionId, "ivote", { id: c.id })} style={{ textAlign: "left", padding: "12px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, display: "flex", alignItems: "center", gap: 11, fontSize: "var(--t-sm)" }}>
+                    <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={18} /></span>{c.text}
+                  </button>
+                ); })}
+              </div>
+              <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 14 }}>El facilitador cierra la votación.</p>
+            </div>
+          </Shell>
+        );
+      }
+      if (step === "premortem") {
+        const myRisks = myCards.filter((c) => c.columnKey === "risk");
+        const add = async () => { const t = (cardDraft.risk ?? "").trim(); if (!t) return; await addCard(sessionId, "risk", t, true); setCardDraft((d) => ({ ...d, risk: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return (
+          <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Pre-mortem: imaginá que en 15 días la prueba fracasó. ¿Qué salió mal? (anónimo)")}
+            <Card pad={24}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <input autoFocus value={cardDraft.risk ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, risk: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Un riesgo o motivo de fracaso…" style={field} />
+                <Button icon="Plus" onClick={add}>Sumar</Button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {myRisks.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}
+                {!myRisks.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Anticipá qué podría salir mal…</div>}
+              </div>
+            </Card></div></Shell>
+        );
+      }
+      if (step === "premortem_reveal") {
+        const riskCards = allCards.filter((c) => c.columnKey === "risk");
+        return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Los riesgos anticipados. El facilitador los tiene en cuenta al diseñar la apuesta.")}<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{riskCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!riskCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin riesgos señalados.</p>}</div></div></Shell>;
+      }
       if (step === "bet") {
         return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("El facilitador está diseñando la apuesta con el equipo.")}{BetCard}</div></Shell>;
+      }
+      if (step === "commit") {
+        const iConfirmed = inputs.some((i) => i.userId === user.id && i.key === "confirm");
+        const confirmCount = inputs.filter((i) => i.key === "confirm").length;
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 520 }}>
+              {Header("Leé la apuesta. Si estás de acuerdo, comprometete.")}
+              {BetCard}
+              <div style={{ marginTop: 16 }}>
+                {iConfirmed
+                  ? <div style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="CircleCheck" size={20} /> Te comprometiste con la prueba</div>
+                  : <Button full size="lg" icon="Check" onClick={() => setMyInput(sessionId, "confirm", { ok: true })}>Entiendo la apuesta y me comprometo</Button>}
+                <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)", marginTop: 10 }}>{confirmCount} de {totalInRoom} se comprometieron</p>
+              </div>
+            </div>
+          </Shell>
+        );
       }
       return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("La apuesta quedó definida. ¡A probar!")}{BetCard}</div></Shell>;
     }
 
     // FACILITADOR (prueba)
-    const fSteps = ["ideas", "ideas_reveal", "bet", "close"];
+    const ivoteCount: Record<string, number> = {};
+    inputs.forEach((i) => { if (i.key === "ivote") { const id = (i.value as { id?: string })?.id; if (id) ivoteCount[id] = (ivoteCount[id] ?? 0) + 1; } });
+    const topIdea = [...ideaCards].sort((a, b) => (ivoteCount[b.id] ?? 0) - (ivoteCount[a.id] ?? 0))[0];
+    const riskCards = allCards.filter((c) => c.columnKey === "risk");
+    const riskCount = counts["risk"] ?? 0;
+    const confirmCount = inputs.filter((i) => i.key === "confirm").length;
+    const fSteps = ["ideas", "ideas_reveal", "vote", "premortem", "premortem_reveal", "bet", "commit", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => {
       setBusy(true);
-      await finalizeSession(session, { cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosen, betIf, betThen, signal, responsible, deadline } });
+      await finalizeSession(session, { cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosen, betIf, betThen, signal, responsible, deadline, risks: riskCards.map((c) => c.text), committed: confirmCount } });
       setBusy(false); exit();
     };
     const partsBar = (
@@ -1239,18 +1379,38 @@ export default function SalaPage() {
       fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-proof)" }}>{ideaCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>ideas propuestas</div></div>;
       faction = <Button full size="lg" icon="Eye" disabled={busy || ideaCount === 0} onClick={fNext}>Revelar ideas ({ideaCount})</Button>;
     } else if (step === "ideas_reveal") {
-      fsub = "Elegí la idea más simple y de más impacto para apostar.";
+      fsub = "Repasen las ideas. Después el equipo vota la mejor apuesta.";
       fbody = (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {ideaCards.map((c) => { const on = c.text === chosen; return (
-            <button key={c.id} onClick={() => setResult(sessionId, { idea: c.text })} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>{c.text}
-            </button>
-          ); })}
+          {ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}
           {!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>No se cargaron ideas.</p>}
         </div>
       );
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !chosen} onClick={fNext}>Diseñar la apuesta</Button>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Votar la mejor idea</Button>;
+    } else if (step === "vote") {
+      fsub = "El equipo vota. Confirmá la idea a apostar (la más votada queda sugerida).";
+      const maxV = Math.max(1, ...ideaCards.map((c) => ivoteCount[c.id] ?? 0));
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[...ideaCards].sort((a, b) => (ivoteCount[b.id] ?? 0) - (ivoteCount[a.id] ?? 0)).map((c) => { const on = c.text === chosen; return (
+            <button key={c.id} onClick={() => setResult(sessionId, { idea: c.text })} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
+              <span style={{ flex: 1 }}>{c.text}</span>
+              <div style={{ width: 80 }}><Bar value={((ivoteCount[c.id] ?? 0) / maxV) * 100} color="var(--st-proof)" height={6} /></div>
+              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{ivoteCount[c.id] ?? 0}</span>
+            </button>
+          ); })}
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !chosen} onClick={() => { if (!chosen && topIdea) setResult(sessionId, { idea: topIdea.text }); fNext(); }}>Pre-mortem de la idea</Button>;
+    } else if (step === "premortem") {
+      fsub = "Antes de diseñar: imaginen que fracasó. Los miembros anticipan riesgos a ciegas.";
+      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--risk)" }}>{riskCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>riesgos anticipados</div></div>;
+      faction = <Button full size="lg" icon="Eye" disabled={busy} onClick={fNext}>Revelar riesgos ({riskCount})</Button>;
+    } else if (step === "premortem_reveal") {
+      fsub = "Los riesgos del equipo. Tenelos a mano al diseñar la apuesta y la señal.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{riskCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!riskCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin riesgos señalados.</p>}</div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Diseñar la apuesta</Button>;
     } else if (step === "bet") {
       fsub = "Escribí la apuesta con el equipo. Se ve en vivo en las pantallas de todos.";
       fbody = (
@@ -1286,7 +1446,19 @@ export default function SalaPage() {
           </div>
         </div>
       );
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Pasar al compromiso</Button>;
+    } else if (step === "commit") {
+      fsub = "Cada integrante lee la apuesta y se compromete desde su pantalla.";
+      fbody = (
+        <>
+          {BetCard}
+          <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span className="eyebrow">Compromisos</span>
+            <span className="num" style={{ fontWeight: 800, color: "var(--green)" }}>{confirmCount}/{totalInRoom}</span>
+          </div>
+        </>
+      );
+      faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button>;
     } else {
       fsub = "La apuesta quedó definida. Al cerrar, la iniciativa avanza a Seguimiento.";
       fbody = BetCard;
@@ -1305,6 +1477,11 @@ export default function SalaPage() {
     const blockerCards = allCards.filter((c) => c.columnKey === "blocker");
     const myBlockers = myCards.filter((c) => c.columnKey === "blocker");
     const blockerCount = counts["blocker"] ?? 0;
+    const seeVals = inputs.filter((i) => i.key === "see").map((i) => Number((i.value as { v?: number })?.v ?? 0));
+    const seeAvg = seeVals.length ? Math.round((seeVals.reduce((a, b) => a + b, 0) / seeVals.length) * 33) : 0;
+    const FDECIDE = [{ k: "continue", l: "Continuar", c: "var(--success)", i: "Play", d: "Vamos bien, seguimos" }, { k: "adjust", l: "Ajustar", c: "var(--warning)", i: "Wrench", d: "Corregimos algo" }, { k: "escalate", l: "Escalar", c: "var(--risk)", i: "TriangleAlert", d: "Necesitamos ayuda" }];
+    const fdecision = (R.fdecision as string) ?? "";
+    const fdl = FDECIDE.find((x) => x.k === fdecision);
     const PROG = [{ l: "Sin avance", v: 0 }, { l: "Algo", v: 33 }, { l: "Bien", v: 66 }, { l: "Logrado", v: 100 }];
     const Gauge = (
       <div>
@@ -1318,7 +1495,26 @@ export default function SalaPage() {
     );
 
     if (!isFacil) {
-      if (step === "progress") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("¿Cómo viene la prueba? El facilitador reporta el avance.")}<Card pad={24}>{Gauge}</Card></div></Shell>;
+      if (step === "progress") {
+        const mySee = (inputs.find((i) => i.userId === user.id && i.key === "see")?.value as { v?: number })?.v;
+        const SEE = [{ v: 0, l: "Sin avance" }, { v: 1, l: "Algo" }, { v: 2, l: "Bien" }, { v: 3, l: "Logrado" }];
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 520 }}>
+              {Header(`¿Cómo ves vos "${signalName}"? Tu lectura suma al promedio del equipo.`)}
+              <Card pad={24}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
+                  {SEE.map((s) => { const on = mySee === s.v; return (
+                    <button key={s.v} onClick={() => setMyInput(sessionId, "see", { v: s.v })} style={{ padding: "14px 12px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-follow) 16%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-follow)" : "var(--line)"}`, fontWeight: 600, fontSize: "var(--t-sm)", color: on ? "var(--ink-0)" : "var(--ink-1)" }}>{s.l}</button>
+                  ); })}
+                </div>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center" }}>El facilitador define el avance oficial con el equipo.</p>
+              </Card>
+            </div>
+          </Shell>
+        );
+      }
+      if (step === "decide") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("¿Cómo sigue la prueba? El facilitador define con el equipo.")}<Card pad={24} style={{ textAlign: "center" }}>{fdl ? <Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill> : <span className="muted">Definiendo…</span>}</Card></div></Shell>;
       if (step === "blockers") {
         const add = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
         return (
@@ -1339,14 +1535,14 @@ export default function SalaPage() {
       return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Avance registrado.")}<Card pad={24}>{Gauge}</Card></div></Shell>;
     }
 
-    const fSteps = ["progress", "blockers", "blockers_reveal", "close"];
+    const fSteps = ["progress", "blockers", "blockers_reveal", "decide", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const fFinish = async () => { setBusy(true); await finalizeSession(session, { cardCount: blockerCount, summaryText: `Avance: ${current}%`, dataKey: "follow", dataValue: { current, signal: signalName, blockers: blockerCards.map((c) => c.text) }, noAdvance: true }); setBusy(false); exit(); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { cardCount: blockerCount, summaryText: `Avance: ${current}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current, signal: signalName, blockers: blockerCards.map((c) => c.text), decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
     const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
     let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
     if (step === "progress") {
-      fsub = "Reportá el avance de la prueba (con el equipo).";
-      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{Gauge}<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{PROG.map((p) => { const on = current === p.v; return <button key={p.v} onClick={() => setResult(sessionId, { current: p.v })} style={{ padding: "9px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-follow)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-follow)" : "var(--line-2)") }}>{p.l}</button>; })}</div></div>;
+      fsub = "El equipo reporta cómo ve la señal. Definí el avance oficial.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{Gauge}{seeVals.length > 0 && <div style={{ padding: "10px 12px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)" }}><span className="muted">Lectura del equipo: </span><b style={{ color: "var(--st-follow)" }}>~{seeAvg}%</b> <span className="muted">({seeVals.length} {seeVals.length === 1 ? "voto" : "votos"})</span></div>}<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{PROG.map((p) => { const on = current === p.v; return <button key={p.v} onClick={() => setResult(sessionId, { current: p.v })} style={{ padding: "9px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-follow)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-follow)" : "var(--line-2)") }}>{p.l}</button>; })}</div></div>;
       faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: trabas</Button>;
     } else if (step === "blockers") {
       fsub = "Los miembros escriben las trabas a ciegas.";
@@ -1355,10 +1551,23 @@ export default function SalaPage() {
     } else if (step === "blockers_reveal") {
       fsub = "Las trabas del equipo.";
       fbody = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{blockerCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin trabas. 🙌</p>}</div>;
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Revisar y cerrar</Button>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Decidir cómo sigue</Button>;
+    } else if (step === "decide") {
+      fsub = "Con el equipo: ¿la prueba continúa, se ajusta o hay que escalar?";
+      fbody = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
+          {FDECIDE.map((o) => { const on = fdecision === o.k; return (
+            <button key={o.k} onClick={() => setResult(sessionId, { fdecision: o.k })} style={{ textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p>
+            </button>
+          ); })}
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !fdecision} onClick={fNext}>Revisar y cerrar</Button>;
     } else {
       fsub = "Check-in registrado. La prueba sigue en curso (no cambia de etapa).";
-      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{Gauge}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{blockerCount} {blockerCount === 1 ? "traba" : "trabas"} registradas</div></div>;
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{Gauge}{fdl && <Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill>}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{blockerCount} {blockerCount === 1 ? "traba" : "trabas"} registradas</div></div>;
       faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar check-in"}</Button>;
     }
     return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
@@ -1385,6 +1594,23 @@ export default function SalaPage() {
 
     if (!isFacil) {
       if (step === "result") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("¿Funcionó la prueba? El facilitador marca el resultado con el equipo.")}<Card pad={24} style={{ textAlign: "center" }}>{rl ? <Pill color={rl.c} bg={`color-mix(in srgb, ${rl.c} 14%, transparent)`} icon="Flag">{rl.l}</Pill> : <span className="muted">Definiendo…</span>}</Card></div></Shell>;
+      if (step === "reflect") {
+        const myRef = (inputs.find((i) => i.userId === user.id && i.key === "reflection")?.value as { text?: string })?.text ?? "";
+        const reflected = inputs.some((i) => i.userId === user.id && i.key === "reflected");
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 520 }}>
+              {Header("Un minuto de silencio para pensar. Lo que escribas es tuyo: el facilitador no lo ve.")}
+              <Card pad={24}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: "var(--st-learn)" }}><Icon name="Lock" size={16} /><span className="eyebrow" style={{ color: "var(--st-learn)" }}>Reflexión privada</span></div>
+                <textarea defaultValue={myRef} onBlur={(e) => setMyInput(sessionId, "reflection", { text: e.target.value }, true)} rows={5} placeholder="¿Qué aprendí sobre cómo trabajo? ¿Qué quiero hacer distinto la próxima? ¿Cómo me siento con el equipo?" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-base)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+                <Button full icon={reflected ? "Check" : "Lock"} variant={reflected ? "secondary" : "primary"} onClick={() => setMyInput(sessionId, "reflected", { ok: true })} style={{ marginTop: 12 }}>{reflected ? "Guardado en privado" : "Guardar mi reflexión"}</Button>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>Nadie más —ni el facilitador— puede leer esto.</p>
+              </Card>
+            </div>
+          </Shell>
+        );
+      }
       if (step === "learnings") {
         const add = async () => { const t = (cardDraft.learning ?? "").trim(); if (!t) return; await addCard(sessionId, "learning", t, true); setCardDraft((d) => ({ ...d, learning: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
         return (
@@ -1406,8 +1632,9 @@ export default function SalaPage() {
       return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Ciclo cerrado.")}<Card pad={24} style={{ display: "flex", justifyContent: "center" }}>{Picked}</Card></div></Shell>;
     }
 
-    const fSteps = ["result", "learnings", "learnings_reveal", "decision", "close"];
+    const fSteps = ["result", "reflect", "learnings", "learnings_reveal", "decision", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const reflectedCount = inputs.filter((i) => i.key === "reflected").length;
     const fFinish = async () => {
       setBusy(true);
       await finalizeSession(session, {
@@ -1432,7 +1659,18 @@ export default function SalaPage() {
     if (step === "result") {
       fsub = "La mirada honesta del equipo sobre el resultado.";
       fbody = PickRow(RESULTS, resultKey, "result");
-      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !resultKey} onClick={fNext}>Siguiente: aprendizajes</Button>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !resultKey} onClick={fNext}>Siguiente: reflexión</Button>;
+    } else if (step === "reflect") {
+      fsub = "Dales 60 segundos de silencio para reflexionar en privado. No vas a ver lo que escriben: es de cada persona.";
+      fbody = (
+        <div style={{ textAlign: "center", padding: "8px 0" }}>
+          <div style={{ width: 52, height: 52, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-learn) 16%, transparent)", color: "var(--st-learn)", display: "grid", placeItems: "center", margin: "0 auto 12px" }}><Icon name="Lock" size={24} /></div>
+          <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-learn)" }}>{reflectedCount}/{totalInRoom}</div>
+          <div className="muted" style={{ fontSize: "var(--t-sm)" }}>reflexionaron en privado</div>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, lineHeight: 1.5 }}>Las reflexiones quedan guardadas solo para cada integrante. Esto protege la honestidad del equipo.</p>
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Pasar a compartir aprendizajes</Button>;
     } else if (step === "learnings") {
       fsub = "Los miembros escriben aprendizajes a ciegas.";
       fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-learn)" }}>{learnCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>aprendizajes</div></div>;
