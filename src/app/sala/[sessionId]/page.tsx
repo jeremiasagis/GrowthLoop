@@ -74,7 +74,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -222,6 +222,34 @@ export default function SalaPage() {
       ))}
       {!ranked.length && <div style={{ padding: 20, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>Sin tensiones</div>}
     </Card>
+  );
+
+  // helpers de escritura/revelado multi-columna (reusados por varias retros)
+  const MultiWrite = (cols: { key: string; label: string }[], color: string) => (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+      {cols.map((col) => {
+        const mine = myCards.filter((c) => c.columnKey === col.key);
+        const add = async () => { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, true); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return (
+          <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12, display: "flex", flexDirection: "column", minHeight: 200 }}>
+            <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label} <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{counts[col.key] ?? 0}</span></div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>{mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div>
+            <div style={{ marginTop: 8, display: "flex", gap: 5 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "6px 8px", fontSize: "var(--t-xs)", outline: "none" }} /><button onClick={add} style={{ background: color, color: "#08120c", borderRadius: "var(--r-sm)", padding: "0 9px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button></div>
+          </div>
+        );
+      })}
+    </div>
+  );
+  const MultiReveal = (cols: { key: string; label: string }[]) => (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+      {cols.map((col) => <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12 }}><div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label}</div><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{allCards.filter((c) => c.columnKey === col.key).map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div></div>)}
+    </div>
+  );
+  const facBar = (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+      <div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div>
+      <span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span>
+    </div>
   );
 
   // ════════ PRUEBA · "¿Cuál elegimos?" (proof_choose) ════════
@@ -734,6 +762,92 @@ export default function SalaPage() {
       faction = <Button full size="lg" icon="Check" disabled={busy || !chosen} onClick={fFinish}>{busy ? "Guardando…" : "Confirmar prioridad"}</Button>;
     }
     return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ APRENDIZAJE · "¿Qué sigue?" (learn_next) ════════
+  if (session.retro === "learn_next") {
+    const DEC = [
+      { k: "implement", l: "Implementar", c: "var(--success)", i: "Anchor", d: "Funcionó. Que sea la nueva forma de trabajar." },
+      { k: "iterate", l: "Iterar", c: "var(--st-proof)", i: "RefreshCw", d: "Funcionó parcial. Ajustar y volver a probar." },
+      { k: "pivot", l: "Pivotar", c: "var(--st-focus)", i: "GitFork", d: "No funcionó, pero entendemos mejor. Probar distinto." },
+      { k: "pause", l: "Pausar", c: "var(--ink-2)", i: "Pause", d: "No es el momento. Retomar más adelante." },
+    ];
+    const decision = (session.result.decision as string) ?? "";
+    const dm = DEC.find((d) => d.k === decision);
+    if (!isFacil) {
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header(step === "close" ? "Decisión tomada." : "El facilitador define el próximo paso con el equipo.")}<Card pad={24} style={{ textAlign: "center" }}>{dm ? <><Pill color={dm.c} bg={`color-mix(in srgb, ${dm.c} 14%, transparent)`} icon={dm.i}>{dm.l}</Pill><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>{dm.d}</p></> : <span className="muted">Definiendo…</span>}</Card></div></Shell>;
+    }
+    const fSteps = ["decision", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => {
+      setBusy(true);
+      const opt: { status?: string; stageOverride?: string } = decision === "implement" ? { status: "done" } : decision === "iterate" ? { stageOverride: "proof", status: "active" } : decision === "pivot" ? { stageOverride: "focus", status: "active" } : decision === "pause" ? { status: "paused" } : {};
+      await finalizeSession(session, { summaryText: `Decisión: ${dm?.l ?? "—"}`, dataKey: "learn", dataValue: { decision }, noAdvance: true, ...opt });
+      setBusy(false); exit();
+    };
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "decision") {
+      fsub = "Con el equipo, elegí el próximo movimiento.";
+      fbody = <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 10 }}>{DEC.map((o) => { const on = decision === o.k; return <button key={o.k} onClick={() => setResult(sessionId, { decision: o.k })} style={{ textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}` }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p></button>; })}</div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !decision} onClick={fNext}>Revisar y cerrar</Button>;
+    } else {
+      fsub = decision === "iterate" ? "Vuelve a Prueba." : decision === "pivot" ? "Vuelve a Foco." : decision === "pause" ? "Queda pausada." : "Se consolida (cerrada).";
+      fbody = <Card pad={18} style={{ textAlign: "center", borderColor: dm?.c }}>{dm && <Pill color={dm.c} bg={`color-mix(in srgb, ${dm.c} 14%, transparent)`} icon={dm.i}>{dm.l}</Pill>}<p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>{dm?.d}</p></Card>;
+      faction = <Button full size="lg" icon="Check" disabled={busy || !decision} onClick={fFinish}>{busy ? "Guardando…" : "Confirmar y cerrar"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ APRENDIZAJE · "¿Qué aprendimos?" (learn_learned) ════════
+  if (session.retro === "learn_learned") {
+    const LCOLS = [{ key: "la", label: "¿Qué sabemos ahora?" }, { key: "lb", label: "¿Qué haríamos diferente?" }, { key: "lc", label: "¿Qué aplica a otras situaciones?" }];
+    const total = LCOLS.reduce((a, c) => a + (counts[c.key] ?? 0), 0);
+    const allLearn = allCards.filter((c) => ["la", "lb", "lc"].includes(c.columnKey));
+    if (!isFacil) {
+      if (step === "learnings") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("¿Qué nos llevamos de este ciclo? Una por tarjeta.")}{MultiWrite(LCOLS, "var(--st-learn)")}</div></Shell>;
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Los aprendizajes del equipo.")}{MultiReveal(LCOLS)}</div></Shell>;
+    }
+    const fSteps = ["learnings", "learnings_reveal", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `${total} aprendizajes`, dataKey: "learn", dataValue: { learnings: allLearn.map((c) => c.text) }, noAdvance: true }); setBusy(false); exit(); };
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "", wide = false;
+    if (step === "learnings") { fsub = "Los miembros escriben aprendizajes a ciegas."; fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-learn)" }}>{total}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>aprendizajes</div></div>; faction = <Button full size="lg" icon="Eye" disabled={busy || total === 0} onClick={fNext}>Revelar ({total})</Button>; }
+    else if (step === "learnings_reveal") { wide = true; fsub = "Lo que se lleva el equipo."; fbody = MultiReveal(LCOLS); faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Cerrar</Button>; }
+    else { wide = true; fsub = "Aprendizajes guardados en la iniciativa."; fbody = MultiReveal(LCOLS); faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar"}</Button>; }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>{Header(fsub)}<Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ APRENDIZAJE · "¿Cómo estamos como equipo?" (learn_team) ════════
+  if (session.retro === "learn_team") {
+    const PCOLS = [{ key: "pa", label: "¿Qué funciona de cómo hacemos las sesiones?" }, { key: "pb", label: "¿Qué cambiaríamos del formato?" }, { key: "pc", label: "¿Qué necesitamos para que siga siendo útil?" }];
+    const total = PCOLS.reduce((a, c) => a + (counts[c.key] ?? 0), 0);
+    const adjustments = (session.result.adjustments as string) ?? "";
+    const myRef = (inputs.find((i) => i.userId === user.id && i.key === "reflection")?.value as { text?: string } | undefined)?.text ?? "";
+    const ta: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none", resize: "vertical", fontFamily: "inherit" };
+    if (!isFacil) {
+      if (step === "process") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("¿Cómo venimos trabajando como equipo? (anónimo)")}{MultiWrite(PCOLS, "var(--st-learn)")}</div></Shell>;
+      if (step === "process_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Lo que dijo el equipo sobre el proceso.")}{MultiReveal(PCOLS)}</div></Shell>;
+      if (step === "adjust") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Ajustes que vamos a probar.")}{adjustments ? <Card pad={16}><div style={{ fontSize: "var(--t-sm)", whiteSpace: "pre-wrap" }}>{adjustments}</div></Card> : <p className="muted" style={{ textAlign: "center" }}>El facilitador está definiendo los ajustes…</p>}</div></Shell>;
+      if (step === "reflect") return (
+        <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("Tu reflexión privada. Solo vos la ves.")}
+          <Card pad={20}>
+            <textarea defaultValue={myRef} onBlur={(e) => setMyInput(sessionId, "reflection", { text: e.target.value }, true)} rows={5} placeholder="¿Qué aprendí sobre cómo trabajo? ¿Qué quiero hacer diferente? ¿Cómo me siento con el equipo?" style={ta} />
+            <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Lock" size={13} /> Privado: ni el facilitador ni el líder lo ven.</p>
+          </Card>
+        </div></Shell>
+      );
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("Gracias por la honestidad.")}<Card pad={20} style={{ textAlign: "center" }}><Icon name="HeartHandshake" size={28} style={{ color: "var(--st-learn)" }} /><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Los ajustes acordados se aplican desde la próxima sesión.</p></Card></div></Shell>;
+    }
+    const fSteps = ["process", "process_reveal", "adjust", "reflect", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: "Retro de proceso", dataKey: "learn", dataValue: { teamCheck: true, adjustments }, noAdvance: true }); setBusy(false); exit(); };
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "", wide = false;
+    if (step === "process") { fsub = "Evalúan el proceso (anónimo)."; fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-learn)" }}>{total}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>aportes</div></div>; faction = <Button full size="lg" icon="Eye" disabled={busy || total === 0} onClick={fNext}>Revelar ({total})</Button>; }
+    else if (step === "process_reveal") { wide = true; fsub = "Lo que dijo el equipo."; fbody = MultiReveal(PCOLS); faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Definir ajustes</Button>; }
+    else if (step === "adjust") { fsub = "1 o 2 ajustes concretos para la próxima sesión."; fbody = <textarea defaultValue={adjustments} onBlur={(e) => setResult(sessionId, { adjustments: e.target.value })} rows={3} placeholder="Ajustes acordados…" style={ta} />; faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Reflexión individual</Button>; }
+    else if (step === "reflect") { fsub = "Cada miembro escribe su reflexión privada (no la ves)."; fbody = <Card pad={16} style={{ textAlign: "center" }}><Icon name="Lock" size={22} style={{ color: "var(--ink-3)" }} /><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Espacio privado de cada integrante. Dales un minuto.</p></Card>; faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar la retro"}</Button>; }
+    else { fsub = "Listo."; fbody = null; faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>Cerrar</Button>; }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>{Header(fsub)}<Card pad={24}>{facBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
   }
 
   // ════════ FOCO (¿Por qué pasa esto?) ════════
