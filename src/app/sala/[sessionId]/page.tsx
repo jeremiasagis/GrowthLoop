@@ -23,7 +23,19 @@ const COLS = [
   { key: "blocks", label: "Lo que nos traba", color: "var(--warning)", icon: "Construction" },
   { key: "unsaid", label: "Lo que nadie dice", color: "var(--violet)", icon: "EyeOff" },
 ] as const;
-const STEPS = ["pulse", "pulse_reveal", "cards", "cards_reveal", "cluster", "vote", "close"];
+// Exploración rica — fase Propósito (3 preguntas, público) y fase Flujo (embudo de 4 etapas)
+const PURPOSE_COLS = [
+  { key: "pa", label: "¿Para qué existe el equipo?" },
+  { key: "pb", label: "¿Quién depende de nuestro trabajo?" },
+  { key: "pc", label: "¿Cómo sabe que hicimos un buen trabajo?" },
+];
+const FLOW_COLS = [
+  { key: "fin", label: "Entrada", icon: "LogIn", color: "var(--st-explore)", sub: "¿Cómo llega el trabajo?" },
+  { key: "fstart", label: "Arranque", icon: "Play", color: "var(--success)", sub: "¿Qué hacemos primero?" },
+  { key: "fexec", label: "Ejecución", icon: "Cog", color: "var(--warning)", sub: "¿Dónde se traba?" },
+  { key: "fdeliver", label: "Entrega", icon: "PackageCheck", color: "var(--violet)", sub: "¿Cómo sabemos que terminó bien?" },
+];
+const STEPS = ["pulse", "pulse_reveal", "cards", "cards_reveal", "cluster", "vote", "purpose", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "close"];
 const DOTS_PER = 2;
 
 function Shell({ onExit, children }: { onExit?: () => void; children: React.ReactNode }) {
@@ -77,7 +89,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -119,6 +131,14 @@ export default function SalaPage() {
   const cardsOf = (cid: string) => allCards.filter((c) => c.clusterId === cid);
   const loose = allCards.filter((c) => !c.clusterId);
   const colMeta = (key: string) => COLS.find((c) => c.key === key) ?? COLS[0];
+  // Exploración — fases Propósito y Flujo
+  const purposeText = (session.result.purpose as string) ?? "";
+  const flowVotes: Record<string, number> = {};
+  inputs.forEach((i) => { if (i.key === "critical") { const s = (i.value as { stage?: string })?.stage; if (s) flowVotes[s] = (flowVotes[s] ?? 0) + 1; } });
+  const flowRanked = [...FLOW_COLS].sort((a, b) => (flowVotes[b.key] ?? 0) - (flowVotes[a.key] ?? 0));
+  const criticalStage = (session.result.critical as string) || flowRanked[0]?.key;
+  const criticalMeta = FLOW_COLS.find((f) => f.key === criticalStage);
+  const myCritical = (inputs.find((i) => i.userId === user.id && i.key === "critical")?.value as { stage?: string })?.stage;
   const exit = () => router.push(isFacil ? `/equipos/${session.teamId}` : "/member");
 
   if (closed) {
@@ -1465,8 +1485,43 @@ export default function SalaPage() {
         </Shell>
       );
     }
+    // ── Fase Propósito (miembro) ──
+    if (step === "purpose") {
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("¿Para qué existe este equipo? Respondé las tres. Estas tarjetas son públicas.")}{MultiWrite(PURPOSE_COLS, "var(--st-explore)")}</div></Shell>;
+    }
+    if (step === "purpose_reveal") {
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Las respuestas del equipo, lado a lado. ¿Hay acuerdo o dispersión?")}{MultiReveal(PURPOSE_COLS)}</div></Shell>;
+    }
+    if (step === "purpose_decide") {
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("El facilitador redacta el propósito del equipo.")}<Card pad={24} style={{ borderColor: "var(--st-explore)" }}>{purposeText ? <p style={{ fontSize: "var(--t-md)", lineHeight: 1.6 }}>{purposeText}</p> : <span className="muted">Redactando el propósito…</span>}</Card></div></Shell>;
+    }
+    // ── Fase Flujo de trabajo (miembro) ──
+    if (step === "flow") {
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Mapeá el flujo de trabajo del equipo, etapa por etapa.")}{MultiWrite(FLOW_COLS, "var(--st-explore)")}</div></Shell>;
+    }
+    if (step === "flow_reveal") {
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("El flujo completo, a la vista. ¿Dónde se traba más seguido?")}{MultiReveal(FLOW_COLS)}</div></Shell>;
+    }
+    if (step === "flow_vote") {
+      return (
+        <Shell onExit={exit}>
+          <div style={{ width: "100%", maxWidth: 560 }}>
+            {Header("¿Cuál es la etapa más crítica del flujo? Elegí una.")}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {FLOW_COLS.map((f) => { const on = myCritical === f.key; return (
+                <button key={f.key} onClick={() => setMyInput(sessionId, "critical", { stage: f.key })} style={{ textAlign: "left", padding: "13px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}`, display: "flex", alignItems: "center", gap: 11 }}>
+                  <span style={{ color: on ? "var(--st-explore)" : f.color }}><Icon name={on ? "CircleCheck" : f.icon} size={18} /></span>
+                  <div><div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{f.label}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{f.sub}</div></div>
+                </button>
+              ); })}
+            </div>
+            <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 14 }}>El facilitador cierra la votación cuando todos elijan.</p>
+          </div>
+        </Shell>
+      );
+    }
     // close (miembro)
-    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header("Mapa de tensiones priorizado por el equipo.")}{RankedMap}</div></Shell>;
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header("Mapa de tensiones priorizado por el equipo.")}{RankedMap}{criticalMeta && <Card pad={16} style={{ marginTop: 14, borderColor: "var(--st-explore)" }}><div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 4 }}>Etapa más crítica del flujo</div><div style={{ fontWeight: 700 }}>{criticalMeta.label}</div></Card>}</div></Shell>;
   }
 
   // ════════ FACILITADOR ════════
@@ -1485,12 +1540,19 @@ export default function SalaPage() {
   const finish = async () => {
     setBusy(true);
     const hasClusters = clusters.length > 0;
+    const hasData = hasClusters || !!purposeText || !!criticalMeta;
     await finalizeSession(session, {
       pulseAvg: avg, cardCount: allCards.length,
-      summaryText: hasClusters ? `prioridad: ${ranked[0]?.name ?? "—"}` : undefined,
-      dataKey: hasClusters ? "explore" : undefined,
-      dataValue: hasClusters
-        ? { priority: ranked[0]?.name ?? "", tensions: ranked.map((c) => ({ name: c.name, signals: cardsOf(c.id).length, dots: votesByCluster[c.id] ?? 0 })), pausedCount: ranked.slice(1).length }
+      summaryText: hasClusters ? `prioridad: ${ranked[0]?.name ?? "—"}` : (purposeText ? "propósito definido" : undefined),
+      dataKey: hasData ? "explore" : undefined,
+      dataValue: hasData
+        ? {
+            priority: ranked[0]?.name ?? "",
+            tensions: ranked.map((c) => ({ name: c.name, signals: cardsOf(c.id).length, dots: votesByCluster[c.id] ?? 0 })),
+            pausedCount: ranked.slice(1).length,
+            purpose: purposeText || undefined,
+            criticalStage: criticalMeta ? criticalMeta.label : undefined,
+          }
         : undefined,
       pausedNames: hasClusters ? ranked.slice(1).map((c) => c.name) : undefined,
     });
@@ -1586,11 +1648,74 @@ export default function SalaPage() {
         ))}
       </div>
     );
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Cerrar votación</Button>;
+    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: propósito</Button>;
+  } else if (step === "purpose") {
+    wide = true; sub = "El equipo responde para qué existe. Vos ves el conteo; se revela todo junto.";
+    body = (
+      <div style={{ display: "flex", gap: 12 }}>
+        {PURPOSE_COLS.map((col) => (
+          <div key={col.key} style={{ flex: 1, textAlign: "center", padding: "16px 8px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+            <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0", color: "var(--st-explore)" }}>{counts[col.key] ?? 0}</div>
+            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div>
+          </div>
+        ))}
+      </div>
+    );
+    action = <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button>;
+  } else if (step === "purpose_reveal") {
+    wide = true; sub = "¿Hay acuerdo o dispersión? Esa lectura es el dato.";
+    body = MultiReveal(PURPOSE_COLS);
+    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Redactar el propósito</Button>;
+  } else if (step === "purpose_decide") {
+    sub = "Sintetizá una frase de propósito que el equipo pueda firmar.";
+    body = <textarea defaultValue={purposeText} onBlur={(e) => setResult(sessionId, { purpose: e.target.value.trim() })} rows={4} placeholder="Existimos para… / Nuestro trabajo importa porque…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-base)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />;
+    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: flujo de trabajo</Button>;
+  } else if (step === "flow") {
+    wide = true; sub = "El equipo mapea su flujo de trabajo etapa por etapa.";
+    body = (
+      <div style={{ display: "flex", gap: 10 }}>
+        {FLOW_COLS.map((col) => (
+          <div key={col.key} style={{ flex: 1, textAlign: "center", padding: "14px 6px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+            <span style={{ color: col.color }}><Icon name={col.icon} size={17} /></span>
+            <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0" }}>{counts[col.key] ?? 0}</div>
+            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div>
+          </div>
+        ))}
+      </div>
+    );
+    action = <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button>;
+  } else if (step === "flow_reveal") {
+    wide = true; sub = "El flujo completo. Ahora votamos la etapa más crítica.";
+    body = MultiReveal(FLOW_COLS);
+    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Votar etapa crítica</Button>;
+  } else if (step === "flow_vote") {
+    sub = "Los miembros eligen la etapa más crítica. Conteo en vivo.";
+    const maxF = Math.max(1, ...FLOW_COLS.map((f) => flowVotes[f.key] ?? 0));
+    body = (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {flowRanked.map((f, i) => (
+          <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ color: i === 0 ? "var(--st-explore)" : f.color }}><Icon name={f.icon} size={16} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{f.label}</div>
+              <Bar value={((flowVotes[f.key] ?? 0) / maxF) * 100} color={i === 0 ? "var(--st-explore)" : "var(--violet)"} height={7} />
+            </div>
+            <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{flowVotes[f.key] ?? 0}</span>
+          </div>
+        ))}
+      </div>
+    );
+    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Cerrar y ver el mapa</Button>;
   } else {
     wide = false; sub = "El mapa final. Al cerrar, se guarda y la iniciativa avanza de etapa.";
     body = (
       <>
+        {(purposeText || criticalMeta) && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+            {purposeText && <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-explore) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-explore) 28%, transparent)", borderRadius: "var(--r-md)" }}><div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 4 }}>Propósito del equipo</div><p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5 }}>{purposeText}</p></div>}
+            {criticalMeta && <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name={criticalMeta.icon} size={15} style={{ color: "var(--st-explore)" }} /><span className="muted">Etapa más crítica del flujo:</span> <b>{criticalMeta.label}</b></div>}
+          </div>
+        )}
         {RankedMap}
         {session.type === "explore" && ranked.length > 1 && (
           <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Pause" size={13} /> Las {ranked.length - 1} tensiones no priorizadas quedan como iniciativas <b style={{ color: "var(--warning)" }}>pausadas</b> del equipo.</p>
