@@ -38,6 +38,16 @@ const FLOW_COLS = [
 ];
 const STEPS = ["pulse", "pulse_reveal", "cards", "cards_reveal", "cluster", "vote", "purpose", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "close"];
 const DOTS_PER = 2;
+// Secuencia de pasos por tipo de sesión (para el indicador de progreso y "volver atrás").
+const STEP_SEQ: Record<string, string[]> = {
+  founding: ["welcome", "contract", "sign", "close"],
+  consolidate: ["report", "decide", "close"],
+  explore: STEPS,
+  focus: ["causes", "causes_reveal", "vote", "deepen", "close"],
+  proof: ["ideas", "ideas_reveal", "vote", "premortem", "premortem_reveal", "bet", "commit", "close"],
+  follow: ["progress", "blockers", "blockers_reveal", "decide", "close"],
+  learn: ["result", "reflect", "learnings", "learnings_reveal", "decision", "close"],
+};
 
 function Shell({ onExit, children }: { onExit?: () => void; children: React.ReactNode }) {
   return (
@@ -304,8 +314,18 @@ export default function SalaPage() {
   const toggleTimer = () => { if (!timer) return; if (timer.endsAt) setResult(sessionId, { timer: { total: timer.total, remaining: timerSecs, step } }); else setResult(sessionId, { timer: { total: timer.total, endsAt: Date.now() + (timer.remaining ?? 0) * 1000, step } }); };
   const addTimerMin = () => { if (!timer) return; if (timer.endsAt) setResult(sessionId, { timer: { total: (timer.total ?? 0) + 60, endsAt: (timer.endsAt ?? Date.now()) + 60000, step } }); else setResult(sessionId, { timer: { total: (timer.total ?? 0) + 60, remaining: (timer.remaining ?? 0) + 60, step } }); };
   const stopTimer = () => setResult(sessionId, { timer: null });
+  // ── Progreso + volver atrás ──
+  const seq = STEP_SEQ[session.type] ?? STEPS;
+  const stepIdx = Math.max(0, seq.indexOf(step));
+  const stepTotal = seq.length;
+  const goBack = async () => { if (stepIdx <= 0) return; setBusy(true); await setStep(sessionId, seq[stepIdx - 1], stepIdx - 1); setBusy(false); };
   const facBar = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {isFacil && stepIdx > 0 && <button onClick={goBack} disabled={busy} title="Paso anterior" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ink-2)", fontSize: "var(--t-xs)", fontWeight: 600, padding: "4px 8px", borderRadius: "var(--r-sm)", border: "1px solid var(--line-2)", background: "var(--card)" }}><Icon name="ChevronLeft" size={14} /> Volver</button>}
+        <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>Paso {stepIdx + 1} de {stepTotal}</span>
+        <div style={{ flex: 1, height: 4, borderRadius: 99, background: "var(--card-2)", overflow: "hidden", minWidth: 60 }}><div style={{ height: "100%", width: `${((stepIdx + 1) / stepTotal) * 100}%`, background: "var(--green)", borderRadius: 99, transition: "width .4s var(--ease)" }} /></div>
+      </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div>
         <span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span>
@@ -1173,7 +1193,9 @@ export default function SalaPage() {
   } else if (step === "purpose") {
     wide = true; sub = "¿Para qué existe este equipo? Tres preguntas. Las respuestas son públicas (con tu nombre).";
     content = MultiWrite(PURPOSE_COLS, "var(--st-explore)", !isFacil, false);
-    controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres. El facilitador revela cuando todos terminen.</p>;
+    controls = isFacil
+      ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button><button onClick={() => setStep(sessionId, "flow", STEPS.indexOf("flow"))} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>Saltar Propósito →</button></div>
+      : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres. El facilitador revela cuando todos terminen.</p>;
   } else if (step === "purpose_reveal") {
     wide = true; sub = "¿Hay acuerdo o dispersión? Esa lectura es el dato.";
     content = MultiReveal(PURPOSE_COLS, true);
@@ -1187,7 +1209,9 @@ export default function SalaPage() {
   } else if (step === "flow") {
     wide = true; sub = "Mapeamos el flujo de trabajo del equipo, etapa por etapa.";
     content = MultiWrite(FLOW_COLS, "var(--st-explore)", !isFacil);
-    controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá lo que veas en cada etapa del flujo.</p>;
+    controls = isFacil
+      ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button><button onClick={() => setStep(sessionId, "close", STEPS.indexOf("close"))} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>Saltar Flujo → ir al cierre</button></div>
+      : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá lo que veas en cada etapa del flujo.</p>;
   } else if (step === "flow_reveal") {
     wide = true; sub = "El flujo completo. Ahora votamos la etapa más crítica.";
     content = MultiReveal(FLOW_COLS);
