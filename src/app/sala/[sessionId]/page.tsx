@@ -959,194 +959,9 @@ export default function SalaPage() {
     );
   }
 
-  // ════════ MIEMBRO ════════
-  if (!isFacil) {
-    if (step === "pulse") {
-      if (submitted) {
-        return (
-          <Shell onExit={exit}>
-            <Card pad={28} style={{ textAlign: "center", maxWidth: 440 }}>
-              <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px", animation: "pop-in .3s var(--spring)" }}><Icon name="Check" size={28} /></div>
-              <h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>¡Listo!</h2>
-              <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>Tu pulso quedó guardado (anónimo). Esperá a que el facilitador continúe.</p>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 16, color: "var(--ink-2)", fontSize: "var(--t-sm)" }}><Icon name="Users" size={15} /> {responses.length} de {totalInRoom} respondieron</div>
-            </Card>
-          </Shell>
-        );
-      }
-      const submit = async () => { setBusy(true); const res = await submitPulse(sessionId, draft); setBusy(false); if (!res.error) setSubmitted(true); };
-      return (
-        <Shell onExit={exit}>
-          <div style={{ width: "100%", maxWidth: 560 }}>
-            {Header("5 señales, anónimas. Movélas según cómo sentís al equipo hoy.")}
-            <Card pad={24}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                {PULSE_DIMS.map((d) => (
-                  <div key={d.key}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span>
-                      <span className="num" style={{ fontWeight: 700, color: d.color }}>{draft[d.key]}</span>
-                    </div>
-                    <input type="range" min={0} max={100} value={draft[d.key]} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: Number(e.target.value) }))} style={{ width: "100%", accentColor: d.color }} />
-                  </div>
-                ))}
-              </div>
-              <Button full size="lg" icon="Send" disabled={busy} onClick={submit} style={{ marginTop: 22 }}>{busy ? "Enviando…" : "Enviar mi pulso"}</Button>
-              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="Lock" size={13} /> Anónimo: solo se muestra el promedio.</p>
-            </Card>
-          </div>
-        </Shell>
-      );
-    }
-    if (step === "pulse_reveal") {
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("El pulso del equipo, revelado.")}<Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>Promedio del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{overall}/100</Pill></div>{Averages}</Card><p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 16 }}>Esperá a que el facilitador abra el siguiente paso.</p></div></Shell>;
-    }
-    if (step === "cards") {
-      const add = async (colKey: string) => {
-        const text = (cardDraft[colKey] ?? "").trim();
-        if (!text) return;
-        await addCard(sessionId, colKey, text, anon);
-        setCardDraft((d) => ({ ...d, [colKey]: "" }));
-        if (user) setMyCards(await getMyCards(sessionId, user.id));
-      };
-      return (
-        <Shell onExit={exit}>
-          <div style={{ width: "100%", maxWidth: 920 }}>
-            {Header("Escribí en silencio. Tus tarjetas quedan ocultas hasta que el facilitador revele.")}
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-              <button onClick={() => setAnon((a) => !a)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--card)", fontSize: "var(--t-sm)", fontWeight: 600 }}>
-                <Icon name={anon ? "Lock" : "Globe"} size={15} style={{ color: anon ? "var(--ink-2)" : "var(--green)" }} />
-                Tus tarjetas: <b style={{ color: anon ? "var(--ink-1)" : "var(--green)" }}>{anon ? "Anónimas" : "Públicas"}</b>
-                <span className="faint" style={{ fontSize: "var(--t-xs)" }}>(tocá para cambiar)</span>
-              </button>
-            </div>
-            <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-              {COLS.map((col) => {
-                const mine = myCards.filter((c) => c.columnKey === col.key);
-                return (
-                  <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 14, display: "flex", flexDirection: "column", minHeight: 240 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <span style={{ color: col.color }}><Icon name={col.icon} size={16} /></span>
-                      <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{col.label}</span>
-                      <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "2px 8px" }}>{counts[col.key] ?? 0}</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
-                      {mine.map((c) => (
-                        <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)" }}>
-                          {c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>{c.anonymous ? "· anónima" : "· pública"} · tuya</span>
-                        </div>
-                      ))}
-                      {!mine.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 12 }}>Sumá lo tuyo…</div>}
-                    </div>
-                    <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
-                      <input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add(col.key)} placeholder="Sumar tarjeta…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
-                      <button onClick={() => add(col.key)} style={{ background: col.color, color: "#06121f", borderRadius: "var(--r-sm)", padding: "0 11px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={16} /></button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Shell>
-      );
-    }
-    if (step === "cards_reveal") {
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Todas las tarjetas a la vista. Las anónimas no muestran autor.")}{RevealedCards}</div></Shell>;
-    }
-    if (step === "cluster") {
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("El facilitador está agrupando las tarjetas en tensiones.")}{ClustersView}</div></Shell>;
-    }
-    if (step === "vote") {
-      const vote = async (clusterId: string, delta: number) => {
-        if (delta > 0 && remaining <= 0) return;
-        if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId);
-      };
-      return (
-        <Shell onExit={exit}>
-          <div style={{ width: "100%", maxWidth: 600 }}>
-            {Header(`Tenés ${DOTS_PER} puntos. ¿Qué tensión atendemos primero?`)}
-            <div style={{ textAlign: "center", marginBottom: 16 }}>
-              <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span>
-              <span className="num" style={{ fontWeight: 800, color: "var(--green)", fontSize: "var(--t-lg)" }}>{remaining}</span>
-              <span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {clusters.map((cl) => {
-                const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length;
-                return (
-                  <Card key={cl.id} pad={16}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: "var(--t-base)" }}>{cl.name}</div>
-                        <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{cardsOf(cl.id).length} señales</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <button onClick={() => vote(cl.id, -1)} disabled={mine === 0} style={{ width: 32, height: 32, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={16} /></button>
-                        <span className="num" style={{ width: 22, textAlign: "center", fontWeight: 700 }}>{mine}</span>
-                        <button onClick={() => vote(cl.id, 1)} disabled={remaining === 0} style={{ width: 32, height: 32, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--green)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#06121f" }}><Icon name="Plus" size={16} /></button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-            <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 16 }}>El facilitador cierra la votación cuando todos terminen.</p>
-          </div>
-        </Shell>
-      );
-    }
-    // ── Fase Propósito (miembro) ──
-    if (step === "purpose") {
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("¿Para qué existe este equipo? Respondé las tres. Estas tarjetas son públicas.")}{MultiWrite(PURPOSE_COLS, "var(--st-explore)")}</div></Shell>;
-    }
-    if (step === "purpose_reveal") {
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Las respuestas del equipo, lado a lado. ¿Hay acuerdo o dispersión?")}{MultiReveal(PURPOSE_COLS)}</div></Shell>;
-    }
-    if (step === "purpose_decide") {
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("El facilitador redacta el propósito del equipo.")}<Card pad={24} style={{ borderColor: "var(--st-explore)" }}>{purposeText ? <p style={{ fontSize: "var(--t-md)", lineHeight: 1.6 }}>{purposeText}</p> : <span className="muted">Redactando el propósito…</span>}</Card></div></Shell>;
-    }
-    // ── Fase Flujo de trabajo (miembro) ──
-    if (step === "flow") {
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("Mapeá el flujo de trabajo del equipo, etapa por etapa.")}{MultiWrite(FLOW_COLS, "var(--st-explore)")}</div></Shell>;
-    }
-    if (step === "flow_reveal") {
-      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 920 }}>{Header("El flujo completo, a la vista. ¿Dónde se traba más seguido?")}{MultiReveal(FLOW_COLS)}</div></Shell>;
-    }
-    if (step === "flow_vote") {
-      return (
-        <Shell onExit={exit}>
-          <div style={{ width: "100%", maxWidth: 560 }}>
-            {Header("¿Cuál es la etapa más crítica del flujo? Elegí una.")}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {FLOW_COLS.map((f) => { const on = myCritical === f.key; return (
-                <button key={f.key} onClick={() => setMyInput(sessionId, "critical", { stage: f.key })} style={{ textAlign: "left", padding: "13px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}`, display: "flex", alignItems: "center", gap: 11 }}>
-                  <span style={{ color: on ? "var(--st-explore)" : f.color }}><Icon name={on ? "CircleCheck" : f.icon} size={18} /></span>
-                  <div><div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{f.label}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{f.sub}</div></div>
-                </button>
-              ); })}
-            </div>
-            <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 14 }}>El facilitador cierra la votación cuando todos elijan.</p>
-          </div>
-        </Shell>
-      );
-    }
-    // close (miembro)
-    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header("Mapa de tensiones priorizado por el equipo.")}{RankedMap}{criticalMeta && <Card pad={16} style={{ marginTop: 14, borderColor: "var(--st-explore)" }}><div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 4 }}>Etapa más crítica del flujo</div><div style={{ fontWeight: 700 }}>{criticalMeta.label}</div></Card>}</div></Shell>;
-  }
-
-  // ════════ FACILITADOR ════════
-  const goNext = async () => {
-    const idx = STEPS.indexOf(step);
-    const nextKey = STEPS[Math.min(STEPS.length - 1, idx + 1)];
-    setBusy(true); await setStep(sessionId, nextKey, idx + 1); setBusy(false);
-  };
-  const group = async () => {
-    if (!sel.length) return;
-    setBusy(true);
-    const id = await createCluster(sessionId, `Tensión ${clusters.length + 1}`);
-    if (id) for (const cid of sel) await assignCardToCluster(cid, id);
-    setSel([]); setBusy(false); load();
-  };
+  // ════════ EXPLORACIÓN · pantalla compartida ════════
+  const goNext = async () => { const idx = STEPS.indexOf(step); const nextKey = STEPS[Math.min(STEPS.length - 1, idx + 1)]; setBusy(true); await setStep(sessionId, nextKey, idx + 1); setBusy(false); };
+  const group = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Tensión ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
   const finish = async () => {
     setBusy(true);
     const hasClusters = clusters.length > 0;
@@ -1156,56 +971,56 @@ export default function SalaPage() {
       summaryText: hasClusters ? `prioridad: ${ranked[0]?.name ?? "—"}` : (purposeText ? "propósito definido" : undefined),
       dataKey: hasData ? "explore" : undefined,
       dataValue: hasData
-        ? {
-            priority: ranked[0]?.name ?? "",
-            tensions: ranked.map((c) => ({ name: c.name, signals: cardsOf(c.id).length, dots: votesByCluster[c.id] ?? 0 })),
-            pausedCount: ranked.slice(1).length,
-            purpose: purposeText || undefined,
-            criticalStage: criticalMeta ? criticalMeta.label : undefined,
-          }
+        ? { priority: ranked[0]?.name ?? "", tensions: ranked.map((c) => ({ name: c.name, signals: cardsOf(c.id).length, dots: votesByCluster[c.id] ?? 0 })), pausedCount: ranked.slice(1).length, purpose: purposeText || undefined, criticalStage: criticalMeta ? criticalMeta.label : undefined }
         : undefined,
       pausedNames: hasClusters ? ranked.slice(1).map((c) => c.name) : undefined,
     });
     setBusy(false); exit();
   };
+  const submitMyPulse = async () => { setBusy(true); const res = await submitPulse(sessionId, draft); setBusy(false); if (!res.error) setSubmitted(true); };
+  const addExploreCard = async (colKey: string) => { const text = (cardDraft[colKey] ?? "").trim(); if (!text) return; await addCard(sessionId, colKey, text, anon); setCardDraft((d) => ({ ...d, [colKey]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+  const voteCluster = async (clusterId: string, delta: number) => { if (delta > 0 && remaining <= 0) return; if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId); };
 
-  const ParticipantsBar = (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
-      <div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div>
-      <span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span>
-    </div>
-  );
-
-  let body: React.ReactNode = null, action: React.ReactNode = null, sub = "", wide = false;
+  let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
   if (step === "pulse") {
-    sub = "Los miembros responden su pulso desde su login. El contador se actualiza en vivo.";
-    body = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{responses.length}/{totalInRoom || team?.members.length || 0}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respondieron</div></div>;
-    action = <Button full size="lg" icon="Eye" disabled={busy || responses.length === 0} onClick={goNext}>Revelar promedio ({responses.length})</Button>;
+    sub = "Cinco señales, anónimas. Cada uno responde; el facilitador revela el promedio.";
+    if (isFacil) {
+      content = <Card pad={24}><div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{responses.length}/{totalInRoom || team?.members.length || 0}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respondieron</div></div></Card>;
+      controls = <Button full size="lg" icon="Eye" disabled={busy || responses.length === 0} onClick={goNext}>Revelar promedio ({responses.length})</Button>;
+    } else if (submitted) {
+      content = <Card pad={28} style={{ textAlign: "center" }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Check" size={28} /></div><h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>¡Listo!</h2><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>Tu pulso quedó guardado (anónimo). {responses.length} de {totalInRoom} respondieron.</p></Card>;
+      controls = <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá a que el facilitador continúe.</p>;
+    } else {
+      content = <Card pad={24}><div style={{ display: "flex", flexDirection: "column", gap: 20 }}>{PULSE_DIMS.map((d) => (<div key={d.key}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span><span className="num" style={{ fontWeight: 700, color: d.color }}>{draft[d.key]}</span></div><input type="range" min={0} max={100} value={draft[d.key]} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: Number(e.target.value) }))} style={{ width: "100%", accentColor: d.color }} /></div>))}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="Lock" size={13} /> Anónimo: solo se muestra el promedio.</p></Card>;
+      controls = <Button full size="lg" icon="Send" disabled={busy} onClick={submitMyPulse}>{busy ? "Enviando…" : "Enviar mi pulso"}</Button>;
+    }
   } else if (step === "pulse_reveal") {
     sub = "El pulso del equipo, revelado para todos.";
-    body = <><div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{overall}/100</Pill></div>{Averages}</>;
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: tarjetas</Button>;
+    content = <Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>Promedio del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{overall}/100</Pill></div>{Averages}</Card>;
+    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: tarjetas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá el siguiente paso.</p>;
   } else if (step === "cards") {
-    sub = "Los miembros escriben a ciegas. Vos ves el conteo; el contenido se revela todo junto.";
-    body = (
-      <div style={{ display: "flex", gap: 12 }}>
-        {COLS.map((col) => (
-          <div key={col.key} style={{ flex: 1, textAlign: "center", padding: "16px 8px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
-            <span style={{ color: col.color }}><Icon name={col.icon} size={18} /></span>
-            <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0" }}>{counts[col.key] ?? 0}</div>
-            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div>
+    wide = true; sub = "Escriban en silencio. Las tarjetas quedan ocultas hasta que el facilitador revele.";
+    if (isFacil) {
+      content = <div style={{ display: "flex", gap: 12 }}>{COLS.map((col) => (<div key={col.key} style={{ flex: 1, textAlign: "center", padding: "16px 8px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><span style={{ color: col.color }}><Icon name={col.icon} size={18} /></span><div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0" }}>{counts[col.key] ?? 0}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div></div>))}</div>;
+      controls = <Button full size="lg" icon="Eye" disabled={busy || totalCards === 0} onClick={goNext}>Revelar tarjetas ({totalCards})</Button>;
+    } else {
+      content = (
+        <>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+            <button onClick={() => setAnon((a) => !a)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--card)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name={anon ? "Lock" : "Globe"} size={15} style={{ color: anon ? "var(--ink-2)" : "var(--green)" }} />Tus tarjetas: <b style={{ color: anon ? "var(--ink-1)" : "var(--green)" }}>{anon ? "Anónimas" : "Públicas"}</b><span className="faint" style={{ fontSize: "var(--t-xs)" }}>(tocá para cambiar)</span></button>
           </div>
-        ))}
-      </div>
-    );
-    action = <Button full size="lg" icon="Eye" disabled={busy || totalCards === 0} onClick={goNext}>Revelar tarjetas ({totalCards})</Button>;
+          <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>{COLS.map((col) => { const mine = myCards.filter((c) => c.columnKey === col.key); return (<div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 14, display: "flex", flexDirection: "column", minHeight: 240 }}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><span style={{ color: col.color }}><Icon name={col.icon} size={16} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{col.label}</span><span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "2px 8px" }}>{counts[col.key] ?? 0}</span></div><div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>{mine.map((c) => (<div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>{c.anonymous ? "· anónima" : "· pública"} · tuya</span></div>))}{!mine.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 12 }}>Sumá lo tuyo…</div>}</div><div style={{ marginTop: 10, display: "flex", gap: 6 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addExploreCard(col.key)} placeholder="Sumar tarjeta…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} /><button onClick={() => addExploreCard(col.key)} style={{ background: col.color, color: "#06121f", borderRadius: "var(--r-sm)", padding: "0 11px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={16} /></button></div></div>); })}</div>
+        </>
+      );
+      controls = <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tus tarjetas. El facilitador las revela cuando todos terminen.</p>;
+    }
   } else if (step === "cards_reveal") {
     wide = true; sub = "Todas las tarjetas a la vista. Las anónimas no muestran autor.";
-    body = RevealedCards;
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: agrupar</Button>;
+    content = RevealedCards;
+    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: agrupar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa las tarjetas en tensiones.</p>;
   } else if (step === "cluster") {
-    wide = true; sub = "Juntá las tarjetas que hablan de lo mismo. Seleccioná varias y armá una tensión.";
-    body = (
+    wide = true; sub = isFacil ? "Juntá las tarjetas que hablan de lo mismo. Seleccioná varias y armá una tensión." : "El facilitador está agrupando las tarjetas en tensiones.";
+    content = isFacil ? (
       <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1214,8 +1029,7 @@ export default function SalaPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 10 }}>
             {loose.map((c) => { const cm = colMeta(c.columnKey); const on = sel.includes(c.id); return (
-              <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))}
-                style={{ textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid " + cm.color, borderRadius: "var(--r-md)", padding: "10px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4, position: "relative" }}>
+              <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))} style={{ textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid " + cm.color, borderRadius: "var(--r-md)", padding: "10px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4, position: "relative" }}>
                 {on && <span style={{ position: "absolute", top: 6, right: 6, color: "var(--green)" }}><Icon name="CheckCircle2" size={14} /></span>}{c.text}
               </button>
             ); })}
@@ -1239,86 +1053,75 @@ export default function SalaPage() {
           {!clusters.length && <div style={{ border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", padding: 18, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>Seleccioná tarjetas y agrupalas.</div>}
         </div>
       </div>
-    );
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={goNext}>Siguiente: votar</Button>;
+    ) : ClustersView;
+    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={goNext}>Siguiente: votar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mirá cómo se forman las tensiones.</p>;
   } else if (step === "vote") {
-    sub = "Los miembros reparten sus puntos. La votación se actualiza en vivo.";
+    sub = "¿Qué tensión atendemos primero? Cada uno reparte sus puntos.";
     const max = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
-    body = (
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {ranked.map((cl, i) => (
-          <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span className="num" style={{ width: 20, fontWeight: 700, color: i === 0 ? "var(--green)" : "var(--ink-3)" }}>{i + 1}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}</div>
-              <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i === 0 ? "var(--green)" : "var(--violet)"} height={7} />
+    content = (
+      <>
+        {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--green)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {ranked.map((cl, i) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
+            <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span className="num" style={{ width: 20, fontWeight: 700, color: i === 0 ? "var(--green)" : "var(--ink-3)" }}>{i + 1}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}</div>
+                <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i === 0 ? "var(--green)" : "var(--violet)"} height={7} />
+              </div>
+              {isFacil
+                ? <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
+                : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button onClick={() => voteCluster(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
+                    <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
+                    <button onClick={() => voteCluster(cl.id, 1)} disabled={remaining === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--green)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#06121f" }}><Icon name="Plus" size={15} /></button>
+                  </div>}
             </div>
-            <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
-          </div>
-        ))}
-      </div>
+          ); })}
+        </div>
+      </>
     );
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: propósito</Button>;
+    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: propósito</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador cierra la votación.</p>;
   } else if (step === "purpose") {
-    wide = true; sub = "El equipo responde para qué existe. Vos ves el conteo; se revela todo junto.";
-    body = (
-      <div style={{ display: "flex", gap: 12 }}>
-        {PURPOSE_COLS.map((col) => (
-          <div key={col.key} style={{ flex: 1, textAlign: "center", padding: "16px 8px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
-            <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0", color: "var(--st-explore)" }}>{counts[col.key] ?? 0}</div>
-            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div>
-          </div>
-        ))}
-      </div>
-    );
-    action = <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button>;
+    wide = true; sub = "¿Para qué existe este equipo? Tres preguntas públicas.";
+    content = isFacil ? <Card pad={20}><div style={{ display: "flex", gap: 12 }}>{PURPOSE_COLS.map((col) => (<div key={col.key} style={{ flex: 1, textAlign: "center", padding: "16px 8px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0", color: "var(--st-explore)" }}>{counts[col.key] ?? 0}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div></div>))}</div></Card> : MultiWrite(PURPOSE_COLS, "var(--st-explore)");
+    controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres. El facilitador revela cuando todos terminen.</p>;
   } else if (step === "purpose_reveal") {
     wide = true; sub = "¿Hay acuerdo o dispersión? Esa lectura es el dato.";
-    body = MultiReveal(PURPOSE_COLS);
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Redactar el propósito</Button>;
+    content = MultiReveal(PURPOSE_COLS);
+    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Redactar el propósito</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador redacta el propósito del equipo.</p>;
   } else if (step === "purpose_decide") {
-    sub = "Sintetizá una frase de propósito que el equipo pueda firmar.";
-    body = <textarea defaultValue={purposeText} onBlur={(e) => setResult(sessionId, { purpose: e.target.value.trim() })} rows={4} placeholder="Existimos para… / Nuestro trabajo importa porque…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-base)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />;
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: flujo de trabajo</Button>;
+    sub = "El propósito del equipo, en una frase que todos puedan firmar.";
+    content = isFacil
+      ? <textarea defaultValue={purposeText} onBlur={(e) => setResult(sessionId, { purpose: e.target.value.trim() })} rows={4} placeholder="Existimos para… / Nuestro trabajo importa porque…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-base)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+      : <Card pad={24} style={{ borderColor: "var(--st-explore)" }}>{purposeText ? <p style={{ fontSize: "var(--t-md)", lineHeight: 1.6 }}>{purposeText}</p> : <span className="muted">Redactando el propósito…</span>}</Card>;
+    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: flujo de trabajo</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador escribe el propósito con el equipo.</p>;
   } else if (step === "flow") {
-    wide = true; sub = "El equipo mapea su flujo de trabajo etapa por etapa.";
-    body = (
-      <div style={{ display: "flex", gap: 10 }}>
-        {FLOW_COLS.map((col) => (
-          <div key={col.key} style={{ flex: 1, textAlign: "center", padding: "14px 6px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
-            <span style={{ color: col.color }}><Icon name={col.icon} size={17} /></span>
-            <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0" }}>{counts[col.key] ?? 0}</div>
-            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div>
-          </div>
-        ))}
-      </div>
-    );
-    action = <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button>;
+    wide = true; sub = "Mapeamos el flujo de trabajo del equipo, etapa por etapa.";
+    content = isFacil ? <Card pad={20}><div style={{ display: "flex", gap: 10 }}>{FLOW_COLS.map((col) => (<div key={col.key} style={{ flex: 1, textAlign: "center", padding: "14px 6px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><span style={{ color: col.color }}><Icon name={col.icon} size={17} /></span><div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, margin: "4px 0" }}>{counts[col.key] ?? 0}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{col.label}</div></div>))}</div></Card> : MultiWrite(FLOW_COLS, "var(--st-explore)");
+    controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá lo que veas en cada etapa del flujo.</p>;
   } else if (step === "flow_reveal") {
     wide = true; sub = "El flujo completo. Ahora votamos la etapa más crítica.";
-    body = MultiReveal(FLOW_COLS);
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Votar etapa crítica</Button>;
+    content = MultiReveal(FLOW_COLS);
+    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Votar etapa crítica</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo vota la etapa más crítica.</p>;
   } else if (step === "flow_vote") {
-    sub = "Los miembros eligen la etapa más crítica. Conteo en vivo.";
+    sub = "¿Cuál es la etapa más crítica del flujo? Cada uno elige una.";
     const maxF = Math.max(1, ...FLOW_COLS.map((f) => flowVotes[f.key] ?? 0));
-    body = (
+    content = (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {flowRanked.map((f, i) => (
-          <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ color: i === 0 ? "var(--st-explore)" : f.color }}><Icon name={f.icon} size={16} /></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{f.label}</div>
-              <Bar value={((flowVotes[f.key] ?? 0) / maxF) * 100} color={i === 0 ? "var(--st-explore)" : "var(--violet)"} height={7} />
-            </div>
-            <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{flowVotes[f.key] ?? 0}</span>
-          </div>
-        ))}
+        {flowRanked.map((f, i) => { const on = !isFacil && myCritical === f.key; return (
+          <button key={f.key} onClick={() => { if (!isFacil) setMyInput(sessionId, "critical", { stage: f.key }); }} disabled={isFacil} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}`, cursor: isFacil ? "default" : "pointer" }}>
+            <span style={{ color: on ? "var(--st-explore)" : (i === 0 ? "var(--st-explore)" : f.color) }}><Icon name={on ? "CircleCheck" : f.icon} size={17} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{f.label}</div><Bar value={((flowVotes[f.key] ?? 0) / maxF) * 100} color={i === 0 ? "var(--st-explore)" : "var(--violet)"} height={6} /></div>
+            <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{flowVotes[f.key] ?? 0}</span>
+          </button>
+        ); })}
       </div>
     );
-    action = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Cerrar y ver el mapa</Button>;
+    controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Cerrar y ver el mapa</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la etapa más crítica. El facilitador cierra la votación.</p>;
   } else {
-    wide = false; sub = "El mapa final. Al cerrar, se guarda y la iniciativa avanza de etapa.";
-    body = (
+    sub = "El mapa final. Al cerrar, se guarda y la iniciativa avanza de etapa.";
+    content = (
       <>
         {(purposeText || criticalMeta) && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
@@ -1327,23 +1130,19 @@ export default function SalaPage() {
           </div>
         )}
         {RankedMap}
-        {session.type === "explore" && ranked.length > 1 && (
-          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Pause" size={13} /> Las {ranked.length - 1} tensiones no priorizadas quedan como iniciativas <b style={{ color: "var(--warning)" }}>pausadas</b> del equipo.</p>
-        )}
+        {ranked.length > 1 && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Pause" size={13} /> Las {ranked.length - 1} tensiones no priorizadas quedan como iniciativas <b style={{ color: "var(--warning)" }}>pausadas</b> del equipo.</p>}
       </>
     );
-    action = <Button full size="lg" icon="Check" disabled={busy} onClick={finish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button>;
+    controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy} onClick={finish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra y guarda la sesión.</p>;
   }
 
   return (
     <Shell onExit={exit}>
       <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
         {Header(sub)}
-        <Card pad={24}>
-          {ParticipantsBar}
-          {body}
-          <div style={{ marginTop: 22 }}>{action}</div>
-        </Card>
+        <div style={{ marginBottom: 16 }}>{facBar}</div>
+        {content}
+        <div style={{ marginTop: 18 }}>{controls}</div>
       </div>
     </Shell>
   );
