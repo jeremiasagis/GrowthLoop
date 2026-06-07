@@ -1,0 +1,184 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* ============================================================
+   Growthloop — Store de datos (zustand)
+   ------------------------------------------------------------
+   Carga los datos desde Supabase y los deja en memoria con la
+   misma forma que los tipos de `data.ts`. Las pantallas leen
+   síncrono vía `repository.ts`. Tras una escritura se llama a
+   `reloadData()` para refrescar.
+   ============================================================ */
+
+import { create } from "zustand";
+import { getSupabaseBrowserClient } from "./supabase/client";
+import {
+  FACILITATOR,
+  type Admin, type Experiment, type Facilitator, type Initiative, type Org,
+  type PulsePoint, type SessionLog, type StageKey, type Team, type Variable,
+} from "./data";
+
+interface GLState {
+  orgs: Org[];
+  teams: Team[];
+  facilitators: Facilitator[];
+  admins: Admin[];
+  loaded: boolean;
+  source: "supabase" | "mock";
+  setData: (d: { orgs: Org[]; teams: Team[]; facilitators: Facilitator[]; admins: Admin[]; source: "supabase" | "mock" }) => void;
+}
+
+export const useGLStore = create<GLState>((set) => ({
+  orgs: [],
+  teams: [],
+  facilitators: [],
+  admins: [],
+  loaded: false,
+  source: "mock",
+  setData: (d) => set({ ...d, loaded: true }),
+}));
+
+const numId = (id: string) => parseInt(String(id).replace(/\D/g, ""), 10) || 0;
+const byNumId = (a: { id: string }, b: { id: string }) => numId(a.id) - numId(b.id);
+
+function mapFac(f: any): Facilitator {
+  return {
+    id: f.id, name: f.name, email: f.email, initials: f.initials,
+    teams: f.teams, sessionsMonth: f.sessions_month, health: f.health,
+    status: f.status, you: f.is_you || undefined, orgId: f.org_id ?? undefined,
+  };
+}
+
+function mapAdmin(a: any): Admin {
+  return {
+    id: a.id, name: a.name, email: a.email, initials: a.initials,
+    orgName: a.org_name, orgs: a.orgs, facilitators: a.facilitators,
+    status: a.status, you: a.is_you || undefined, orgId: a.org_id ?? undefined,
+  };
+}
+
+function mapOrg(o: any, teams: Team[]): Org {
+  return {
+    id: o.id, name: o.name, sector: o.sector,
+    teams: teams.filter((t) => t.orgId === o.id).length,
+    leader: o.leader, leaderRole: o.leader_role,
+    contract: o.contract, since: o.since, status: o.status,
+    ownerId: o.owner_id ?? undefined, ownerEmail: o.owner_email ?? undefined,
+  };
+}
+
+function mapInitiative(i: any, sessionCount: number): Initiative {
+  return {
+    id: i.id, teamId: i.team_id, title: i.title, description: i.description ?? undefined,
+    stage: i.stage as StageKey, status: (i.status ?? "active") as Initiative["status"],
+    createdAt: i.created_at ?? undefined, sessionsCount: sessionCount,
+    data: i.data ?? undefined,
+  };
+}
+
+function mapTeam(t: any, initiatives: Initiative[] = []): Team {
+  const members = (t.team_members ?? []).map((m: any) => ({ name: m.name, initials: m.initials }));
+  const vars: Variable[] = (t.variables ?? [])
+    .map((v: any): Variable => ({
+      id: v.id, name: v.name, stage: v.stage as StageKey, sessions: v.sessions,
+      last: v.last_seen, trend: v.trend, state: v.state, source: v.source,
+      desc: v.descr, hasExp: v.has_exp,
+    }))
+    .sort(byNumId);
+  const pulse: PulsePoint[] = (t.pulse_points ?? [])
+    .map((p: any): PulsePoint => ({
+      label: p.label, date: p.date, confianza: p.confianza, comunic: p.comunic,
+      claridad: p.claridad, foco: p.foco, seguridad: p.seguridad,
+    }))
+    .sort((a: PulsePoint, b: PulsePoint) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  const sessions: SessionLog[] = (t.session_logs ?? [])
+    .map((s: any): SessionLog => ({
+      id: s.id, date: s.date, stage: s.stage as StageKey, retro: s.retro,
+      pulse: s.pulse, delta: s.delta, out: s.out_text, initiativeId: s.initiative_id ?? undefined,
+    }))
+    .sort((a: SessionLog, b: SessionLog) => numId(b.id) - numId(a.id));
+
+  const exp = (t.experiments ?? [])[0];
+  const experiment: Experiment | null = exp
+    ? {
+        varId: exp.variable_id,
+        varName: vars.find((v) => v.id === exp.variable_id)?.name ?? "",
+        apuesta: { if: exp.apuesta_if, then: exp.apuesta_then, signal: exp.signal_name, by: exp.due_date },
+        accion: "",
+        responsable: members[0] ?? { name: "", initials: "" },
+        signalName: exp.signal_name, baseline: exp.baseline, current: exp.current_value,
+        target: exp.target, unit: exp.unit, dayOf: exp.day_of, dayTotal: exp.day_total,
+        status: exp.status, filters: { observable: true, measurable: true, teamDependent: true },
+      }
+    : null;
+
+  return {
+    id: t.id, org: t.organizations?.name ?? "", orgId: t.org_id, name: t.name,
+    area: t.area, purpose: t.purpose, clientType: t.client_type,
+    facilitator: { ...FACILITATOR }, members,
+    psychSafety: t.psych_safety, stage: t.stage as StageKey, activeVar: t.active_var,
+    daysLeft: t.days_left, pulse, vars, experiment, sessions, initiatives,
+    blocked: t.blocked || undefined, facilitatorId: t.facilitator_id ?? undefined,
+  };
+}
+
+async function fetchAll() {
+  const supabase = getSupabaseBrowserClient();
+  const [orgsRes, facRes, teamsRes] = await Promise.all([
+    supabase.from("organizations").select("*"),
+    supabase.from("facilitators").select("*"),
+    supabase
+      .from("teams")
+      .select("*, organizations(name), team_members(*), pulse_points(*), variables(*), experiments(*), session_logs(*)"),
+  ]);
+  const err = orgsRes.error || facRes.error || teamsRes.error;
+  if (err) throw err;
+
+  // admins es una tabla opcional (puede no existir todavía) → si falla, va vacío.
+  let admins: Admin[] = [];
+  const adminsRes = await supabase.from("admins").select("*");
+  if (!adminsRes.error) admins = (adminsRes.data ?? []).map(mapAdmin).sort(byNumId);
+
+  // initiatives también es opcional (puede no existir todavía) → si falla, sin iniciativas.
+  const initsByTeam = new Map<string, Initiative[]>();
+  const initRes = await supabase.from("initiatives").select("*").order("created_at", { ascending: true });
+  if (!initRes.error) {
+    for (const row of (initRes.data ?? []) as any[]) {
+      // contamos las sesiones atadas a esta iniciativa dentro de su equipo
+      const teamRow = (teamsRes.data ?? []).find((t: any) => t.id === row.team_id);
+      const count = (teamRow?.session_logs ?? []).filter((s: any) => s.initiative_id === row.id).length;
+      const list = initsByTeam.get(row.team_id) ?? [];
+      list.push(mapInitiative(row, count));
+      initsByTeam.set(row.team_id, list);
+    }
+  }
+
+  const teams = (teamsRes.data ?? []).map((t: any) => mapTeam(t, initsByTeam.get(t.id) ?? [])).sort(byNumId);
+  const orgs = (orgsRes.data ?? []).map((o: any) => mapOrg(o, teams)).sort(byNumId);
+  const facilitators = (facRes.data ?? []).map(mapFac).sort(byNumId);
+  return { orgs, teams, facilitators, admins, source: "supabase" as const };
+}
+
+let loadingPromise: Promise<void> | null = null;
+
+/** Carga los datos una sola vez (idempotente). */
+export function loadData(): Promise<void> {
+  if (useGLStore.getState().loaded) return Promise.resolve();
+  if (loadingPromise) return loadingPromise;
+  loadingPromise = (async () => {
+    try {
+      useGLStore.getState().setData(await fetchAll());
+    } catch (e) {
+      console.warn("[Growthloop] Supabase no disponible:", e);
+      useGLStore.getState().setData({ orgs: [], teams: [], facilitators: [], admins: [], source: "mock" });
+    }
+  })();
+  return loadingPromise;
+}
+
+/** Re-lee los datos desde Supabase (tras una escritura). */
+export async function reloadData(): Promise<void> {
+  try {
+    useGLStore.getState().setData(await fetchAll());
+  } catch (e) {
+    console.warn("[Growthloop] No se pudo recargar:", e);
+  }
+}
