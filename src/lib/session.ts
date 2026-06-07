@@ -19,6 +19,7 @@ export interface LiveSession {
   stepKey?: string;   // paso actual (lo maneja el facilitador)
   stepIndex: number;
   createdBy?: string;
+  result: Record<string, unknown>;  // resultado vivo del paso (causa raíz, etc.)
 }
 
 export interface PulseResponse {
@@ -49,6 +50,7 @@ function mapSession(r: any): LiveSession {
     id: r.id, teamId: r.team_id, initiativeId: r.initiative_id ?? undefined,
     type: r.type, mode: r.mode, status: r.status,
     stepKey: r.step_key ?? undefined, stepIndex: r.step_index ?? 0, createdBy: r.created_by ?? undefined,
+    result: (r.result as Record<string, unknown>) ?? {},
   };
 }
 
@@ -93,9 +95,10 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
+  const firstStep = p.type === "focus" ? "causes" : "pulse";
   const { data, error } = await supabase.from("sessions").insert({
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,
-    mode: "live", status: "live", step_key: "pulse", step_index: 0,
+    mode: "live", status: "live", step_key: firstStep, step_index: 0,
     created_by: auth.user?.id ?? null,
   }).select().single();
   if (error) return { error: error.message };
@@ -127,6 +130,14 @@ export async function submitPulse(sessionId: string, r: PulseResponse): Promise<
 export async function setStep(sessionId: string, stepKey: string, stepIndex: number): Promise<void> {
   const supabase = getSupabaseBrowserClient();
   await supabase.from("sessions").update({ step_key: stepKey, step_index: stepIndex }).eq("id", sessionId);
+}
+
+/** Mergea valores en el resultado vivo de la sesión (lo ven todos por Realtime). */
+export async function setResult(sessionId: string, partial: Record<string, unknown>): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.from("sessions").select("result").eq("id", sessionId).maybeSingle();
+  const merged = { ...((data?.result as Record<string, unknown>) ?? {}), ...partial };
+  await supabase.from("sessions").update({ result: merged }).eq("id", sessionId);
 }
 
 // ── Tarjetas (anónimas o públicas) ──
@@ -217,9 +228,10 @@ export async function removeVote(sessionId: string, clusterId: string): Promise<
 
 /** Cierra la sesión: persiste el pulso como punto real del equipo (si hubo),
  *  lo registra en el log de sesiones y marca la sesión como cerrada. */
-export interface ExploreSummary { priority: string; tensions: { name: string; signals: number; dots: number }[]; pausedNames: string[]; }
-
-export async function finalizeSession(session: LiveSession, opts: { pulseAvg?: PulseResponse | null; cardCount?: number; exploreSummary?: ExploreSummary }): Promise<{ error?: string }> {
+export async function finalizeSession(session: LiveSession, opts: {
+  pulseAvg?: PulseResponse | null; cardCount?: number; summaryText?: string;
+  dataKey?: string; dataValue?: unknown; pausedNames?: string[];
+}): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const date = new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
   const avg = opts.pulseAvg;
@@ -233,7 +245,7 @@ export async function finalizeSession(session: LiveSession, opts: { pulseAvg?: P
     });
   }
   const parts: string[] = [];
-  if (opts.exploreSummary?.priority) parts.push(`prioridad: ${opts.exploreSummary.priority}`);
+  if (opts.summaryText) parts.push(opts.summaryText);
   if (opts.cardCount) parts.push(`${opts.cardCount} ${opts.cardCount === 1 ? "señal" : "señales"}`);
   if (hasPulse) parts.push(`pulso ${overall}/100`);
   await supabase.from("session_logs").insert({
@@ -242,22 +254,19 @@ export async function finalizeSession(session: LiveSession, opts: { pulseAvg?: P
     out_text: parts.join(" · ") || "Sesión realizada", pulse: overall, delta: 0,
   });
 
-  // Iniciativa: guardar resultados de la etapa, avanzar etapa, y dejar las demás tensiones como pausadas.
+  // Iniciativa: guardar resultados de la etapa, avanzar etapa, y (si hay) crear pausadas.
   if (session.initiativeId) {
     const { data: initRow } = await supabase.from("initiatives").select("stage,data").eq("id", session.initiativeId).maybeSingle();
     const patch: Record<string, unknown> = {};
-    if (opts.exploreSummary) {
-      patch.data = {
-        ...((initRow?.data as Record<string, unknown>) ?? {}),
-        explore: { priority: opts.exploreSummary.priority, tensions: opts.exploreSummary.tensions, pausedCount: opts.exploreSummary.pausedNames.length },
-      };
+    if (opts.dataKey) {
+      patch.data = { ...((initRow?.data as Record<string, unknown>) ?? {}), [opts.dataKey]: opts.dataValue };
     }
     const ns = nextStageForward(initRow?.stage as string, session.type);
     if (ns && ns !== (initRow?.stage as string)) patch.stage = ns;
     if (Object.keys(patch).length) await supabase.from("initiatives").update(patch).eq("id", session.initiativeId);
 
-    if (opts.exploreSummary?.pausedNames?.length) {
-      const rows = opts.exploreSummary.pausedNames.map((n) => ({
+    if (opts.pausedNames?.length) {
+      const rows = opts.pausedNames.map((n) => ({
         id: newId("i"), team_id: session.teamId, title: n, stage: "explore", status: "paused", data: {},
       }));
       await supabase.from("initiatives").insert(rows);

@@ -6,13 +6,13 @@ import { Icon } from "@/components/icon";
 import { Logo } from "@/components/AppShell";
 import { Avatar, Bar, Button, Card, Pill } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getTeam } from "@/lib/repository";
+import { getInitiatives, getTeam } from "@/lib/repository";
 import { PULSE_DIMS } from "@/lib/data";
 import {
   addCard, addVote, assignCardToCluster, averagePulse, createCluster, deleteCluster,
   finalizeSession, getCardCounts, getCards, getClusters, getMyCards, getParticipants,
   getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
-  renameCluster, setStep, submitPulse, subscribeSession,
+  renameCluster, setResult, setStep, submitPulse, subscribeSession,
   type LiveSession, type Participant, type PulseResponse, type SessionCard, type SessionCluster, type SessionVote,
 } from "@/lib/session";
 
@@ -70,7 +70,7 @@ export default function SalaPage() {
       ]);
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -93,6 +93,8 @@ export default function SalaPage() {
   if (!session) return <Shell onExit={() => router.back()}><Card pad={24}><p className="muted">La sesión no existe.</p></Card></Shell>;
 
   const team = getTeam(session.teamId);
+  const initiative = session.initiativeId ? getInitiatives(session.teamId).find((i) => i.id === session.initiativeId) : undefined;
+  const subject = (initiative?.data?.explore?.priority as string) || initiative?.title || "la tensión priorizada";
   const isFacil = user.role !== "member";
   const step = session.stepKey ?? "pulse";
   const closed = session.status === "closed";
@@ -215,6 +217,96 @@ export default function SalaPage() {
       {!ranked.length && <div style={{ padding: 20, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>Sin tensiones</div>}
     </Card>
   );
+
+  // ════════ FOCO (¿Por qué pasa esto?) ════════
+  if (session.type === "focus") {
+    const causeCards = allCards.filter((c) => c.columnKey === "cause");
+    const myCauses = myCards.filter((c) => c.columnKey === "cause");
+    const causeCount = counts["cause"] ?? 0;
+    const root = (session.result?.rootCause as string) ?? "";
+
+    if (!isFacil) {
+      if (step === "causes") {
+        const add = async () => {
+          const t = (cardDraft.cause ?? "").trim(); if (!t) return;
+          await addCard(sessionId, "cause", t, true);
+          setCardDraft((d) => ({ ...d, cause: "" }));
+          if (user) setMyCards(await getMyCards(sessionId, user.id));
+        };
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 560 }}>
+              {Header(`¿Por qué pasa "${subject}"? Tirá las causas que se te ocurran. Hablamos de causas, no de personas.`)}
+              <Card pad={24}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                  <input autoFocus value={cardDraft.cause ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, cause: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Una posible causa…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
+                  <Button icon="Plus" onClick={add}>Sumar</Button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {myCauses.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}
+                  {!myCauses.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Sumá la primera causa…</div>}
+                </div>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center" }}>{causeCount} causas entre todos · se revelan juntas</p>
+              </Card>
+            </div>
+          </Shell>
+        );
+      }
+      if (step === "causes_reveal") {
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 560 }}>
+              {Header("Las causas, a la vista. El facilitador define la causa raíz.")}
+              {root && <Card pad={16} style={{ marginBottom: 14, borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Causa raíz</div><div style={{ fontWeight: 700 }}>{root}</div></Card>}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {causeCards.map((c) => <div key={c.id} style={{ background: c.text === root ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${c.text === root ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}
+              </div>
+            </div>
+          </Shell>
+        );
+      }
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 520 }}>{Header("Causa raíz definida.")}<Card pad={24} style={{ textAlign: "center" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 8 }}>Causa raíz</div><div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{root || "—"}</div></Card></div></Shell>;
+    }
+
+    // FACILITADOR (foco)
+    const fSteps = ["causes", "causes_reveal", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, { cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, causes: causeCards.map((c) => c.text) } });
+      setBusy(false); exit();
+    };
+    const partsBar = (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+        <div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div>
+        <span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span>
+      </div>
+    );
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "causes") {
+      fsub = `Profundizando "${subject}". Los miembros escriben causas a ciegas.`;
+      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-focus)" }}>{causeCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>causas propuestas</div></div>;
+      faction = <Button full size="lg" icon="Eye" disabled={busy || causeCount === 0} onClick={fNext}>Revelar causas ({causeCount})</Button>;
+    } else if (step === "causes_reveal") {
+      fsub = "Con el equipo, elegí la causa raíz (tocá una).";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {causeCards.map((c) => { const on = c.text === root; return (
+            <button key={c.id} onClick={() => setResult(sessionId, { rootCause: c.text })} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>{c.text}
+            </button>
+          ); })}
+          {!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>No se cargaron causas.</p>}
+        </div>
+      );
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy || !root} onClick={fNext}>Confirmar causa raíz</Button>;
+    } else {
+      fsub = "Causa raíz definida. Al cerrar, la iniciativa avanza a Prueba.";
+      fbody = <Card pad={18} style={{ textAlign: "center", borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causa raíz</div><div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{root || "—"}</div></Card>;
+      faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
 
   // ════════ MIEMBRO ════════
   if (!isFacil) {
@@ -371,15 +463,16 @@ export default function SalaPage() {
   };
   const finish = async () => {
     setBusy(true);
-    const isExplore = session.type === "explore";
-    const exploreSummary = isExplore && clusters.length
-      ? {
-          priority: ranked[0]?.name ?? "",
-          tensions: ranked.map((c) => ({ name: c.name, signals: cardsOf(c.id).length, dots: votesByCluster[c.id] ?? 0 })),
-          pausedNames: ranked.slice(1).map((c) => c.name),
-        }
-      : undefined;
-    await finalizeSession(session, { pulseAvg: avg, cardCount: allCards.length, exploreSummary });
+    const hasClusters = clusters.length > 0;
+    await finalizeSession(session, {
+      pulseAvg: avg, cardCount: allCards.length,
+      summaryText: hasClusters ? `prioridad: ${ranked[0]?.name ?? "—"}` : undefined,
+      dataKey: hasClusters ? "explore" : undefined,
+      dataValue: hasClusters
+        ? { priority: ranked[0]?.name ?? "", tensions: ranked.map((c) => ({ name: c.name, signals: cardsOf(c.id).length, dots: votesByCluster[c.id] ?? 0 })), pausedCount: ranked.slice(1).length }
+        : undefined,
+      pausedNames: hasClusters ? ranked.slice(1).map((c) => c.name) : undefined,
+    });
     setBusy(false); exit();
   };
 
