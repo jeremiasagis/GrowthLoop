@@ -68,10 +68,10 @@ function StageBody({ st, init }: { st: StageKey; init: Initiative }) {
     if (!d?.rootCause && !d?.causes?.length) return empty("Todavía no se hizo la sesión de foco.");
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {d?.rootCause && (
+        {(d?.roots?.length || d?.rootCause) && (
           <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-focus) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--st-focus) 35%, transparent)", borderRadius: "var(--r-md)" }}>
-            <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Causa raíz</div>
-            <div style={{ fontSize: "var(--t-md)", fontWeight: 700 }}>{d.rootCause}</div>
+            <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>{(d.roots?.length ?? 0) > 1 ? "Causas raíz" : "Causa raíz"}</div>
+            {(d.roots?.length ? d.roots : [d.rootCause!]).map((r, i) => <div key={i} style={{ fontSize: "var(--t-md)", fontWeight: 700 }}>{r}</div>)}
           </div>
         )}
         {!!d?.causes?.length && (

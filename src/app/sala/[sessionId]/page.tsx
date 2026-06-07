@@ -520,11 +520,19 @@ export default function SalaPage() {
     const fSteps = ["causes", "causes_reveal", "group", "vote", "deepen", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const setWhy = (idx: number, val: string) => { const next = [...whys]; next[idx] = val; setResult(sessionId, { whys: next }); };
+    // 5 Porqués colaborativo + causas raíz múltiples
+    const whycCards = allCards.filter((c) => c.columnKey === "whyc");
+    const myWhyc = myCards.filter((c) => c.columnKey === "whyc");
+    const addWhyc = async () => { const t = (cardDraft.whyc ?? "").trim(); if (!t) return; await addCard(sessionId, "whyc", t, false); setCardDraft((d) => ({ ...d, whyc: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const extraRoots = (session.result?.extraRoots as string[]) ?? [];
+    const setExtraRoot = (idx: number, val: string) => { const next = [...extraRoots]; next[idx] = val; setResult(sessionId, { extraRoots: next }); };
+    const roots = [root, ...extraRoots.map((r) => (r ?? "").trim())].filter(Boolean);
     const topCluster = ranked[0];
     const fFinish = async () => {
       setBusy(true);
       const secondary = ranked.filter((c) => c.id !== (chosenId || topCluster?.id)).map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0, signals: cardsOf(c.id).length }));
-      await finalizeSession(session, { cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, cause: votedCause, whys: cleanWhys, causes: causeCards.map((c) => c.text), secondaryCauses: secondary } });
+      const allRoots = [root, ...extraRoots.map((r) => (r ?? "").trim())].filter(Boolean);
+      await finalizeSession(session, { cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, roots: allRoots, cause: votedCause, whys: cleanWhys, causes: causeCards.map((c) => c.text), secondaryCauses: secondary } });
       setBusy(false); exit();
     };
     const focusReminder = (subject || purposeNote) ? (
@@ -631,32 +639,52 @@ export default function SalaPage() {
         ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || (!chosenId && !topCluster)} onClick={() => { if (!chosenId && topCluster) setResult(sessionId, { causeClusterId: topCluster.id, cause: topCluster.name }); fNext(); }}>Profundizar con 5 Porqués</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { cvoteShown: true })}>Mostrar votación ({cVoters}/{totalInRoom})</Button>)
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado cuando todos voten.</p>;
     } else if (step === "deepen") {
-      sub = 'Los "5 Porqués": preguntamos hasta la raíz. La última respuesta es la causa raíz.';
+      wide = true; sub = 'Los "5 Porqués": el equipo aporta y el facilitador arma la cadena hasta la raíz.';
       content = (
-        <Card pad={20}>
-          <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Grupo de causas elegido</div>
-          <div style={{ fontWeight: 700, marginBottom: 14 }}>{votedCause || "—"}</div>
-          {isFacil ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <span className="num" style={{ color: "var(--st-focus)", fontWeight: 800, width: 18 }}>{i + 1}</span>
-                  <input defaultValue={whys[i] ?? ""} onBlur={(e) => setWhy(i, e.target.value)} placeholder={`¿Por qué? (${i + 1})`} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} />
-                </div>
-              ))}
+        <div className="team-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
+          {/* Aportes del equipo (todos escriben) */}
+          <Card pad={18}>
+            <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Grupo elegido</div>
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>{votedCause || "—"}</div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Aportes del equipo ({whycCards.length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12, maxHeight: 220, overflowY: "auto" }}>
+              {whycCards.map((c) => { const author = c.authorId ? participants.find((p) => p.userId === c.authorId)?.name : undefined; const isMine = myWhyc.some((m) => m.id === c.id); return <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${isMine ? "var(--st-focus)" : "var(--line-2)"}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}{author && <span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· {author}</span>}</div>; })}
+              {!whycCards.length && <span className="muted" style={{ fontSize: "var(--t-xs)" }}>Aporten posibles «por qué»…</span>}
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{cleanWhys.map((w, i) => <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><span className="num" style={{ color: "var(--st-focus)", fontWeight: 800 }}>{i + 1}.</span><div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45 }}>{w}</div></div>)}{!cleanWhys.length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Profundizando…</span>}</div>
-          )}
-        </Card>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input value={cardDraft.whyc ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, whyc: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addWhyc()} placeholder="¿Por qué pasa? Aportá…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <button onClick={addWhyc} style={{ background: "var(--st-focus)", color: "#08120c", borderRadius: "var(--r-sm)", padding: "0 11px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={16} /></button>
+            </div>
+          </Card>
+          {/* La cadena acordada (facilitador escribe; todos ven) */}
+          <Card pad={18}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>La cadena (acordada)</div>
+            {isFacil ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span className="num" style={{ color: "var(--st-focus)", fontWeight: 800, width: 16 }}>{i + 1}</span>
+                    <input defaultValue={whys[i] ?? ""} onBlur={(e) => setWhy(i, e.target.value)} placeholder={`¿Por qué? (${i + 1})`} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                  </div>
+                ))}
+                <div style={{ borderTop: "1px solid var(--line)", marginTop: 6, paddingTop: 10 }}>
+                  <div className="eyebrow" style={{ marginBottom: 6 }}>¿Hay otra causa raíz? (opcional)</div>
+                  {[0, 1].map((i) => <input key={i} defaultValue={extraRoots[i] ?? ""} onBlur={(e) => setExtraRoot(i, e.target.value.trim())} placeholder={`Causa raíz adicional ${i + 1}…`} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", marginBottom: 6 }} />)}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{cleanWhys.map((w, i) => <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><span className="num" style={{ color: "var(--st-focus)", fontWeight: 800 }}>{i + 1}.</span><div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45 }}>{w}</div></div>)}{!cleanWhys.length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Profundizando…</span>}{extraRoots.filter((r) => (r ?? "").trim()).map((r, i) => <div key={`x${i}`} style={{ fontSize: "var(--t-sm)", color: "var(--st-focus)", fontWeight: 600 }}>+ {r}</div>)}</div>
+            )}
+          </Card>
+        </div>
       );
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !root} onClick={fNext}>Confirmar causa raíz</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador profundiza con el equipo.</p>;
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !root} onClick={fNext}>Confirmar causa raíz{roots.length > 1 ? "s" : ""}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Aportá tus «por qué». El facilitador arma la cadena.</p>;
     } else {
       sub = "Causa raíz definida. Al cerrar, la iniciativa avanza a Prueba.";
       const secondaryNow = ranked.filter((c) => c.id !== (chosenId || topCluster?.id));
       content = (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Card pad={18} style={{ textAlign: "center", borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causa raíz</div><div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{root || "—"}</div></Card>
+          <Card pad={18} style={{ textAlign: "center", borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>{roots.length > 1 ? "Causas raíz" : "Causa raíz"}</div>{roots.length ? roots.map((r, i) => <div key={i} style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{r}</div>) : <div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>—</div>}</Card>
           {cleanWhys.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{cleanWhys.map((w, i) => <div key={i} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}><b style={{ color: "var(--st-focus)" }}>{i + 1}.</b> {w}</div>)}</div>}
           {secondaryNow.length > 0 && <div style={{ padding: "10px 12px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><div className="eyebrow" style={{ marginBottom: 6 }}><Icon name="Archive" size={12} /> Causas secundarias (quedan guardadas)</div>{secondaryNow.map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)", display: "flex", justifyContent: "space-between" }}><span>{c.name}</span><span className="num">{votesByCluster[c.id] ?? 0} votos</span></div>)}</div>}
         </div>
