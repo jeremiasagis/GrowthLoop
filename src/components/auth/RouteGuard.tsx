@@ -29,7 +29,8 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated) {
-      router.replace("/login");
+      const next = pathname && pathname !== "/" ? `?next=${encodeURIComponent(pathname)}` : "";
+      router.replace(`/login${next}`);
       return;
     }
     if (role && !canAccess(role, pathname)) {

@@ -76,7 +76,6 @@ function ExperimentCard({ team, isFacil }: { team: Team; isFacil: boolean }) {
               <Avatar name={e.responsable.name} initials={e.responsable.initials} size={28} idx={2} />
               <div><div className="muted" style={{ fontSize: 10 }}>Responsable</div><div style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{e.responsable.name}</div></div>
             </div>
-            {isFacil && <Button size="sm" variant="secondary" icon="ClipboardCheck" onClick={() => router.push(`/sesion/${team.id}`)} style={{ marginLeft: "auto" }}>Hacer check-in</Button>}
           </div>
         </div>
 

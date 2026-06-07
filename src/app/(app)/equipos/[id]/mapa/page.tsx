@@ -373,7 +373,7 @@ export default function MapaPage() {
       {view === "spiral" && <SpiralView vars={vars} onOpen={setOpen} />}
       {view === "timeline" && <TimelineView vars={vars} onOpen={setOpen} />}
 
-      {open && <VarDrawer v={open} onClose={() => setOpen(null)} onAdvance={() => router.push(`/sesion/${team.id}`)} />}
+      {open && <VarDrawer v={open} onClose={() => setOpen(null)} onAdvance={() => router.push(`/equipos/${team.id}`)} />}
       {showLog && <LogPanel entries={log} onClose={() => setShowLog(false)} />}
     </div>
   );

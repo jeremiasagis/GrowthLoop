@@ -57,6 +57,7 @@ export default function SalaPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [draft, setDraft] = useState<PulseResponse>({ confianza: 60, comunic: 60, claridad: 60, foco: 60, seguridad: 60 });
   const [cardDraft, setCardDraft] = useState<Record<string, string>>({ works: "", blocks: "", unsaid: "" });
   const [anon, setAnon] = useState(true);
@@ -134,6 +135,9 @@ export default function SalaPage() {
   }
 
   const retroLabel = retroByKey(session.retro)?.name;
+  const copyShare = async () => {
+    try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sin portapapeles */ }
+  };
   const Header = (sub: string) => (
     <div style={{ textAlign: "center", marginBottom: 24 }}>
       <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -142,6 +146,11 @@ export default function SalaPage() {
       </div>
       <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>{team?.name ?? "Equipo"}</h1>
       <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 4 }}>{sub}</p>
+      {isFacil && (
+        <button onClick={copyShare} style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 13px", borderRadius: "var(--r-full)", border: `1px solid ${copied ? "var(--green)" : "var(--line-2)"}`, background: copied ? "var(--success-bg)" : "var(--card)", color: copied ? "var(--green)" : "var(--ink-1)", fontSize: "var(--t-sm)", fontWeight: 600 }}>
+          <Icon name={copied ? "Check" : "Link"} size={15} /> {copied ? "Link copiado" : "Copiar link para invitar"}
+        </button>
+      )}
     </div>
   );
 

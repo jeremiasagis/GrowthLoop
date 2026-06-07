@@ -42,7 +42,7 @@ export function RetroPickerModal({ stage, teamId, initiativeId, onClose }: { sta
               <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.45, marginBottom: 8 }}>{r.purpose}</p>
               <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: "var(--t-xs)" }} className="muted">
                 <span><Icon name="Clock" size={12} /> {r.durationMin} min</span>
-                <span>{r.async ? "En vivo o asincrónica" : "Solo en vivo"}</span>
+                <span><Icon name="Radio" size={12} /> En vivo · facilitada</span>
                 <span>Anonimato: {r.anonymity}</span>
               </div>
             </button>

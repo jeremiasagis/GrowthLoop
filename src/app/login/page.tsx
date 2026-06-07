@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Logo } from "@/components/AppShell";
 import { Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { homeFor } from "@/lib/auth/access";
 
-export default function LoginPage() {
+function LoginInner() {
   const router = useRouter();
+  const search = useSearchParams();
+  const next = search.get("next");
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
@@ -23,7 +25,7 @@ export default function LoginPage() {
     const user = await login(email, pass);
     setBusy(false);
     if (user) {
-      router.replace(homeFor(user.role));
+      router.replace(next && next.startsWith("/") ? next : homeFor(user.role));
     } else {
       setError(true);
     }
@@ -83,4 +85,8 @@ export default function LoginPage() {
       </p>
     </div>
   );
+}
+
+export default function LoginPage() {
+  return <Suspense fallback={null}><LoginInner /></Suspense>;
 }

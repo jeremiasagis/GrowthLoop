@@ -283,7 +283,7 @@ export default function DashboardPage() {
                 const st = STAGES[u.stage];
                 return (
                   <button
-                    key={u.id} onClick={() => go(isFacil ? "/sesion/t1" : "/equipos/t1")}
+                    key={u.id} onClick={() => go("/organizaciones")}
                     style={{
                       display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 12px",
                       borderRadius: "var(--r-md)", borderBottom: i < UPCOMING.length - 1 ? "1px solid var(--line)" : "none", transition: "background .15s",
