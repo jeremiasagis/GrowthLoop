@@ -490,7 +490,7 @@ export default function TeamPage() {
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Button variant="secondary" icon="Spline" onClick={() => router.push(`/equipos/${team.id}/mapa`)}>Ver mapa</Button>
-          <Button variant="secondary" icon="FileBarChart" onClick={() => router.push("/reportes")}>Reporte</Button>
+          <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
         </div>
       </div>
 
