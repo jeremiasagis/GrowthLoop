@@ -74,7 +74,7 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice"].includes(s.stepKey ?? "");
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -98,7 +98,8 @@ export default function SalaPage() {
 
   const team = getTeam(session.teamId);
   const initiative = session.initiativeId ? getInitiatives(session.teamId).find((i) => i.id === session.initiativeId) : undefined;
-  const subject = (initiative?.data?.explore?.priority as string) || initiative?.title || "la tensión priorizada";
+  const focusPriority = (initiative?.data?.focus as { priority?: string } | undefined)?.priority;
+  const subject = focusPriority || (initiative?.data?.explore?.priority as string) || initiative?.title || "la tensión priorizada";
   const isFacil = user.role !== "member";
   const step = session.stepKey ?? "pulse";
   const closed = session.status === "closed";
@@ -449,6 +450,123 @@ export default function SalaPage() {
       fsub = "Al cerrar, se guarda la ficha de prueba y la iniciativa pasa a Seguimiento.";
       fbody = <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{Bet}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{confirmCount} {confirmCount === 1 ? "compromiso" : "compromisos"} · 3 filtros validados</div></div>;
       faction = <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y lanzar la prueba"}</Button>;
+    }
+    return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
+  }
+
+  // ════════ FOCO · "Impacto y frecuencia" (focus_impact) ════════
+  if (session.retro === "focus_impact") {
+    const probCards = allCards.filter((c) => c.columnKey === "problem");
+    const myProbs = myCards.filter((c) => c.columnKey === "problem");
+    const probCount = counts["problem"] ?? 0;
+    const evalRows = (id: string) => inputs.filter((i) => i.key === `eval:${id}`).map((i) => i.value as { f?: number; g?: number });
+    const avgF = (id: string) => { const r = evalRows(id); return r.length ? r.reduce((a, x) => a + Number(x.f || 0), 0) / r.length : 0; };
+    const avgG = (id: string) => { const r = evalRows(id); return r.length ? r.reduce((a, x) => a + Number(x.g || 0), 0) / r.length : 0; };
+    const score = (id: string) => Math.round(avgF(id) * avgG(id) * 10) / 10;
+    const ranked = [...probCards].sort((a, b) => score(b.id) - score(a.id));
+    const chosen = (session.result.chosen as string) ?? (ranked[0]?.text ?? "");
+    const myEval = (id: string) => (inputs.find((i) => i.userId === user.id && i.key === `eval:${id}`)?.value as { f?: number; g?: number }) ?? {};
+    const evalSubmitters = new Set(inputs.filter((i) => i.key.startsWith("eval:")).map((i) => i.userId)).size;
+    const Matrix = (
+      <div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center" }}><span style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: "var(--t-xs)", color: "var(--ink-3)", fontWeight: 600 }}>Gravedad →</span></div>
+          <div style={{ position: "relative", flex: 1, aspectRatio: "1", maxWidth: 280, border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--card)", margin: "0 auto" }}>
+            <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "var(--line)" }} />
+            <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: "var(--line)" }} />
+            <span style={{ position: "absolute", top: 6, right: 8, fontSize: 10, color: "var(--st-focus)", fontWeight: 700 }}>prioridad</span>
+            {probCards.map((c, idx) => { const f = avgF(c.id), g = avgG(c.id); if (!f && !g) return null; return (
+              <span key={c.id} title={c.text} style={{ position: "absolute", left: `${((f - 1) / 2) * 100}%`, bottom: `${((g - 1) / 2) * 100}%`, transform: "translate(-50%, 50%)", width: 24, height: 24, borderRadius: 99, background: idx === 0 ? "var(--st-focus)" : "var(--violet)", color: "#fff", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 800, border: "2px solid var(--bg-1)" }}>{ranked.indexOf(c) + 1}</span>
+            ); })}
+          </div>
+        </div>
+        <div style={{ textAlign: "center", fontSize: "var(--t-xs)", color: "var(--ink-3)", fontWeight: 600, marginTop: 4 }}>Frecuencia →</div>
+      </div>
+    );
+    const RankedList = (
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        {ranked.map((c, idx) => (
+          <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-sm)" }}>
+            <span style={{ width: 22, height: 22, borderRadius: 99, background: idx === 0 ? "var(--st-focus)" : "var(--card-2)", color: idx === 0 ? "#fff" : "var(--ink-2)", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 800, flex: "none" }}>{idx + 1}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>{c.text}</span>
+            <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>score {score(c.id)}</span>
+          </div>
+        ))}
+      </div>
+    );
+
+    if (!isFacil) {
+      if (step === "problems") {
+        const add = async () => { const t = (cardDraft.problem ?? "").trim(); if (!t) return; await addCard(sessionId, "problem", t, true); setCardDraft((d) => ({ ...d, problem: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+        return (
+          <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header(`¿Qué trabas ves en "${subject}"? Una por tarjeta.`)}
+            <Card pad={24}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}><input autoFocus value={cardDraft.problem ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, problem: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Una traba…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} /><Button icon="Plus" onClick={add}>Sumar</Button></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myProbs.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}{!myProbs.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-sm)", textAlign: "center", padding: 16 }}>Sumá la primera traba…</div>}</div>
+            </Card></div></Shell>
+        );
+      }
+      if (step === "problems_reveal") return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Las trabas, a la vista. Ahora las evaluamos.")}<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{probCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</div></div></Shell>;
+      if (step === "rate") {
+        const FREQ: [string, number][] = [["Rara vez", 1], ["A veces", 2], ["Siempre", 3]];
+        const GRAV: [string, number][] = [["Poco", 1], ["Bastante", 2], ["Mucho", 3]];
+        return (
+          <Shell onExit={exit}>
+            <div style={{ width: "100%", maxWidth: 600 }}>
+              {Header("Para cada traba: ¿qué tan seguido pasa y qué tan grave es?")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {probCards.map((c) => { const ev = myEval(c.id); return (
+                  <Card key={c.id} pad={16}>
+                    <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 10 }}>{c.text}</div>
+                    <div style={{ marginBottom: 8 }}><div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 5 }}>Frecuencia</div><div style={{ display: "flex", gap: 6 }}>{FREQ.map(([l, v]) => <button key={v} onClick={() => setMyInput(sessionId, `eval:${c.id}`, { ...ev, f: v })} style={{ padding: "6px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 600, background: ev.f === v ? "var(--st-focus)" : "var(--card-2)", color: ev.f === v ? "#fff" : "var(--ink-1)", border: `1px solid ${ev.f === v ? "var(--st-focus)" : "var(--line-2)"}` }}>{l}</button>)}</div></div>
+                    <div><div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 5 }}>Gravedad</div><div style={{ display: "flex", gap: 6 }}>{GRAV.map(([l, v]) => <button key={v} onClick={() => setMyInput(sessionId, `eval:${c.id}`, { ...ev, g: v })} style={{ padding: "6px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 600, background: ev.g === v ? "var(--st-focus)" : "var(--card-2)", color: ev.g === v ? "#fff" : "var(--ink-1)", border: `1px solid ${ev.g === v ? "var(--st-focus)" : "var(--line-2)"}` }}>{l}</button>)}</div></div>
+                  </Card>
+                ); })}
+              </div>
+              <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 14 }}>Listo cuando puntúes todas. El facilitador cierra la priorización.</p>
+            </div>
+          </Shell>
+        );
+      }
+      return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 560 }}>{Header("Prioridad del equipo.")}{chosen && <Card pad={16} style={{ marginBottom: 14, borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>A trabajar primero</div><div style={{ fontWeight: 700 }}>{chosen}</div></Card>}<Card pad={18}>{Matrix}<div style={{ marginTop: 16 }}>{RankedList}</div></Card></div></Shell>;
+    }
+
+    // facilitador
+    const fSteps = ["problems", "problems_reveal", "rate", "close"];
+    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `Prioridad: ${chosen}`, dataKey: "focus", dataValue: { priority: chosen }, noAdvance: true }); setBusy(false); exit(); };
+    const partsBar = <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}><div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div><span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span></div>;
+    let fbody: React.ReactNode = null, faction: React.ReactNode = null, fsub = "";
+    if (step === "problems") {
+      fsub = `Junten las trabas de "${subject}" (los miembros las cargan).`;
+      fbody = <div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-focus)" }}>{probCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>trabas</div></div>;
+      faction = <Button full size="lg" icon="Eye" disabled={busy || probCount === 0} onClick={fNext}>Revelar trabas ({probCount})</Button>;
+    } else if (step === "problems_reveal") {
+      fsub = "Repasen las trabas antes de evaluarlas.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{probCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Evaluar impacto y frecuencia</Button>;
+    } else if (step === "rate") {
+      fsub = "Cada miembro evalúa frecuencia y gravedad. La matriz se arma en vivo.";
+      fbody = <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{Matrix}{RankedList}<div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>{evalSubmitters} de {totalInRoom} evaluaron</div></div>;
+      faction = <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Cerrar la priorización</Button>;
+    } else {
+      fsub = "La traba prioritaria (tocá para elegir otra). Después: ¿Por qué está pasando?";
+      fbody = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {Matrix}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {ranked.map((c, idx) => { const on = c.text === chosen; return (
+              <button key={c.id} onClick={() => setResult(sessionId, { chosen: c.text })} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", fontSize: "var(--t-sm)" }}>
+                <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
+                <span style={{ flex: 1 }}>{c.text}</span>
+                <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{score(c.id)}</span>
+                {idx === 0 && <Pill color="var(--st-focus)" bg="color-mix(in srgb, var(--st-focus) 14%, transparent)">top</Pill>}
+              </button>
+            ); })}
+          </div>
+        </div>
+      );
+      faction = <Button full size="lg" icon="Check" disabled={busy || !chosen} onClick={fFinish}>{busy ? "Guardando…" : "Confirmar prioridad"}</Button>;
     }
     return <Shell onExit={exit}><div style={{ width: "100%", maxWidth: 600 }}>{Header(fsub)}<Card pad={24}>{partsBar}{fbody}<div style={{ marginTop: 22 }}>{faction}</div></Card></div></Shell>;
   }
