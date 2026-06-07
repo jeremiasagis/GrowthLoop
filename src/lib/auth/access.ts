@@ -14,15 +14,15 @@ import type { RoleKey } from "@/lib/data";
 
 const SUPERADMIN_PREFIXES = [
   "/dashboard", "/organizaciones", "/equipos", "/admins",
-  "/facilitadores", "/reportes", "/reporte", "/sala", "/ajustes",
+  "/facilitadores", "/reportes", "/reporte", "/sala", "/lab", "/ajustes",
 ];
 const ADMIN_PREFIXES = [
   "/dashboard", "/organizaciones", "/equipos",
-  "/facilitadores", "/reportes", "/reporte", "/sala", "/ajustes",
+  "/facilitadores", "/reportes", "/reporte", "/sala", "/lab", "/ajustes",
 ];
 const FACILITATOR_PREFIXES = [
   "/dashboard", "/organizaciones", "/equipos",
-  "/sesiones", "/sala", "/reportes", "/reporte", "/ajustes",
+  "/sesiones", "/sala", "/reportes", "/reporte", "/lab", "/ajustes",
 ];
 const MEMBER_PREFIXES = ["/member", "/sessions", "/sala"];
 // Coordinador: observador de una organización (solo lectura, panel propio).
