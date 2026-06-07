@@ -340,6 +340,44 @@ export default function SalaPage() {
     </div>
   );
 
+  // ════════ PULSO SEMANAL · compartido por todas las sesiones ════════
+  // Si la sesión arranca con "pulse"/"pulse_reveal" (porque el equipo no hizo el pulso esta
+  // semana), se maneja acá para cualquier tipo; al terminar va al primer paso real de la etapa.
+  if (step === "pulse" || step === "pulse_reveal") {
+    const NORMAL_FIRST: Record<string, string> = { explore: "cards", focus: "causes", proof: "ideas", follow: "progress", learn: "result", consolidate: "report" };
+    const afterPulse = NORMAL_FIRST[session.type] ?? "cards";
+    const toReveal = async () => { setBusy(true); await setStep(sessionId, "pulse_reveal", 1); setBusy(false); };
+    const goAfterPulse = async () => { setBusy(true); await setStep(sessionId, afterPulse, 0); setBusy(false); };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "pulse") {
+      sub = "Pulso semanal del equipo. Cinco señales, anónimas — una vez por semana.";
+      if (isFacil) {
+        content = <Card pad={24}><div style={{ textAlign: "center", padding: "10px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{responses.length}/{totalInRoom || team?.members.length || 0}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respondieron</div></div></Card>;
+        controls = <Button full size="lg" icon="Eye" disabled={busy || responses.length === 0} onClick={toReveal}>Revelar promedio ({responses.length})</Button>;
+      } else if (submitted) {
+        content = <Card pad={28} style={{ textAlign: "center" }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Check" size={28} /></div><h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>¡Listo!</h2><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>Tu pulso quedó guardado (anónimo). {responses.length} de {totalInRoom} respondieron.</p></Card>;
+        controls = <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá a que el facilitador continúe.</p>;
+      } else {
+        content = <Card pad={24}><div style={{ display: "flex", flexDirection: "column", gap: 20 }}>{PULSE_DIMS.map((d) => (<div key={d.key}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span><span className="num" style={{ fontWeight: 700, color: d.color }}>{draft[d.key]}</span></div><input type="range" min={0} max={100} value={draft[d.key]} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: Number(e.target.value) }))} style={{ width: "100%", accentColor: d.color }} /></div>))}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="Lock" size={13} /> Anónimo · {responses.length} de {totalInRoom} respondieron</p></Card>;
+        controls = <Button full size="lg" icon="Send" disabled={busy} onClick={async () => { setBusy(true); const res = await submitPulse(sessionId, draft); setBusy(false); if (!res.error) setSubmitted(true); }}>{busy ? "Enviando…" : "Enviar mi pulso"}</Button>;
+      }
+    } else {
+      sub = "El pulso del equipo, revelado para todos.";
+      content = <Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>Promedio del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{overall}/100</Pill></div>{Averages}</Card>;
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goAfterPulse}>Continuar con la sesión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador continúa con la sesión.</p>;
+    }
+    return (
+      <Shell onExit={exit}>
+        <div style={{ width: "100%", maxWidth: 560 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
   // ════════ SESIÓN FUNDACIONAL · contrato (pantalla compartida) ════════
   if (session.type === "founding") {
     const answers = (session.result.answers as Record<string, string>) ?? {};
@@ -446,7 +484,7 @@ export default function SalaPage() {
     const maxS = Math.max(1, ...STUCK.map((s) => stuckCount[s.v] ?? 0));
     const fSteps = ["report", "decide", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const fFinish = async () => { setBusy(true); await finalizeSession(session, { summaryText: `Consolidación: ${ol?.l ?? "—"}`, dataKey: "consolidate", dataValue: { outcome, note: cnote, date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) }, noAdvance: true, status: "done" }); setBusy(false); exit(); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { pulseAvg: avg, summaryText: `Consolidación: ${ol?.l ?? "—"}`, dataKey: "consolidate", dataValue: { outcome, note: cnote, date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) }, noAdvance: true, status: "done" }); setBusy(false); exit(); };
 
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "report") {
@@ -532,7 +570,7 @@ export default function SalaPage() {
       setBusy(true);
       const secondary = ranked.filter((c) => c.id !== (chosenId || topCluster?.id)).map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0, signals: cardsOf(c.id).length }));
       const allRoots = [root, ...extraRoots.map((r) => (r ?? "").trim())].filter(Boolean);
-      await finalizeSession(session, { cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, roots: allRoots, cause: votedCause, whys: cleanWhys, causes: causeCards.map((c) => c.text), secondaryCauses: secondary } });
+      await finalizeSession(session, { pulseAvg: avg, cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, roots: allRoots, cause: votedCause, whys: cleanWhys, causes: causeCards.map((c) => c.text), secondaryCauses: secondary } });
       setBusy(false); exit();
     };
     const focusReminder = (subject || purposeNote) ? (
@@ -794,7 +832,7 @@ export default function SalaPage() {
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => {
       setBusy(true);
-      await finalizeSession(session, { cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosen, betIf, betThen, signal, responsible, deadline, risks: riskCards.map((c) => c.text), committed: confirmCount } });
+      await finalizeSession(session, { pulseAvg: avg, cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosen, betIf, betThen, signal, responsible, deadline, risks: riskCards.map((c) => c.text), committed: confirmCount } });
       setBusy(false); exit();
     };
     const BetForm = (
@@ -978,7 +1016,7 @@ export default function SalaPage() {
     const SEE = [{ v: 0, l: "Sin avance" }, { v: 1, l: "Algo" }, { v: 2, l: "Bien" }, { v: 3, l: "Logrado" }];
     const fSteps = ["progress", "blockers", "blockers_reveal", "decide", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const fFinish = async () => { setBusy(true); await finalizeSession(session, { cardCount: blockerCount, summaryText: `Avance: ${current}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current, signal: signalName, blockers: blockerCards.map((c) => c.text), decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
+    const fFinish = async () => { setBusy(true); await finalizeSession(session, { pulseAvg: avg, cardCount: blockerCount, summaryText: `Avance: ${current}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current, signal: signalName, blockers: blockerCards.map((c) => c.text), decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
     const addBlocker = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
 
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
@@ -1082,7 +1120,7 @@ export default function SalaPage() {
     const fFinish = async () => {
       setBusy(true);
       await finalizeSession(session, {
-        cardCount: learnCount, summaryText: `Resultado: ${rl?.l ?? "—"} · ${dl?.l ?? "—"}`,
+        pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${rl?.l ?? "—"} · ${dl?.l ?? "—"}`,
         dataKey: "learn", dataValue: { result: resultKey, learnings: learnCards.map((c) => c.text), decision },
         noAdvance: true, status: decision === "iterate" ? "active" : "done", stageOverride: decision === "iterate" ? "proof" : undefined,
       });

@@ -98,9 +98,21 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
-  const FIRST: Record<string, string> = { founding: "welcome", consolidate: "report", focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
+  // Primer paso "real" de cada tipo (sin pulso). El pulso se antepone abajo si toca.
+  const NORMAL_FIRST: Record<string, string> = { founding: "welcome", consolidate: "report", explore: "cards", focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
   const RETRO_FIRST: Record<string, string> = { proof_design: "context", focus_impact: "problems", explore_flow: "funnel", focus_where: "funnel", proof_premortem: "risks", follow_blockers: "blockers", learn_learned: "learnings", learn_next: "decision", learn_team: "process", explore_purpose: "answers", focus_client: "perceptions", explore_relations: "relations" };
-  const firstStep = (p.retro && RETRO_FIRST[p.retro]) || FIRST[p.type] || "pulse";
+  const normalFirst = (p.retro && RETRO_FIRST[p.retro]) || NORMAL_FIRST[p.type] || "cards";
+  // Pulso semanal: si el equipo no hizo pulso esta semana (lun–dom), la sesión arranca con el pulso.
+  // La Sesión Fundacional nunca lleva pulso (es el contrato inicial).
+  let firstStep = normalFirst;
+  if (p.type !== "founding") {
+    const { data: teamRow } = await supabase.from("teams").select("data").eq("id", p.teamId).maybeSingle();
+    const lastPulseAt = (teamRow?.data as { lastPulseAt?: string } | null)?.lastPulseAt;
+    const d = new Date(); const dow = (d.getDay() + 6) % 7;
+    const weekStart = new Date(d); weekStart.setHours(0, 0, 0, 0); weekStart.setDate(d.getDate() - dow);
+    const needPulse = !lastPulseAt || new Date(lastPulseAt) < weekStart;
+    if (needPulse) firstStep = "pulse";
+  }
   // Cerrar cualquier sesión anterior que haya quedado abierta en el equipo
   // (evita "fantasmas" en vivo y garantiza una sola sesión activa por equipo).
   await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() })
@@ -305,10 +317,11 @@ export async function finalizeSession(session: LiveSession, opts: {
   }
 
   // Equipo: guardar datos a nivel equipo (p.ej. el contrato de la Sesión Fundacional).
-  if (opts.teamData) {
+  if (opts.teamData || hasPulse) {
     const { data: teamRow } = await supabase.from("teams").select("data").eq("id", session.teamId).maybeSingle();
     const prev = (teamRow?.data as Record<string, unknown>) ?? {};
-    await supabase.from("teams").update({ data: { ...prev, ...opts.teamData } }).eq("id", session.teamId);
+    const patch = { ...prev, ...(opts.teamData ?? {}), ...(hasPulse ? { lastPulseAt: new Date().toISOString() } : {}) };
+    await supabase.from("teams").update({ data: patch }).eq("id", session.teamId);
   }
 
   const { error } = await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", session.id);

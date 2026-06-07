@@ -189,6 +189,7 @@ export interface Team {
 /** Datos a nivel equipo guardados en teams.data (jsonb). */
 export interface TeamData {
   contract?: TeamContract;
+  lastPulseAt?: string; // ISO; última vez que el equipo hizo el pulso (para el pulso semanal)
 }
 
 /** Contrato de equipo acordado y firmado en la Sesión Fundacional. */
