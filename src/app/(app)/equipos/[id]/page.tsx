@@ -399,7 +399,7 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
   );
 }
 
-function SeguimientoPanel({ team, isFacil, onOpenPulse }: { team: Team; isFacil: boolean; onOpenPulse: () => void }) {
+function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onInvite: () => void }) {
   const router = useRouter();
   const { show } = useToast();
   const [, setNonce] = useState(0);
@@ -444,18 +444,38 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse }: { team: Team; isFacil:
           {isFacil && <Button icon="Plus" onClick={newInitiative}>Nueva iniciativa</Button>}
         </div>
 
-        {isFacil && !hasContract && (
-          <Card pad={18} style={{ borderColor: "color-mix(in srgb, var(--st-explore) 40%, var(--line))", background: "color-mix(in srgb, var(--st-explore) 8%, transparent)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-              <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--st-explore) 20%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Handshake" size={22} /></div>
-              <div style={{ flex: 1, minWidth: 180 }}>
-                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>Hagan la Sesión Fundacional</div>
-                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>Antes de la primera iniciativa, acuerden cómo va a funcionar el equipo. Es el contrato que firman todos.</p>
+        {isFacil && (() => {
+          const membersDone = team.members.length > 0;
+          const contractDone = hasContract;
+          const initDone = inits.length > 0;
+          if (membersDone && contractDone && initDone) return null;
+          const STEPS = [
+            { done: membersDone, n: 1, title: "Invitá a los integrantes", desc: "Sumá al equipo para que participen en vivo.", btn: "Invitar", icon: "UserPlus", onClick: onInvite },
+            { done: contractDone, n: 2, title: "Hagan la Sesión Fundacional", desc: "Acuerden cómo va a funcionar el equipo y firmen el contrato.", btn: launching ? "Abriendo…" : "Iniciar Fundacional", icon: "Handshake", onClick: startFounding },
+            { done: initDone, n: 3, title: "Creen la primera iniciativa", desc: "Lo que el equipo va a trabajar para mejorar.", btn: "Nueva iniciativa", icon: "Plus", onClick: newInitiative },
+          ];
+          const nextIdx = STEPS.findIndex((s) => !s.done);
+          return (
+            <Card pad={18} style={{ borderColor: "color-mix(in srgb, var(--st-explore) 40%, var(--line))", background: "color-mix(in srgb, var(--st-explore) 8%, transparent)" }}>
+              <div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Rocket" size={14} /> Primeros pasos del equipo</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {STEPS.map((s, i) => {
+                  const isNext = i === nextIdx;
+                  return (
+                    <div key={s.n} style={{ display: "flex", alignItems: "center", gap: 12, opacity: s.done || isNext ? 1 : 0.55 }}>
+                      <span style={{ width: 26, height: 26, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", background: s.done ? "var(--success)" : isNext ? "color-mix(in srgb, var(--st-explore) 22%, transparent)" : "var(--card-2)", color: s.done ? "#08120c" : isNext ? "var(--st-explore)" : "var(--ink-3)", border: `1px solid ${s.done ? "var(--success)" : isNext ? "var(--st-explore)" : "var(--line-2)"}`, fontWeight: 800, fontSize: "var(--t-xs)" }}>{s.done ? <Icon name="Check" size={14} /> : s.n}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", textDecoration: s.done ? "line-through" : "none", color: s.done ? "var(--ink-2)" : "var(--ink-0)" }}>{s.title}</div>
+                        {isNext && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{s.desc}</p>}
+                      </div>
+                      {isNext && <Button size="sm" icon={s.icon} disabled={s.btn === "Abriendo…"} onClick={s.onClick}>{s.btn}</Button>}
+                    </div>
+                  );
+                })}
               </div>
-              <Button icon="Handshake" disabled={launching} onClick={startFounding}>{launching ? "Abriendo…" : "Iniciar Fundacional"}</Button>
-            </div>
-          </Card>
-        )}
+            </Card>
+          );
+        })()}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {FILTERS.map((f) => {
@@ -638,7 +658,7 @@ export default function TeamPage() {
 
       <div style={{ marginBottom: 20 }}><Tabs tabs={TABS} active={tab} onChange={setTab} /></div>
 
-      {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} />}
+      {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onInvite={() => setInviteOpen(true)} />}
 
       {tab === "pulso" && <PulseDetail team={team} />}
 

@@ -32,6 +32,7 @@ export default function NuevoEquipoPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invites, setInvites] = useState<{ email: string; token: string }[] | null>(null);
+  const [createdTeamId, setCreatedTeamId] = useState<string | null>(null);
 
   const valid = /\S+@\S+\.\S+/.test(emailDraft);
   const addEmail = () => {
@@ -48,8 +49,11 @@ export default function NuevoEquipoPage() {
     const res = await createTeam({ name, orgId, area, purpose, memberEmails: emails, facilitatorEmail: user?.email });
     setBusy(false);
     if (res.error) { setError(res.error); return; }
+    setCreatedTeamId(res.teamId ?? null);
     if (res.memberInvites && res.memberInvites.length) {
       setInvites(res.memberInvites);
+    } else if (res.teamId) {
+      router.push(`/equipos/${res.teamId}`);
     } else {
       setToast("Equipo creado.");
       setTimeout(() => router.push("/organizaciones"), 1200);
@@ -78,8 +82,13 @@ export default function NuevoEquipoPage() {
             </div>
           ))}
         </Card>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
-          <Button icon="ArrowRight" onClick={() => router.push("/organizaciones")}>Ir a Organizaciones</Button>
+        <div style={{ marginTop: 16, padding: "12px 14px", background: "color-mix(in srgb, var(--st-explore) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-sm)" }}>
+          <Icon name="Handshake" size={16} style={{ color: "var(--st-explore)" }} />
+          <span><b>Próximo paso:</b> hacé la <b style={{ color: "var(--st-explore)" }}>Sesión Fundacional</b> con el equipo antes de la primera iniciativa.</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
+          <Button variant="ghost" onClick={() => router.push("/organizaciones")}>Organizaciones</Button>
+          {createdTeamId && <Button icon="ArrowRight" onClick={() => router.push(`/equipos/${createdTeamId}`)}>Ir al equipo</Button>}
         </div>
       </div>
     );
