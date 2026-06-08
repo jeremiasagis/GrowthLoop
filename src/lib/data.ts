@@ -146,7 +146,7 @@ export interface InitiativeData {
   focus?: { rootCause?: string; roots?: string[]; cause?: string; causes?: string[]; whys?: string[]; secondaryCauses?: { name: string; votes: number; signals?: number }[] };
   proof?: { betIf?: string; betThen?: string; signal?: string; signalMetric?: string; signalTarget?: string; signalHow?: string; responsible?: string; deadline?: string; actions?: { text: string; who: string }[]; mitigations?: { risk: string; plan: string }[]; bets?: ProofBet[]; risks?: string[]; committed?: number; secondaryIdeas?: { name: string; ice: number }[] };
   follow?: { current?: number; target?: number; unit?: string; signalName?: string; signalNow?: string; onTrack?: boolean; blockers?: string[]; actionStatus?: { text: string; who: string; status: string }[]; betCheckins?: { name: string; signal: string; value: string; pct: number; actions: { text: string; who: string; status: string }[] }[]; newActions?: { text: string; who: string }[]; escalateTo?: string; decision?: string };
-  learn?: { result?: string; learnings?: string[]; decision?: string };
+  learn?: { result?: string; results?: string[]; learnings?: string[]; decision?: string; decisions?: string[] };
   consolidate?: { outcome?: string; note?: string; date?: string };
 }
 

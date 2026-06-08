@@ -1296,14 +1296,20 @@ export default function SalaPage() {
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => {
       setBusy(true);
+      const anyIterate = decisions.includes("iterate");
+      const r0 = RESULTS.find((x) => x.k === results[0]);
+      const d0 = DECISIONS.find((x) => x.k === decisions[0]);
       await finalizeSession(session, {
-        pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${rl?.l ?? "—"} · ${dl?.l ?? "—"}`,
-        dataKey: "learn", dataValue: { result: resultKey, learnings: learnCards.map((c) => c.text), decision },
-        noAdvance: true, status: decision === "iterate" ? "active" : "done", stageOverride: decision === "iterate" ? "proof" : undefined,
+        pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${r0?.l ?? "—"} · ${d0?.l ?? "—"}`,
+        dataKey: "learn", dataValue: { result: results[0] ?? "", results, decision: decisions[0] ?? "", decisions, learnings: learnCards.map((c) => c.text) },
+        noAdvance: true, status: anyIterate ? "active" : "done", stageOverride: anyIterate ? "proof" : undefined,
       });
       setBusy(false); exit();
     };
-    const PickRow = (opts: { k: string; l: string; c: string; i: string; d?: string }[], value: string, key: string, editable = true) => (
+    const results = (R.results as string[]) ?? (resultKey ? [resultKey] : []);
+    const decisions = (R.decisions as string[]) ?? (decision ? [decision] : []);
+    const setArr = (which: "results" | "decisions", i: number, val: string) => { const arr = (which === "results" ? results : decisions).slice(); while (arr.length <= i) arr.push(""); arr[i] = val; setResult(sessionId, { [which]: arr }); };
+    const PickRow = (opts: { k: string; l: string; c: string; i: string; d?: string }[], value: string, onPick: (k: string) => void, editable = true) => (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
         {opts.map((o) => { const on = value === o.k; const inner = (
           <>
@@ -1312,17 +1318,28 @@ export default function SalaPage() {
           </>
         ); const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: editable || on ? 1 : 0.5 };
           return editable
-            ? <button key={o.k} onClick={() => setResult(sessionId, { [key]: o.k })} style={st}>{inner}</button>
+            ? <button key={o.k} onClick={() => onPick(o.k)} style={st}>{inner}</button>
             : <div key={o.k} style={st}>{inner}</div>;
         })}
+      </div>
+    );
+    const betLabel = (i: number) => learnBets.length > 1 ? `Apuesta ${i + 1}${learnBets[i]?.name ? ` · ${learnBets[i]?.name}` : ""}` : "";
+    const PickPerBet = (opts: { k: string; l: string; c: string; i: string; d?: string }[], which: "results" | "decisions") => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {learnBets.map((b, i) => (
+          <div key={i}>
+            {learnBets.length > 1 && <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 8 }}>{betLabel(i)}{which === "results" && (b.signalTarget || followCheckins[i]?.value) && <span className="faint" style={{ marginLeft: 6 }}>meta {b.signalTarget || "—"}{followCheckins[i]?.value ? ` · logrado ${followCheckins[i]?.value}` : ""}</span>}</div>}
+            {PickRow(opts, (which === "results" ? results : decisions)[i] ?? "", (k) => setArr(which, i, k), isFacil)}
+          </div>
+        ))}
       </div>
     );
 
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "result") {
-      sub = "¿Funcionó la prueba? La mirada honesta del equipo. El facilitador la marca.";
-      content = PickRow(RESULTS, resultKey, "result", isFacil);
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !resultKey} onClick={fNext}>Siguiente: reflexión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador marca el resultado con el equipo.</p>;
+      sub = learnBets.length > 1 ? "¿Funcionó cada apuesta? La mirada honesta del equipo, con los datos al lado." : "¿Funcionó la prueba? La mirada honesta del equipo. El facilitador la marca.";
+      content = PickPerBet(RESULTS, "results");
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || results.filter(Boolean).length < learnBets.length} onClick={fNext}>Siguiente: reflexión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador marca el resultado con el equipo.</p>;
     } else if (step === "reflect") {
       sub = "Un minuto de silencio para pensar. Lo que cada uno escribe es privado: el facilitador no lo ve.";
       content = isFacil ? (
@@ -1363,12 +1380,24 @@ export default function SalaPage() {
       content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{learnCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!learnCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin aprendizajes.</p>}</div>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: decisión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define cómo sigue la iniciativa.</p>;
     } else if (step === "decision") {
-      sub = "¿Cómo sigue esta iniciativa?";
-      content = PickRow(DECISIONS, decision, "decision", isFacil);
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !decision} onClick={fNext}>Revisar y cerrar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define la decisión con el equipo.</p>;
+      sub = learnBets.length > 1 ? "¿Cómo sigue cada apuesta? Cada una puede consolidar, iterar o soltar." : "¿Cómo sigue esta iniciativa?";
+      content = PickPerBet(DECISIONS, "decisions");
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || decisions.filter(Boolean).length < learnBets.length} onClick={fNext}>Revisar y cerrar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define la decisión con el equipo.</p>;
     } else {
-      sub = decision === "iterate" ? "Al cerrar, la iniciativa vuelve a Prueba." : "Al cerrar, la iniciativa queda cerrada.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>{Picked}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{learnCount} {learnCount === 1 ? "aprendizaje" : "aprendizajes"} registrados</div>{decision === "consolidate" && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", display: "flex", alignItems: "center", gap: 6 }}><Icon name="CalendarClock" size={14} style={{ color: "var(--st-learn)" }} /> Consolidación: se revisa en ~30 días para confirmar que se volvió hábito.</p>}</div>;
+      sub = decisions.includes("iterate") ? "Al cerrar, la iniciativa vuelve a Prueba." : "Al cerrar, la iniciativa queda cerrada.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {learnBets.map((b, i) => { const r = RESULTS.find((x) => x.k === results[i]); const d = DECISIONS.find((x) => x.k === decisions[i]); return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+              {learnBets.length > 1 && <span style={{ fontSize: "var(--t-sm)", fontWeight: 700, flex: 1, minWidth: 100 }}>{betLabel(i)}</span>}
+              {r && <Pill color={r.c} bg={`color-mix(in srgb, ${r.c} 14%, transparent)`} icon="Flag">{r.l}</Pill>}
+              {d && <Pill color={d.c} bg={`color-mix(in srgb, ${d.c} 14%, transparent)`} icon="GitFork">{d.l}</Pill>}
+            </div>
+          ); })}
+          <div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>{learnCount} {learnCount === 1 ? "aprendizaje" : "aprendizajes"} registrados</div>
+          {decisions.includes("consolidate") && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="CalendarClock" size={14} style={{ color: "var(--st-learn)" }} /> Consolidación: se revisa en ~30 días para confirmar que se volvió hábito.</p>}
+        </div>
+      );
       controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar el ciclo"}</Button> : null;
     }
 
