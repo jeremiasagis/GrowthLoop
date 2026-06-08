@@ -191,6 +191,30 @@ export async function assignFacilitatorToOrg(facilitatorId: string, orgId: strin
   return {};
 }
 
+/** Quita un facilitador de una organización (multi-org). */
+export async function removeFacilitatorFromOrg(facilitatorId: string, orgId: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const fac = useGLStore.getState().facilitators.find((f) => f.id === facilitatorId);
+  const email = (fac?.email ?? "").toLowerCase();
+  if (!email) return { error: "No se encontró el facilitador." };
+  // No se puede quitar si tiene equipos en esa org (perdería el vínculo con esos equipos).
+  const teams = useGLStore.getState().teams;
+  if (teams.some((t) => t.facilitatorId === facilitatorId && t.orgId === orgId)) {
+    return { error: "Tiene equipos en esta organización. Reasigná o eliminá esos equipos primero." };
+  }
+  // Quitar la membresía explícita.
+  const { error } = await supabase.from("facilitator_orgs").delete().eq("email", email).eq("org_id", orgId);
+  if (error) return { error: error.message };
+  // Si esta org era su "home", pasarla a otra de sus orgs (o dejarlo sin org).
+  if (fac?.orgId === orgId) {
+    const fallback = (fac.orgIds ?? []).find((o) => o !== orgId) ?? null;
+    await supabase.from("facilitators").update({ org_id: fallback }).eq("id", facilitatorId);
+    await supabase.from("profiles").update({ org_id: fallback }).eq("email", email).eq("role", "facilitator");
+  }
+  await reloadData();
+  return {};
+}
+
 export async function createTeam(input: {
   name: string; orgId: string; area?: string; purpose?: string; memberEmails?: string[]; facilitatorEmail?: string;
 }): Promise<{ error?: string; teamId?: string; memberInvites?: { email: string; token: string }[] }> {

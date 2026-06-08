@@ -6,7 +6,7 @@ import { Icon } from "@/components/icon";
 import { AvatarStack, Button, Card, CopyLink, EmptyState, Pill, Sparkline, StageBadge } from "@/components/ui";
 import {
   assignFacilitatorToOrg, assignOrgAdmin, createOrg, getAdmins, getCoordinatorsForOrg, getFacilitators,
-  getOrgs, getTeams, inviteCoordinator, updateOrg,
+  getOrgs, getTeams, inviteCoordinator, removeFacilitatorFromOrg, updateOrg,
 } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
@@ -172,6 +172,8 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
   const assignable = facilitators.filter((f) => !orgsOf(f).includes(org.id));
   const orgNamesOf = (f: Facilitator) => orgsOf(f).map((id) => orgs.find((o) => o.id === id)?.name).filter(Boolean).join(", ");
 
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
   const assign = async () => {
     if (!assignId) return;
     setAssigning(true);
@@ -182,6 +184,15 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
     setAssignId("");
     onChanged();
     show(`${f?.name ?? "Facilitador"} sumado a ${org.name}.`);
+  };
+
+  const removeFac = async (f: Facilitator) => {
+    setRemovingId(f.id);
+    const res = await removeFacilitatorFromOrg(f.id, org.id);
+    setRemovingId(null);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    onChanged();
+    show(`${f.name} quitado de ${org.name}.`);
   };
 
   useEffect(() => { getCoordinatorsForOrg(org.id).then(setCoords); }, [org.id]);
@@ -247,6 +258,10 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
               <Icon name="UserCog" size={14} className="" style={{ color: "var(--info)" }} />
               <span style={{ fontWeight: 600 }}>{f.name}</span>
               <span className="muted" style={{ marginLeft: "auto", fontSize: "var(--t-xs)" }}>{f.email}</span>
+              <button onClick={() => removeFac(f)} disabled={removingId === f.id} title={`Quitar de ${org.name}`}
+                style={{ color: "var(--ink-3)", display: "inline-flex", flex: "none", marginLeft: 2 }}>
+                <Icon name={removingId === f.id ? "Loader" : "X"} size={15} />
+              </button>
             </div>
           ))}
         </div>
