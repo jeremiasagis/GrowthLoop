@@ -46,7 +46,7 @@ const STEP_SEQ: Record<string, string[]> = {
   focus: ["causes", "causes_reveal", "group", "vote", "matrix", "deepen", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
   follow: ["progress", "actions", "blockers", "blockers_reveal", "decide", "close"],
-  learn: ["result", "reflect", "learnings", "learnings_reveal", "decision", "close"],
+  learn: ["result", "reflect", "learnings", "learnings_reveal", "group", "vote", "decision", "close"],
 };
 
 function Shell({ onExit, children }: { onExit?: () => void; children: React.ReactNode }) {
@@ -1292,7 +1292,10 @@ export default function SalaPage() {
     const reflected = inputs.some((i) => i.userId === user.id && i.key === "reflected");
     const reflectedCount = inputs.filter((i) => i.key === "reflected").length;
     const addLearning = async () => { const t = (cardDraft.learning ?? "").trim(); if (!t) return; await addCard(sessionId, "learning", t, true); setCardDraft((d) => ({ ...d, learning: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
-    const fSteps = ["result", "reflect", "learnings", "learnings_reveal", "decision", "close"];
+    const groupLearnings = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Aprendizaje ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
+    const voteLearn = async (clusterId: string, delta: number) => { if (delta > 0 && remaining <= 0) return; if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId); };
+    const lShown = !!R.lvoteShown;
+    const fSteps = ["result", "reflect", "learnings", "learnings_reveal", "group", "vote", "decision", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => {
       setBusy(true);
@@ -1301,7 +1304,7 @@ export default function SalaPage() {
       const d0 = DECISIONS.find((x) => x.k === decisions[0]);
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${r0?.l ?? "—"} · ${d0?.l ?? "—"}`,
-        dataKey: "learn", dataValue: { result: results[0] ?? "", results, decision: decisions[0] ?? "", decisions, learnings: learnCards.map((c) => c.text) },
+        dataKey: "learn", dataValue: { result: results[0] ?? "", results, decision: decisions[0] ?? "", decisions, learnings: learnCards.map((c) => c.text), highlights: ranked.map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })).filter((h) => h.votes > 0) },
         noAdvance: true, status: anyIterate ? "active" : "done", stageOverride: anyIterate ? "proof" : undefined,
       });
       setBusy(false); exit();
@@ -1335,7 +1338,7 @@ export default function SalaPage() {
       </div>
     );
 
-    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
     if (step === "result") {
       sub = learnBets.length > 1 ? "¿Funcionó cada apuesta? La mirada honesta del equipo, con los datos al lado." : "¿Funcionó la prueba? La mirada honesta del equipo. El facilitador la marca.";
       content = PickPerBet(RESULTS, "results");
@@ -1376,9 +1379,79 @@ export default function SalaPage() {
       );
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || learnCount === 0} onClick={fNext}>Revelar aprendizajes ({learnCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tu aprendizaje. Se revelan todos juntos.</p>;
     } else if (step === "learnings_reveal") {
-      sub = "Lo que se lleva el equipo.";
+      sub = "Lo que se lleva el equipo. Después agrupamos y votamos los más importantes.";
       content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{learnCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!learnCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin aprendizajes.</p>}</div>;
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: decisión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define cómo sigue la iniciativa.</p>;
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Agrupar aprendizajes</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa los aprendizajes.</p>;
+    } else if (step === "group") {
+      wide = true; sub = isFacil ? "Agrupá los aprendizajes parecidos. Después se votan los más importantes." : "El facilitador agrupa los aprendizajes.";
+      content = (
+        <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span className="eyebrow">Sueltos ({loose.length})</span>
+              {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={groupLearnings}>Agrupar {sel.length}</Button>}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 10 }}>
+              {loose.map((c) => { const on = sel.includes(c.id); const st: React.CSSProperties = { textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4, position: "relative" };
+                return isFacil ? <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))} style={st}>{on && <span style={{ position: "absolute", top: 6, right: 6, color: "var(--green)" }}><Icon name="CheckCircle2" size={14} /></span>}{c.text}</button> : <div key={c.id} style={st}>{c.text}</div>;
+              })}
+              {!loose.length && <div style={{ gridColumn: "1/-1", color: "var(--ink-3)", fontSize: "var(--t-sm)", padding: 16, textAlign: "center" }}>Todos agrupados.</div>}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <span className="eyebrow">Grupos ({clusters.length})</span>
+            {clusters.map((cl) => (
+              <Card key={cl.id} pad={12}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ color: "var(--st-learn)" }}><Icon name="Layers" size={15} /></span>
+                  {isFacil ? <input defaultValue={cl.name} onBlur={(e) => renameCluster(cl.id, e.target.value)} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed var(--line-2)" }} /> : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
+                  {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "5px 7px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-learn)" }}>{c.text}</div>)}</div>
+              </Card>
+            ))}
+            {!clusters.length && <div style={{ border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", padding: 18, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>{isFacil ? "Seleccioná aprendizajes y agrupalos." : "Todavía no hay grupos."}</div>}
+          </div>
+        </div>
+      );
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={fNext}>Votar los más importantes</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mirá cómo se agrupan los aprendizajes.</p>;
+    } else if (step === "vote") {
+      const lVoters = new Set(votes.map((v) => v.userId)).size;
+      const maxL = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
+      sub = lShown ? "Los aprendizajes más importantes del equipo." : "¿Cuáles aprendizajes son los más importantes? Repartí tus puntos (oculto).";
+      content = lShown ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {ranked.map((cl, i) => (
+            <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-sm)" }}>
+              <span className="num" style={{ width: 18, fontWeight: 700, color: i === 0 ? "var(--st-learn)" : "var(--ink-3)" }}>{i + 1}</span>
+              <span style={{ flex: 1 }}>{cl.name}</span>
+              <div style={{ width: 80 }}><Bar value={((votesByCluster[cl.id] ?? 0) / maxL) * 100} color="var(--st-learn)" height={6} /></div>
+              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <>
+          {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--st-learn)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
+              <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
+                {isFacil ? (mine > 0 ? <span className="num" style={{ color: "var(--st-learn)", fontWeight: 700 }}>{mine}</span> : <span className="faint" style={{ fontSize: "var(--t-xs)" }}>—</span>)
+                  : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <button onClick={() => voteLearn(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
+                      <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
+                      <button onClick={() => voteLearn(cl.id, 1)} disabled={remaining === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--st-learn)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#08120c" }}><Icon name="Plus" size={15} /></button>
+                    </div>}
+              </div>
+            ); })}
+          </div>
+          <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {lVoters} de {totalInRoom} votaron</p>
+        </>
+      );
+      controls = isFacil
+        ? (lShown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: decisión</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { lvoteShown: true })}>Mostrar votación ({lVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado.</p>;
     } else if (step === "decision") {
       sub = learnBets.length > 1 ? "¿Cómo sigue cada apuesta? Cada una puede consolidar, iterar o soltar." : "¿Cómo sigue esta iniciativa?";
       content = PickPerBet(DECISIONS, "decisions");
@@ -1403,7 +1476,7 @@ export default function SalaPage() {
 
     return (
       <Shell onExit={exit}>
-        <div style={{ width: "100%", maxWidth: 600 }}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {learnReminder}
