@@ -162,6 +162,25 @@ export async function inviteFacilitator(input: { email: string; name?: string; o
   return { token: inv.token };
 }
 
+/** Reasigna un facilitador YA existente a otra organización (lo mueve). */
+export async function assignFacilitatorToOrg(facilitatorId: string, orgId: string, orgName?: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  // 1. Tabla facilitators (directorio que se ve en el panel).
+  const { data: fac, error } = await supabase
+    .from("facilitators").update({ org_id: orgId }).eq("id", facilitatorId).select("email").maybeSingle();
+  if (error) return { error: error.message };
+  const email = fac?.email as string | undefined;
+  if (email) {
+    // 2. Profile del facilitador → mueve su acceso/RLS (solo efectivo como superadmin).
+    await supabase.from("profiles").update({ org_id: orgId }).eq("email", email).eq("role", "facilitator");
+    // 3. Invitación pendiente (si todavía no aceptó) → que al aceptar caiga en la org correcta.
+    await supabase.from("invitations").update({ org_id: orgId, org_name: orgName ?? null })
+      .eq("email", email).eq("role", "facilitator").eq("status", "pending");
+  }
+  await reloadData();
+  return {};
+}
+
 export async function createTeam(input: {
   name: string; orgId: string; area?: string; purpose?: string; memberEmails?: string[]; facilitatorEmail?: string;
 }): Promise<{ error?: string; teamId?: string; memberInvites?: { email: string; token: string }[] }> {

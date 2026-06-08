@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AvatarStack, Button, Card, CopyLink, EmptyState, Pill, Sparkline, StageBadge } from "@/components/ui";
 import {
-  assignOrgAdmin, createOrg, getAdmins, getCoordinatorsForOrg, getFacilitators,
+  assignFacilitatorToOrg, assignOrgAdmin, createOrg, getAdmins, getCoordinatorsForOrg, getFacilitators,
   getOrgs, getTeams, inviteCoordinator, updateOrg,
 } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -156,16 +156,32 @@ function OrgModal({ onClose, onSubmit, editing }: { onClose: () => void; onSubmi
 }
 
 /* ── Panel "Ver" de la organización (solo lectura) + coordinadores ── */
-function OrgViewModal({ org, teams, facilitators, onClose, onOpenTeam }: {
-  org: Org; teams: Team[]; facilitators: Facilitator[]; onClose: () => void; onOpenTeam: (id: string) => void;
+function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onChanged }: {
+  org: Org; orgs: Org[]; teams: Team[]; facilitators: Facilitator[]; onClose: () => void; onOpenTeam: (id: string) => void; onChanged: () => void;
 }) {
   const { show } = useToast();
   const [coords, setCoords] = useState<{ token: string; email: string; name?: string; status: string }[]>([]);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [assignId, setAssignId] = useState("");
+  const [assigning, setAssigning] = useState(false);
   const ots = teams.filter((t) => t.orgId === org.id);
   const ofacs = facilitators.filter((f) => f.orgId === org.id);
+  const assignable = facilitators.filter((f) => f.orgId !== org.id);
+  const orgNameById = (id?: string) => orgs.find((o) => o.id === id)?.name;
+
+  const assign = async () => {
+    if (!assignId) return;
+    setAssigning(true);
+    const res = await assignFacilitatorToOrg(assignId, org.id, org.name);
+    setAssigning(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    const f = facilitators.find((x) => x.id === assignId);
+    setAssignId("");
+    onChanged();
+    show(`${f?.name ?? "Facilitador"} asignado a ${org.name}.`);
+  };
 
   useEffect(() => { getCoordinatorsForOrg(org.id).then(setCoords); }, [org.id]);
 
@@ -223,7 +239,7 @@ function OrgViewModal({ org, teams, facilitators, onClose, onOpenTeam }: {
 
         {/* facilitadores */}
         <div className="eyebrow" style={{ marginBottom: 8 }}>Facilitadores</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 18 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
           {ofacs.length === 0 && <div className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin facilitadores todavía.</div>}
           {ofacs.map((f) => (
             <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: "var(--r-sm)", background: "var(--card)", border: "1px solid var(--line)", fontSize: "var(--t-sm)" }}>
@@ -233,6 +249,28 @@ function OrgViewModal({ org, teams, facilitators, onClose, onOpenTeam }: {
             </div>
           ))}
         </div>
+
+        {/* asignar facilitador existente */}
+        {assignable.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select value={assignId} onChange={(e) => setAssignId(e.target.value)}
+                style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: assignId ? "var(--ink-0)" : "var(--ink-3)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }}>
+                <option value="">Asignar un facilitador ya creado…</option>
+                {assignable.map((f) => {
+                  const cur = orgNameById(f.orgId);
+                  return <option key={f.id} value={f.id}>{f.name}{cur ? ` — actualmente en ${cur}` : " — sin organización"}</option>;
+                })}
+              </select>
+              <Button size="md" icon="UserPlus" variant="secondary" disabled={!assignId || assigning} onClick={assign}>{assigning ? "…" : "Asignar"}</Button>
+            </div>
+            {assignId && orgNameById(facilitators.find((f) => f.id === assignId)?.orgId) && (
+              <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                <Icon name="Info" size={12} /> Se mueve a {org.name} (deja de pertenecer a su organización anterior).
+              </div>
+            )}
+          </div>
+        )}
 
         {/* coordinadores */}
         <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
@@ -480,9 +518,10 @@ export default function OrganizacionesPage() {
 
       {viewing && (
         <OrgViewModal
-          org={viewing} teams={teams} facilitators={facilitators}
+          org={viewing} orgs={orgs} teams={teams} facilitators={facilitators}
           onClose={() => setViewing(null)}
           onOpenTeam={(id) => router.push(`/equipos/${id}`)}
+          onChanged={() => setOrgs(getOrgs())}
         />
       )}
     </div>
