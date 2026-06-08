@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Button, Card, CopyLink, Pill, SectionTitle } from "@/components/ui";
-import { createTeam, getOrg } from "@/lib/repository";
+import { createTeam, getOrg, getOrgs } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
@@ -20,8 +20,9 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
 export default function NuevoEquipoPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const myOrg = user?.orgId ? getOrg(user.orgId) : undefined;
-  const orgId = user?.orgId ?? "";
+  const myOrgs = getOrgs();
+  const [orgId, setOrgId] = useState(user?.orgId ?? myOrgs[0]?.id ?? "");
+  const myOrg = getOrg(orgId);
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -113,13 +114,28 @@ export default function NuevoEquipoPage() {
             <Field label="Nombre del equipo" value={name} onChange={setName} placeholder="Operaciones Centro" />
             <div>
               <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Organización</label>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", padding: "11px 13px" }}>
-                <Icon name="Building2" size={16} className="" style={{ color: "var(--violet)" }} />
-                <span style={{ fontSize: "var(--t-base)", fontWeight: 600 }}>{myOrg?.name ?? "—"}</span>
-              </div>
+              {myOrgs.length > 1 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", padding: "5px 13px" }}>
+                  <Icon name="Building2" size={16} className="" style={{ color: "var(--violet)" }} />
+                  <select value={orgId} onChange={(e) => setOrgId(e.target.value)}
+                    style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", padding: "6px 0", fontSize: "var(--t-base)", fontWeight: 600, outline: "none" }}>
+                    {myOrgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", padding: "11px 13px" }}>
+                  <Icon name="Building2" size={16} className="" style={{ color: "var(--violet)" }} />
+                  <span style={{ fontSize: "var(--t-base)", fontWeight: 600 }}>{myOrg?.name ?? "—"}</span>
+                </div>
+              )}
               {!orgId && (
                 <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 6 }}>
                   No tenés una organización asignada. Pedile a tu admin que te invite.
+                </div>
+              )}
+              {myOrgs.length > 1 && (
+                <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 6 }}>
+                  Elegí en qué organización se crea este equipo.
                 </div>
               )}
             </div>

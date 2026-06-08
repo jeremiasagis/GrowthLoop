@@ -56,7 +56,18 @@ export function getOrgs(): Org[] {
   const orgs = useGLStore.getState().orgs;
   if (seesAll()) return orgs;
   if (scope!.role === "admin") return orgs.filter((o) => o.ownerEmail === scope!.email);
-  return orgs.filter((o) => o.id === scope!.orgId); // facilitator / member
+  if (scope!.role === "facilitator") {
+    // Multi-org: un facilitador puede pertenecer a varias organizaciones.
+    const mine = new Set<string>();
+    if (scope!.orgId) mine.add(scope!.orgId);
+    const email = (scope!.email ?? "").toLowerCase();
+    for (const f of useGLStore.getState().facilitators) {
+      if ((f.email ?? "").toLowerCase() !== email) continue;
+      for (const o of f.orgIds ?? (f.orgId ? [f.orgId] : [])) mine.add(o);
+    }
+    return orgs.filter((o) => mine.has(o.id));
+  }
+  return orgs.filter((o) => o.id === scope!.orgId); // member / coordinator
 }
 export function getOrg(id: string): Org | undefined {
   return useGLStore.getState().orgs.find((o) => o.id === id);
@@ -162,20 +173,19 @@ export async function inviteFacilitator(input: { email: string; name?: string; o
   return { token: inv.token };
 }
 
-/** Reasigna un facilitador YA existente a otra organización (lo mueve). */
-export async function assignFacilitatorToOrg(facilitatorId: string, orgId: string, orgName?: string): Promise<{ error?: string }> {
+/** Suma un facilitador YA existente a una organización (multi-org, aditivo). */
+export async function assignFacilitatorToOrg(facilitatorId: string, orgId: string): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
-  // 1. Tabla facilitators (directorio que se ve en el panel).
-  const { data: fac, error } = await supabase
-    .from("facilitators").update({ org_id: orgId }).eq("id", facilitatorId).select("email").maybeSingle();
+  const fac = useGLStore.getState().facilitators.find((f) => f.id === facilitatorId);
+  const email = (fac?.email ?? "").toLowerCase();
+  if (!email) return { error: "No se encontró el facilitador." };
+  // Membresía multi-org en la tabla puente (no pisa su organización principal).
+  const { error } = await supabase.from("facilitator_orgs").upsert({ email, org_id: orgId }, { onConflict: "email,org_id" });
   if (error) return { error: error.message };
-  const email = fac?.email as string | undefined;
-  if (email) {
-    // 2. Profile del facilitador → mueve su acceso/RLS (solo efectivo como superadmin).
+  // Si todavía no tenía organización "home", esta pasa a serla.
+  if (!fac?.orgId) {
+    await supabase.from("facilitators").update({ org_id: orgId }).eq("id", facilitatorId);
     await supabase.from("profiles").update({ org_id: orgId }).eq("email", email).eq("role", "facilitator");
-    // 3. Invitación pendiente (si todavía no aceptó) → que al aceptar caiga en la org correcta.
-    await supabase.from("invitations").update({ org_id: orgId, org_name: orgName ?? null })
-      .eq("email", email).eq("role", "facilitator").eq("status", "pending");
   }
   await reloadData();
   return {};

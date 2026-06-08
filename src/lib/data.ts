@@ -274,7 +274,8 @@ export interface Facilitator {
   health: number | null;
   status: "active" | "invited" | "inactive";
   you?: boolean;
-  orgId?: string;
+  orgId?: string;        // org "home" (la primera / principal)
+  orgIds?: string[];     // TODAS las organizaciones a las que pertenece (multi-org)
 }
 export const FACILITATORS: Facilitator[] = [
   { id: "f1", name: "Daniela Ríos",   email: "daniela@growthloop.io",   initials: "DR", teams: 4, sessionsMonth: 9, health: 73,   status: "active", you: true },

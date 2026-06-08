@@ -134,6 +134,27 @@ async function fetchAll() {
   const teams = (teamsRes.data ?? []).map((t: any) => mapTeam(t, initsByTeam.get(t.id) ?? [])).sort(byNumId);
   const orgs = (orgsRes.data ?? []).map((o: any) => mapOrg(o, teams)).sort(byNumId);
   const facilitators = (facRes.data ?? []).map(mapFac).sort(byNumId);
+
+  // Multi-org: membresías extra de facilitadores (tabla opcional facilitator_orgs).
+  const membByEmail = new Map<string, Set<string>>();
+  const fo = await supabase.from("facilitator_orgs").select("email, org_id");
+  if (!fo.error) {
+    for (const row of (fo.data ?? []) as any[]) {
+      const e = (row.email ?? "").toLowerCase();
+      if (!e) continue;
+      const s = membByEmail.get(e) ?? new Set<string>();
+      s.add(row.org_id);
+      membByEmail.set(e, s);
+    }
+  }
+  // orgIds por facilitador = home ∪ membresías ∪ orgs de equipos que facilita.
+  for (const f of facilitators) {
+    const set = new Set<string>();
+    if (f.orgId) set.add(f.orgId);
+    for (const o of membByEmail.get((f.email ?? "").toLowerCase()) ?? []) set.add(o);
+    for (const t of teams) if (t.facilitatorId && t.facilitatorId === f.id) set.add(t.orgId);
+    f.orgIds = [...set];
+  }
   return { orgs, teams, facilitators, admins, source: "supabase" as const };
 }
 

@@ -166,21 +166,22 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
   const [err, setErr] = useState<string | null>(null);
   const [assignId, setAssignId] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const orgsOf = (f: Facilitator) => f.orgIds ?? (f.orgId ? [f.orgId] : []);
   const ots = teams.filter((t) => t.orgId === org.id);
-  const ofacs = facilitators.filter((f) => f.orgId === org.id);
-  const assignable = facilitators.filter((f) => f.orgId !== org.id);
-  const orgNameById = (id?: string) => orgs.find((o) => o.id === id)?.name;
+  const ofacs = facilitators.filter((f) => orgsOf(f).includes(org.id));
+  const assignable = facilitators.filter((f) => !orgsOf(f).includes(org.id));
+  const orgNamesOf = (f: Facilitator) => orgsOf(f).map((id) => orgs.find((o) => o.id === id)?.name).filter(Boolean).join(", ");
 
   const assign = async () => {
     if (!assignId) return;
     setAssigning(true);
-    const res = await assignFacilitatorToOrg(assignId, org.id, org.name);
+    const res = await assignFacilitatorToOrg(assignId, org.id);
     setAssigning(false);
     if (res.error) { show(res.error, "TriangleAlert"); return; }
     const f = facilitators.find((x) => x.id === assignId);
     setAssignId("");
     onChanged();
-    show(`${f?.name ?? "Facilitador"} asignado a ${org.name}.`);
+    show(`${f?.name ?? "Facilitador"} sumado a ${org.name}.`);
   };
 
   useEffect(() => { getCoordinatorsForOrg(org.id).then(setCoords); }, [org.id]);
@@ -256,19 +257,17 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
             <div style={{ display: "flex", gap: 8 }}>
               <select value={assignId} onChange={(e) => setAssignId(e.target.value)}
                 style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: assignId ? "var(--ink-0)" : "var(--ink-3)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }}>
-                <option value="">Asignar un facilitador ya creado…</option>
+                <option value="">Sumar un facilitador ya creado…</option>
                 {assignable.map((f) => {
-                  const cur = orgNameById(f.orgId);
-                  return <option key={f.id} value={f.id}>{f.name}{cur ? ` — actualmente en ${cur}` : " — sin organización"}</option>;
+                  const cur = orgNamesOf(f);
+                  return <option key={f.id} value={f.id}>{f.name}{cur ? ` — ya en ${cur}` : " — sin organización"}</option>;
                 })}
               </select>
-              <Button size="md" icon="UserPlus" variant="secondary" disabled={!assignId || assigning} onClick={assign}>{assigning ? "…" : "Asignar"}</Button>
+              <Button size="md" icon="UserPlus" variant="secondary" disabled={!assignId || assigning} onClick={assign}>{assigning ? "…" : "Sumar"}</Button>
             </div>
-            {assignId && orgNameById(facilitators.find((f) => f.id === assignId)?.orgId) && (
-              <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
-                <Icon name="Info" size={12} /> Se mueve a {org.name} (deja de pertenecer a su organización anterior).
-              </div>
-            )}
+            <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
+              <Icon name="Info" size={12} /> Se suma a {org.name} sin dejar sus otras organizaciones (un facilitador puede estar en varias).
+            </div>
           </div>
         )}
 
