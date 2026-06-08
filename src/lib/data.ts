@@ -144,8 +144,8 @@ export interface SessionLog {
 export interface InitiativeData {
   explore?: { priority?: string; tensions?: { name: string; signals: number; dots: number }[]; pausedCount?: number; purpose?: string; criticalStage?: string };
   focus?: { rootCause?: string; roots?: string[]; cause?: string; causes?: string[]; whys?: string[]; secondaryCauses?: { name: string; votes: number; signals?: number }[] };
-  proof?: { betIf?: string; betThen?: string; signal?: string; signalMetric?: string; signalTarget?: string; signalHow?: string; responsible?: string; deadline?: string; actions?: { text: string; who: string }[]; mitigations?: { risk: string; plan: string }[]; risks?: string[]; committed?: number; secondaryIdeas?: { name: string; ice: number }[] };
-  follow?: { current?: number; target?: number; unit?: string; signalName?: string; signalNow?: string; onTrack?: boolean; blockers?: string[]; actionStatus?: { text: string; who: string; status: string }[]; decision?: string };
+  proof?: { betIf?: string; betThen?: string; signal?: string; signalMetric?: string; signalTarget?: string; signalHow?: string; responsible?: string; deadline?: string; actions?: { text: string; who: string }[]; mitigations?: { risk: string; plan: string }[]; bets?: ProofBet[]; risks?: string[]; committed?: number; secondaryIdeas?: { name: string; ice: number }[] };
+  follow?: { current?: number; target?: number; unit?: string; signalName?: string; signalNow?: string; onTrack?: boolean; blockers?: string[]; actionStatus?: { text: string; who: string; status: string }[]; betCheckins?: { name: string; signal: string; value: string; pct: number; actions: { text: string; who: string; status: string }[] }[]; decision?: string };
   learn?: { result?: string; learnings?: string[]; decision?: string };
   consolidate?: { outcome?: string; note?: string; date?: string };
 }
@@ -198,6 +198,19 @@ export interface TeamContract {
   signedBy: string[];              // ids de quienes firmaron
   signedNames?: string[];
   date: string;                    // fecha de la sesión fundacional
+}
+
+/** Una apuesta del experimento (puede haber 1 o 2 en paralelo). */
+export interface ProofBet {
+  name?: string;
+  betIf?: string;
+  betThen?: string;
+  signalMetric?: string;
+  signalTarget?: string;
+  signalHow?: string;
+  deadline?: string;
+  actions?: { text: string; who: string }[];
+  mitigations?: { risk: string; plan: string }[];
 }
 
 /** Las 5 preguntas del contrato fundacional. */
