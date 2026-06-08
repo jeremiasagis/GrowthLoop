@@ -45,7 +45,7 @@ const STEP_SEQ: Record<string, string[]> = {
   explore: STEPS,
   focus: ["causes", "causes_reveal", "group", "vote", "matrix", "deepen", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
-  follow: ["progress", "blockers", "blockers_reveal", "decide", "close"],
+  follow: ["progress", "actions", "blockers", "blockers_reveal", "decide", "close"],
   learn: ["result", "reflect", "learnings", "learnings_reveal", "decision", "close"],
 };
 
@@ -1107,8 +1107,19 @@ export default function SalaPage() {
   if (session.type === "follow") {
     const R = session.result;
     const current = Number(R.current ?? 0);
-    const proof = initiative?.data?.proof as { signal?: string } | undefined;
-    const signalName = proof?.signal || "Señal de avance";
+    const proof = initiative?.data?.proof as { signal?: string; signalMetric?: string; signalTarget?: string; signalHow?: string; betIf?: string; betThen?: string; actions?: { text: string; who: string }[] } | undefined;
+    const signalName = proof?.signalMetric || proof?.signal || "Señal de avance";
+    const signalTargetNote = proof?.signalTarget ?? "";
+    const signalNow = (R.signalNow as string) ?? "";
+    const followActions = proof?.actions ?? [];
+    const astatus = (R.astatus as Record<string, string>) ?? {};
+    const ASTAT = [{ k: "done", l: "Hecha", c: "var(--success)", i: "CircleCheck" }, { k: "wip", l: "En curso", c: "var(--warning)", i: "Loader" }, { k: "blocked", l: "Trabada", c: "var(--risk)", i: "CircleX" }];
+    const followReminder = (proof?.betThen || proof?.betIf) ? (
+      <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", lineHeight: 1.5 }}>
+        <span className="muted">La apuesta: </span>si <b style={{ color: "var(--ink-0)" }}>{proof?.betIf || "…"}</b> → <b style={{ color: "var(--st-proof)" }}>{proof?.betThen || "…"}</b>
+        {signalTargetNote && <span className="muted"> · objetivo: <b style={{ color: "var(--ink-0)" }}>{signalTargetNote}</b></span>}
+      </div>
+    ) : null;
     const onTrack = current >= 50;
     const blockerCards = allCards.filter((c) => c.columnKey === "blocker");
     const myBlockers = myCards.filter((c) => c.columnKey === "blocker");
@@ -1132,9 +1143,9 @@ export default function SalaPage() {
 
     const mySee = (inputs.find((i) => i.userId === user.id && i.key === "see")?.value as { v?: number })?.v;
     const SEE = [{ v: 0, l: "Sin avance" }, { v: 1, l: "Algo" }, { v: 2, l: "Bien" }, { v: 3, l: "Logrado" }];
-    const fSteps = ["progress", "blockers", "blockers_reveal", "decide", "close"];
+    const fSteps = ["progress", "actions", "blockers", "blockers_reveal", "decide", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const fFinish = async () => { setBusy(true); await finalizeSession(session, { pulseAvg: avg, cardCount: blockerCount, summaryText: `Avance: ${current}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current, signal: signalName, blockers: blockerCards.map((c) => c.text), decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
+    const fFinish = async () => { setBusy(true); const actionStatus = followActions.map((a, i) => ({ text: a.text, who: a.who, status: astatus[String(i)] ?? "wip" })); await finalizeSession(session, { pulseAvg: avg, cardCount: blockerCount, summaryText: `Avance: ${current}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current, signal: signalName, signalNow, blockers: blockerCards.map((c) => c.text), actionStatus, decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
     const addBlocker = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
 
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
@@ -1157,12 +1168,31 @@ export default function SalaPage() {
       controls = isFacil ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Valor actual de la señal {signalTargetNote && <span className="faint">(objetivo: {signalTargetNote})</span>}</div>
+            <input defaultValue={signalNow} onBlur={(e) => setResult(sessionId, { signalNow: e.target.value })} placeholder="ej: 55% (venía de 30%)" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} />
+          </div>
+          <div>
             <div className="eyebrow" style={{ marginBottom: 8 }}>Avance oficial</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{PROG.map((p) => { const on = current === p.v; return <button key={p.v} onClick={() => setResult(sessionId, { current: p.v })} style={{ padding: "9px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-follow)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-follow)" : "var(--line-2)") }}>{p.l}</button>; })}</div>
           </div>
-          <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: trabas</Button>
+          <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: acciones</Button>
         </div>
       ) : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define el avance oficial.</p>;
+    } else if (step === "actions") {
+      sub = "¿Cómo van las acciones que nos comprometimos? Estado por responsable.";
+      content = followActions.length ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {followActions.map((a, i) => { const cur = astatus[String(i)] ?? "wip"; return (
+            <div key={i} style={{ padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><Icon name="CheckSquare" size={14} style={{ color: "var(--st-proof)" }} /><span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{a.text}</span>{a.who && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{a.who}</span>}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {ASTAT.map((s) => { const on = cur === s.k; return <button key={s.k} onClick={() => { if (isFacil) setResult(sessionId, { astatus: { ...astatus, [i]: s.k } }); }} disabled={!isFacil} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, background: on ? `color-mix(in srgb, ${s.c} 18%, var(--card))` : "var(--card-2)", color: on ? s.c : "var(--ink-2)", border: `1px solid ${on ? s.c : "var(--line-2)"}`, cursor: isFacil ? "pointer" : "default" }}><Icon name={s.i} size={12} />{s.l}</button>; })}
+              </div>
+            </div>
+          ); })}
+        </div>
+      ) : <Card pad={20}><p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Esta apuesta no tiene acciones cargadas.</p></Card>;
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: trabas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador marca el estado de cada acción.</p>;
     } else if (step === "blockers") {
       sub = "¿Qué nos está trabando para sostener la prueba? Se escriben a ciegas.";
       content = (
@@ -1203,6 +1233,7 @@ export default function SalaPage() {
         <div style={{ width: "100%", maxWidth: 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {followReminder}
           {content}
           <div style={{ marginTop: 18 }}>{controls}</div>
         </div>
