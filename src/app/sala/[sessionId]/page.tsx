@@ -1088,6 +1088,10 @@ export default function SalaPage() {
     const avgPct = followBets.length ? Math.round(followBets.reduce((s, _b, bi) => s + (bp[bi]?.pct ?? 0), 0) / followBets.length) : 0;
     const astatus = (R.astatus as Record<string, string>) ?? {};
     const ASTAT = [{ k: "done", l: "Hecha", c: "var(--success)", i: "CircleCheck" }, { k: "wip", l: "En curso", c: "var(--warning)", i: "Loader" }, { k: "blocked", l: "Trabada", c: "var(--risk)", i: "CircleX" }];
+    // Decisión con consecuencia: nuevas acciones (de ajustes o trabas) + a quién se escala
+    const newActions = (R.newActions as { text: string; who: string }[]) ?? [];
+    const setNewActions = (next: { text: string; who: string }[]) => setResult(sessionId, { newActions: next });
+    const escalateTo = (R.escalateTo as string) ?? "";
     const followReminder = (proof?.betThen || proof?.betIf) ? (
       <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", lineHeight: 1.5 }}>
         <span className="muted">La apuesta: </span>si <b style={{ color: "var(--ink-0)" }}>{proof?.betIf || "…"}</b> → <b style={{ color: "var(--st-proof)" }}>{proof?.betThen || "…"}</b>
@@ -1119,7 +1123,7 @@ export default function SalaPage() {
     const SEE = [{ v: 0, l: "Sin avance" }, { v: 1, l: "Algo" }, { v: 2, l: "Bien" }, { v: 3, l: "Logrado" }];
     const fSteps = ["progress", "actions", "blockers", "blockers_reveal", "decide", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const fFinish = async () => { setBusy(true); const betCheckins = followBets.map((b, bi) => ({ name: b.name ?? "", signal: b.signalMetric ?? "", value: bp[bi]?.value ?? "", pct: bp[bi]?.pct ?? 0, actions: (b.actions ?? []).map((a, ai) => ({ text: a.text, who: a.who, status: astatus[`${bi}:${ai}`] ?? "wip" })) })); await finalizeSession(session, { pulseAvg: avg, cardCount: blockerCount, summaryText: `Avance: ${avgPct}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current: avgPct, signal: signalName, signalNow: betCheckins[0]?.value ?? "", betCheckins, blockers: blockerCards.map((c) => c.text), actionStatus: betCheckins[0]?.actions ?? [], decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
+    const fFinish = async () => { setBusy(true); const betCheckins = followBets.map((b, bi) => ({ name: b.name ?? "", signal: b.signalMetric ?? "", value: bp[bi]?.value ?? "", pct: bp[bi]?.pct ?? 0, actions: (b.actions ?? []).map((a, ai) => ({ text: a.text, who: a.who, status: astatus[`${bi}:${ai}`] ?? "wip" })) })); await finalizeSession(session, { pulseAvg: avg, cardCount: blockerCount, summaryText: `Avance: ${avgPct}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current: avgPct, signal: signalName, signalNow: betCheckins[0]?.value ?? "", betCheckins, blockers: blockerCards.map((c) => c.text), actionStatus: betCheckins[0]?.actions ?? [], newActions: newActions.filter((a) => (a.text ?? "").trim()), escalateTo, decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
     const addBlocker = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
 
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
@@ -1189,14 +1193,48 @@ export default function SalaPage() {
       );
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={fNext}>Revelar trabas ({blockerCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá las trabas que veas. El facilitador las revela.</p>;
     } else if (step === "blockers_reveal") {
-      sub = "Las trabas del equipo, a la vista.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{blockerCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin trabas. 🙌</p>}</div>;
+      sub = "Las trabas del equipo. El facilitador puede convertir una en acción con responsable.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {blockerCards.map((c) => { const added = newActions.some((a) => a.text === c.text); return (
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>
+              <span style={{ flex: 1 }}>{c.text}</span>
+              {isFacil && (added
+                ? <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Check" size={13} /> acción</span>
+                : <button onClick={() => setNewActions([...newActions, { text: c.text, who: "" }])} style={{ fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--st-proof)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Plus" size={13} /> acción</button>)}
+            </div>
+          ); })}
+          {!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin trabas. 🙌</p>}
+        </div>
+      );
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Decidir cómo sigue</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador decide cómo sigue.</p>;
     } else if (step === "decide") {
       sub = "¿La prueba continúa, se ajusta o hay que escalar?";
       content = (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
-          {FDECIDE.map((o) => { const on = fdecision === o.k; const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: isFacil || on ? 1 : 0.5 }; const inner = (<><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p></>); return isFacil ? <button key={o.k} onClick={() => setResult(sessionId, { fdecision: o.k })} style={st}>{inner}</button> : <div key={o.k} style={st}>{inner}</div>; })}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
+            {FDECIDE.map((o) => { const on = fdecision === o.k; const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: isFacil || on ? 1 : 0.5 }; const inner = (<><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p></>); return isFacil ? <button key={o.k} onClick={() => setResult(sessionId, { fdecision: o.k })} style={st}>{inner}</button> : <div key={o.k} style={st}>{inner}</div>; })}
+          </div>
+          {(fdecision === "adjust" || newActions.length > 0) && (
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Ajustes · nuevas acciones {newActions.length > 0 && <span className="faint">({newActions.length})</span>}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {newActions.map((a, k) => (
+                  <div key={k} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <input defaultValue={a.text} onBlur={(e) => { const n = newActions.map((x) => ({ ...x })); n[k] = { ...n[k], text: e.target.value }; setNewActions(n); }} disabled={!isFacil} placeholder={`Acción ${k + 1}…`} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                    {isFacil && <><select value={a.who || ""} onChange={(e) => { const n = newActions.map((x) => ({ ...x })); n[k] = { ...n[k], who: e.target.value }; setNewActions(n); }} style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 8px", fontSize: "var(--t-sm)", outline: "none", maxWidth: 130 }}><option value="">¿Quién?</option>{(team?.members ?? []).map((m, mk) => <option key={mk} value={m.name}>{m.name}</option>)}</select><button onClick={() => setNewActions(newActions.filter((_, x) => x !== k))} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={15} /></button></>}
+                  </div>
+                ))}
+                {isFacil && <Button size="sm" variant="secondary" icon="Plus" onClick={() => setNewActions([...newActions, { text: "", who: "" }])}>Agregar acción</Button>}
+              </div>
+            </div>
+          )}
+          {fdecision === "escalate" && (
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>¿A quién se escala?</div>
+              {isFacil ? <input defaultValue={escalateTo} onBlur={(e) => setResult(sessionId, { escalateTo: e.target.value })} placeholder="Nombre / rol / área a la que se pide ayuda" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} /> : <p style={{ fontSize: "var(--t-sm)" }}>{escalateTo || "—"}</p>}
+            </div>
+          )}
         </div>
       );
       controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy || !fdecision} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar check-in"}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define cómo sigue y cierra.</p>;
