@@ -155,6 +155,14 @@ async function fetchAll() {
     for (const t of teams) if (t.facilitatorId && t.facilitatorId === f.id) set.add(t.orgId);
     f.orgIds = [...set];
   }
+  // Facilitador real por equipo (mapTeam dejó un placeholder; lo resolvemos con el directorio ya cargado).
+  const facById = new Map(facilitators.map((f) => [f.id, f]));
+  for (const t of teams) {
+    const f = t.facilitatorId ? facById.get(t.facilitatorId) : undefined;
+    t.facilitator = f
+      ? { name: f.name, initials: f.initials, role: "Facilitador" }
+      : { name: "Sin facilitador", initials: "—", role: "Facilitador" };
+  }
   return { orgs, teams, facilitators, admins, source: "supabase" as const };
 }
 

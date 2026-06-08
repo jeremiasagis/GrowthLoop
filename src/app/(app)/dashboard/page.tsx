@@ -15,7 +15,7 @@ function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
   const pulseSeries = team.pulse.map((p) =>
     Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5)
   );
-  const lowSafety = team.psychSafety < 70;
+  const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
   const activeInits = (team.initiatives ?? []).filter((i) => i.status === "active");
   const focusInit = activeInits[0];
   return (

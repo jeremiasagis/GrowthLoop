@@ -477,7 +477,7 @@ export default function OrganizacionesPage() {
 
               <div style={{ display: "flex", gap: 18, fontSize: "var(--t-sm)", flexWrap: "wrap" }}>
                 <div><span className="muted">Equipos</span> <span className="num" style={{ fontWeight: 700 }}>{o.teams}</span></div>
-                <div><span className="muted">Facilitadores</span> <span className="num" style={{ fontWeight: 700 }}>{facilitators.filter((f) => f.orgId === o.id).length}</span></div>
+                <div><span className="muted">Facilitadores</span> <span className="num" style={{ fontWeight: 700 }}>{facilitators.filter((f) => (f.orgIds ?? (f.orgId ? [f.orgId] : [])).includes(o.id)).length}</span></div>
                 <div><span className="muted">Contrato</span> <span style={{ fontWeight: 600 }}>{o.contract}</span></div>
                 <div><span className="muted">Desde</span> <span style={{ fontWeight: 600 }}>{o.since}</span></div>
               </div>

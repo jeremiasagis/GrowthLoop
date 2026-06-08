@@ -4,7 +4,7 @@ import { Icon } from "@/components/icon";
 import { Avatar, Bar, Card, Pill, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getTeam } from "@/lib/repository";
-import { PULSE_DIMS, STAGES } from "@/lib/data";
+import { PULSE_DIMS } from "@/lib/data";
 
 export default function MemberEquipo() {
   const { user } = useAuth();

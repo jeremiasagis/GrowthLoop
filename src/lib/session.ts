@@ -40,6 +40,8 @@ const RETRO_NAME: Record<string, string> = {
 
 const CYCLE = ["explore", "focus", "proof", "follow", "learn"];
 function nextStageForward(current: string | undefined | null, completed: string): string | undefined {
+  // Si la sesión cerrada no es una etapa del ciclo (founding/consolidate), no tocar la etapa.
+  if (CYCLE.indexOf(completed) < 0) return current ?? undefined;
   const want = CYCLE[Math.min(CYCLE.length - 1, CYCLE.indexOf(completed) + 1)];
   if (!current) return want;
   return CYCLE.indexOf(want) > CYCLE.indexOf(current) ? want : current;
@@ -100,8 +102,7 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   const { data: auth } = await supabase.auth.getUser();
   // Primer paso "real" de cada tipo (sin pulso). El pulso se antepone abajo si toca.
   const NORMAL_FIRST: Record<string, string> = { founding: "welcome", consolidate: "report", explore: "cards", focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
-  const RETRO_FIRST: Record<string, string> = { proof_design: "context", focus_impact: "problems", explore_flow: "funnel", focus_where: "funnel", proof_premortem: "risks", follow_blockers: "blockers", learn_learned: "learnings", learn_next: "decision", learn_team: "process", explore_purpose: "answers", focus_client: "perceptions", explore_relations: "relations" };
-  const normalFirst = (p.retro && RETRO_FIRST[p.retro]) || NORMAL_FIRST[p.type] || "cards";
+  const normalFirst = NORMAL_FIRST[p.type] || "cards";
   // Pulso semanal: si el equipo no hizo pulso esta semana (lun–dom), la sesión arranca con el pulso.
   // La Sesión Fundacional nunca lleva pulso (es el contrato inicial).
   let firstStep = normalFirst;

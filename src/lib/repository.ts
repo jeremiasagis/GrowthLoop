@@ -10,10 +10,10 @@
 import { reloadData, useGLStore } from "./store";
 import { getSupabaseBrowserClient } from "./supabase/client";
 import {
-  ACTIVE_SESSIONS, ALERTS, MY_ORG, REFLECTIONS, UPCOMING,
-  type ActiveSession, type Admin, type Alert, type Facilitator,
+  REFLECTIONS,
+  type Admin, type Facilitator,
   type Initiative, type Org, type Reflection, type RoleKey, type StageKey,
-  type Team, type Upcoming,
+  type Team,
 } from "./data";
 
 export interface Invitation {
@@ -49,7 +49,6 @@ function myOrgIds(): Set<string> {
 const newId = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
 const initialsOf = (name: string) => name.trim().split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 const monthLabel = () => new Date().toLocaleDateString("es", { month: "short", year: "numeric" });
-const monthDayLabel = () => new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
 
 // ── Organizations (scoped) ──
 export function getOrgs(): Org[] {
@@ -83,10 +82,6 @@ export function getTeams(): Team[] {
 export function getTeam(id: string): Team | undefined {
   return getTeams().find((t) => t.id === id);
 }
-export function getTeamsByOrg(orgId: string): Team[] {
-  return getTeams().filter((t) => t.orgId === orgId);
-}
-
 // ── Iniciativas (líneas de trabajo de un equipo) ──
 export function getInitiatives(teamId: string): Initiative[] {
   return getTeam(teamId)?.initiatives ?? [];
@@ -97,7 +92,8 @@ export function getFacilitators(): Facilitator[] {
   const fac = useGLStore.getState().facilitators;
   if (seesAll()) return fac;
   const ids = myOrgIds();
-  return fac.filter((f) => !!f.orgId && ids.has(f.orgId));
+  // Multi-org: incluir al facilitador si CUALQUIERA de sus orgs es visible.
+  return fac.filter((f) => (f.orgIds ?? (f.orgId ? [f.orgId] : [])).some((o) => ids.has(o)));
 }
 
 // ── Admins (superadmin scope) ──
@@ -286,34 +282,6 @@ export async function setInitiativeStage(id: string, stage: StageKey): Promise<{
   return {};
 }
 
-/** Registra una sesión realizada: la suma al log del equipo, guarda los
- *  resultados de la etapa en la iniciativa y (si corresponde) avanza etapa/estado. */
-export async function recordSession(p: {
-  teamId: string; initiativeId?: string; sessionStage: StageKey; retro: string; out: string;
-  stageData?: Record<string, unknown>; newStage?: StageKey; status?: Initiative["status"];
-}): Promise<{ error?: string }> {
-  const supabase = getSupabaseBrowserClient();
-  const date = monthDayLabel();
-  const { error: e1 } = await supabase.from("session_logs").insert({
-    id: newId("s"), team_id: p.teamId, date, stage: p.sessionStage,
-    retro: p.retro, out_text: p.out, pulse: 0, delta: 0,
-    initiative_id: p.initiativeId ?? null,
-  });
-  if (e1) return { error: e1.message };
-
-  if (p.initiativeId) {
-    const { data: row } = await supabase.from("initiatives").select("data").eq("id", p.initiativeId).maybeSingle();
-    const merged = { ...((row?.data as Record<string, unknown>) ?? {}), ...(p.stageData ? { [p.sessionStage]: p.stageData } : {}) };
-    const patch: Record<string, unknown> = { data: merged };
-    if (p.newStage) patch.stage = p.newStage;
-    if (p.status) patch.status = p.status;
-    const { error: e2 } = await supabase.from("initiatives").update(patch).eq("id", p.initiativeId);
-    if (e2) return { error: e2.message };
-  }
-  await reloadData();
-  return {};
-}
-
 /** Cambia el estado de una iniciativa (en curso / cerrada / pausada). */
 export async function setInitiativeStatus(id: string, status: Initiative["status"]): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
@@ -367,18 +335,9 @@ export async function createAdmin(input: { name: string; email: string }): Promi
   return { token: inv.token };
 }
 
-// ── Member-facing — mock ──
+// ── Member-facing ──
 export function getReflections(): Reflection[] {
   return REFLECTIONS;
-}
-export function getActiveSessionForTeam(teamId: string): ActiveSession | undefined {
-  return ACTIVE_SESSIONS.find((s) => s.teamId === teamId);
-}
-export function getLiveSessionForTeam(teamId: string): ActiveSession | undefined {
-  return ACTIVE_SESSIONS.find((s) => s.teamId === teamId && s.live);
-}
-export function getSessionById(id: string): ActiveSession | undefined {
-  return ACTIVE_SESSIONS.find((s) => s.id === id);
 }
 
 // ── Invitations (Supabase) ──
@@ -419,25 +378,3 @@ export async function markInvitationAccepted(token: string, role: RoleKey, email
   if (role === "admin") await supabase.from("admins").update({ status: "active" }).eq("email", email);
 }
 
-// ── Dashboard widgets — mock ──
-export function getAlerts(): Alert[] {
-  return ALERTS;
-}
-export function getUpcoming(): Upcoming[] {
-  return UPCOMING;
-}
-export function getMyOrgSummary() {
-  return MY_ORG;
-}
-
-// ── Aggregated dashboard metrics ──
-export function getDashboardStats() {
-  const teams = useGLStore.getState().teams;
-  const inits = teams.flatMap((t) => t.initiatives ?? []);
-  return {
-    teamsActive: teams.length,
-    proofsRunning: inits.filter((i) => i.stage === "proof").length,
-    sessionsThisWeek: 4,
-    variablesImproved: inits.filter((i) => i.status === "done").length,
-  };
-}

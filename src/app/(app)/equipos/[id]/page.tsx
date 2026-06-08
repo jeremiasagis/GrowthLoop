@@ -522,7 +522,7 @@ export default function TeamPage() {
   const { user } = useAuth();
   const { show } = useToast();
   const isFacil = user?.role === "facilitator";
-  const team = getTeam(params.id || "t1");
+  const team = getTeam(params.id ?? "");
   const [tab, setTab] = useState("seguimiento");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
@@ -531,7 +531,7 @@ export default function TeamPage() {
   if (!team) return <div className="screen-pad">Equipo no encontrado.</div>;
   const lead = team.facilitatorId ? getFacilitators().find((f) => f.id === team.facilitatorId) : undefined;
   const doDeleteTeam = async () => { setDelBusy(true); const res = await deleteTeam(team.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Equipo eliminado", "Trash2"); router.push("/organizaciones"); };
-  const lowSafety = team.psychSafety < 70;
+  const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
 
   const TABS = [
     { key: "seguimiento", label: "Seguimiento", icon: "Target" },

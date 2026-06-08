@@ -114,14 +114,20 @@ export default function SalaPage() {
     const poll = setInterval(load, 2000);
     return () => { unsub(); clearInterval(poll); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [sessionId, user?.id]);
 
   useEffect(() => {
     if (user && !joinedRef.current) { joinedRef.current = true; joinSession(sessionId, user.name, user.initials); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  // Tick de 1s SOLO mientras hay un timer corriendo (evita re-render de toda la sala cada segundo).
+  const liveEndsAt = (session?.result as Record<string, unknown> | undefined)?.["timer"] as { endsAt?: number } | undefined;
+  useEffect(() => {
+    if (!liveEndsAt?.endsAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [liveEndsAt?.endsAt]);
 
   if (loading) return <Shell><span className="muted">Cargando sesión…</span></Shell>;
   if (!user) return <Shell><Card pad={24}><p className="muted">Iniciá sesión para entrar a la sala.</p></Card></Shell>;
@@ -318,7 +324,14 @@ export default function SalaPage() {
   const seq = STEP_SEQ[session.type] ?? STEPS;
   const stepIdx = Math.max(0, seq.indexOf(step));
   const stepTotal = seq.length;
-  const goBack = async () => { if (stepIdx <= 0) return; setBusy(true); await setStep(sessionId, seq[stepIdx - 1], stepIdx - 1); setBusy(false); };
+  const goBack = async () => {
+    if (stepIdx <= 0) return;
+    setBusy(true);
+    // Al volver atrás, re-ocultar votaciones/revelados y limpiar el timer del paso.
+    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, timer: null });
+    await setStep(sessionId, seq[stepIdx - 1], stepIdx - 1);
+    setBusy(false);
+  };
   const facBar = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -7,7 +7,6 @@ import { AvatarStack, Button, Card, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getInitiatives, getTeam } from "@/lib/repository";
 import { getOpenSessionForTeam, subscribeTeamSessions, type LiveSession } from "@/lib/session";
-import { STAGES } from "@/lib/data";
 
 export default function MemberHome() {
   const router = useRouter();
@@ -39,6 +38,7 @@ export default function MemberHome() {
     { href: "/member/equipo", label: "Mi equipo", icon: "Users", desc: "Organización, facilitador e integrantes" },
     { href: "/member/iniciativas", label: "Iniciativas", icon: "Target", desc: "En qué trabaja el equipo" },
     { href: "/member/sesiones", label: "Sesiones", icon: "Radio", desc: "Lo que hicieron juntos" },
+    { href: "/member/biblioteca", label: "Biblioteca", icon: "Library", desc: "Aprendizajes y apuestas del equipo" },
     { href: "/member/reflection", label: "Reflexiones", icon: "BookHeart", desc: "Tus notas privadas" },
   ];
 
