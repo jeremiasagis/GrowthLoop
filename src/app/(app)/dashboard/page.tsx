@@ -137,6 +137,13 @@ export default function DashboardPage() {
     if (paused) alerts.push({ type: "info", icon: "CirclePause", text: `${paused} ${paused === 1 ? "iniciativa en pausa" : "iniciativas en pausa"}`, team: t.name, sub: "para retomar", teamId: t.id });
     if ((t.sessions?.length ?? 0) === 0 && (t.initiatives?.length ?? 0) === 0)
       alerts.push({ type: "info", icon: "Sparkles", text: "Equipo nuevo sin actividad", team: t.name, sub: "arrancar con la Fundacional", teamId: t.id });
+    // Cadencia: equipo que ya arrancó pero se pasó de su ritmo.
+    const everyDays = t.data?.cadence?.everyDays ?? 14;
+    const lastAt = t.data?.lastSessionAt;
+    if (lastAt && (t.sessions?.length ?? 0) > 0) {
+      const d = Math.floor((Date.now() - new Date(lastAt).getTime()) / 86400000);
+      if (d > everyDays) alerts.push({ type: "warning", icon: "CalendarClock", text: "Sin sesiones hace un tiempo", team: t.name, sub: `hace ${d} días · ritmo ${everyDays === 7 ? "semanal" : "quincenal"}`, teamId: t.id });
+    }
   }
   // Actividad reciente real (últimas sesiones registradas de todos los equipos).
   const recent = teams

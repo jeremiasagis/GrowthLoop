@@ -152,7 +152,19 @@ export interface Team {
 /** Datos a nivel equipo guardados en teams.data (jsonb). */
 export interface TeamData {
   contract?: TeamContract;
-  lastPulseAt?: string; // ISO; última vez que el equipo hizo el pulso (para el pulso semanal)
+  lastPulseAt?: string;   // ISO; última vez que el equipo hizo el pulso (para el pulso semanal)
+  lastSessionAt?: string; // ISO; última sesión cerrada (para la cadencia)
+  objective?: TeamObjective; // el "Norte" del equipo
+  cadence?: { everyDays: number }; // ritmo sugerido (7 = semanal, 14 = quincenal)
+}
+
+/** El "Norte" del equipo: a qué apuntan las iniciativas de mejora. */
+export interface TeamObjective {
+  text: string;       // el objetivo/desafío en una frase
+  metric?: string;    // qué señal lo mide (opcional)
+  target?: string;    // meta de esa señal (opcional)
+  horizon?: string;   // horizonte temporal (ej. "este trimestre")
+  setAt?: string;     // ISO
 }
 
 /** Contrato de equipo acordado y firmado en la Sesión Fundacional. */

@@ -325,11 +325,12 @@ export async function finalizeSession(session: LiveSession, opts: {
     }
   }
 
-  // Equipo: guardar datos a nivel equipo (p.ej. el contrato de la Sesión Fundacional).
-  if (opts.teamData || hasPulse) {
+  // Equipo: guardar datos a nivel equipo (contrato, pulso semanal, y SIEMPRE la última sesión para la cadencia).
+  {
     const { data: teamRow } = await supabase.from("teams").select("data").eq("id", session.teamId).maybeSingle();
     const prev = (teamRow?.data as Record<string, unknown>) ?? {};
-    const patch = { ...prev, ...(opts.teamData ?? {}), ...(hasPulse ? { lastPulseAt: new Date().toISOString() } : {}) };
+    const now = new Date().toISOString();
+    const patch = { ...prev, ...(opts.teamData ?? {}), ...(hasPulse ? { lastPulseAt: now } : {}), lastSessionAt: now };
     await supabase.from("teams").update({ data: patch }).eq("id", session.teamId);
   }
 

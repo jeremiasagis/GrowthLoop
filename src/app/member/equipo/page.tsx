@@ -25,6 +25,14 @@ export default function MemberEquipo() {
       </div>
       {team.purpose && <p className="muted" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}><Icon name="Quote" size={15} /> {team.purpose}</p>}
 
+      {team.data?.objective && (
+        <Card pad={18} style={{ marginBottom: 18, borderColor: "color-mix(in srgb, var(--green) 35%, var(--line))", background: "linear-gradient(180deg, rgba(0,232,122,0.05), var(--card))" }}>
+          <div className="eyebrow" style={{ color: "var(--green)", display: "flex", alignItems: "center", gap: 6 }}><Icon name="Compass" size={14} /> Objetivo del equipo{team.data.objective.horizon ? ` · ${team.data.objective.horizon}` : ""}</div>
+          <p style={{ fontSize: "var(--t-md)", fontWeight: 700, lineHeight: 1.4, marginTop: 8 }}>{team.data.objective.text}</p>
+          {(team.data.objective.metric || team.data.objective.target) && <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>Señal: {team.data.objective.metric || "—"}{team.data.objective.target ? ` · meta ${team.data.objective.target}` : ""}</p>}
+        </Card>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 12, marginBottom: 22 }}>
         <Card pad={14}><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{team.members.length}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>Integrantes</div></Card>
         <Card pad={14}><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{team.sessions.length}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>Sesiones</div></Card>

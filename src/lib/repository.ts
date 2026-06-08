@@ -12,7 +12,7 @@ import { getSupabaseBrowserClient } from "./supabase/client";
 import {
   type Admin, type Facilitator,
   type Initiative, type Org, type Reflection, type RoleKey, type StageKey,
-  type Team,
+  type Team, type TeamObjective,
 } from "./data";
 
 export interface Invitation {
@@ -128,6 +128,27 @@ export async function updateOrg(id: string, fields: { name?: string; sector?: st
   if (error) return { error: error.message };
   await reloadData();
   return {};
+}
+
+/** Mergea datos a nivel equipo (teams.data jsonb) sin pisar lo demás. */
+async function mergeTeamData(teamId: string, patch: Record<string, unknown>): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: row } = await supabase.from("teams").select("data").eq("id", teamId).maybeSingle();
+  const prev = (row?.data as Record<string, unknown>) ?? {};
+  const { error } = await supabase.from("teams").update({ data: { ...prev, ...patch } }).eq("id", teamId);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
+/** Define / actualiza el "Norte" (objetivo) del equipo. */
+export async function setTeamObjective(teamId: string, objective: TeamObjective | null): Promise<{ error?: string }> {
+  return mergeTeamData(teamId, { objective: objective ? { ...objective, setAt: objective.setAt ?? new Date().toISOString() } : null });
+}
+
+/** Define el ritmo/cadencia del equipo (cada cuántos días). */
+export async function setTeamCadence(teamId: string, everyDays: number): Promise<{ error?: string }> {
+  return mergeTeamData(teamId, { cadence: { everyDays } });
 }
 
 /** El superadmin asigna qué admin gestiona una organización. */

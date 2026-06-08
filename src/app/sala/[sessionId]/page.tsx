@@ -1301,9 +1301,16 @@ export default function SalaPage() {
     const proofD = initiative?.data?.proof as { betThen?: string; signalMetric?: string; signalTarget?: string; bets?: { name?: string; betThen?: string; signalMetric?: string; signalTarget?: string }[] } | undefined;
     const followCheckins = (initiative?.data?.follow?.betCheckins as { value?: string; pct?: number }[] | undefined) ?? [];
     const learnBets = (proofD?.bets?.length ? proofD.bets : [{ name: "", betThen: proofD?.betThen, signalMetric: proofD?.signalMetric, signalTarget: proofD?.signalTarget }]);
-    const learnReminder = (proofD?.betThen || proofD?.bets?.length) ? (
+    // Resultado de equipo (co-igual al de tarea): tendencia del pulso del equipo.
+    const lpts = team?.pulse ?? [];
+    const ovOf = (p: { confianza: number; comunic: number; claridad: number; foco: number; seguridad: number }) => Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5);
+    const lpCur = lpts.length ? ovOf(lpts[lpts.length - 1]) : null;
+    const lpDelta = lpts.length > 1 ? lpCur! - ovOf(lpts[lpts.length - 2]) : null;
+    const hasBet = !!(proofD?.betThen || proofD?.bets?.length);
+    const learnReminder = (hasBet || lpCur !== null) ? (
       <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", display: "flex", flexDirection: "column", gap: 4 }}>
-        {learnBets.map((b, i) => <div key={i}><span className="muted">{learnBets.length > 1 ? `Apuesta ${i + 1}: ` : "La apuesta: "}</span><b style={{ color: "var(--st-proof)" }}>{b.betThen || "—"}</b>{(b.signalMetric || b.signalTarget) && <span className="muted"> · señal: {b.signalMetric}{b.signalTarget ? ` (meta ${b.signalTarget})` : ""}{followCheckins[i]?.value ? ` → logrado ${followCheckins[i]?.value}` : ""}</span>}</div>)}
+        {hasBet && learnBets.map((b, i) => <div key={i}><span className="muted">{learnBets.length > 1 ? `Apuesta ${i + 1}: ` : "La apuesta: "}</span><b style={{ color: "var(--st-proof)" }}>{b.betThen || "—"}</b>{(b.signalMetric || b.signalTarget) && <span className="muted"> · señal: {b.signalMetric}{b.signalTarget ? ` (meta ${b.signalTarget})` : ""}{followCheckins[i]?.value ? ` → logrado ${followCheckins[i]?.value}` : ""}</span>}</div>)}
+        {lpCur !== null && <div><span className="muted">Resultado de equipo · salud: </span><b style={{ color: "var(--st-learn)" }}>{lpCur}%</b>{lpDelta !== null && lpDelta !== 0 && <b style={{ color: lpDelta > 0 ? "var(--success)" : "var(--risk)", marginLeft: 6 }}>{lpDelta > 0 ? "+" : ""}{lpDelta} vs la sesión anterior</b>}</div>}
       </div>
     ) : null;
     const Picked = (

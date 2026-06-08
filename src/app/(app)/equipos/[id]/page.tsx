@@ -9,9 +9,9 @@ import {
 } from "@/components/ui";
 import {
   createInitiative, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
-  setInitiativeStage, setInitiativeStatus, updateInitiative,
+  setInitiativeStage, setInitiativeStatus, setTeamCadence, setTeamObjective, updateInitiative,
 } from "@/lib/repository";
-import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
+import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { createLiveSession } from "@/lib/session";
@@ -331,6 +331,102 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
   );
 }
 
+/** El "Norte" del equipo: a qué apuntan las iniciativas. */
+function ObjetivoCard({ teamId, objective, isFacil, onSaved }: { teamId: string; objective?: TeamObjective; isFacil: boolean; onSaved: () => void }) {
+  const { show } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [text, setText] = useState(objective?.text ?? "");
+  const [metric, setMetric] = useState(objective?.metric ?? "");
+  const [target, setTarget] = useState(objective?.target ?? "");
+  const [horizon, setHorizon] = useState(objective?.horizon ?? "este trimestre");
+  const inputStyle: React.CSSProperties = { width: "100%", background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" };
+  const save = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    const res = await setTeamObjective(teamId, { text: text.trim(), metric: metric.trim() || undefined, target: target.trim() || undefined, horizon: horizon.trim() || undefined });
+    setBusy(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setEditing(false); onSaved(); show("Objetivo del equipo guardado.");
+  };
+
+  if (editing || (!objective && isFacil)) {
+    return (
+      <Card pad={18} style={{ borderColor: "color-mix(in srgb, var(--green) 35%, var(--line))" }}>
+        <SectionTitle icon="Compass" sub="El Norte al que apuntan las iniciativas">Objetivo del equipo</SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="¿Qué quiere lograr este equipo? En una frase. Ej: reducir a la mitad el tiempo de respuesta a clientes." style={{ ...inputStyle, minHeight: 60, resize: "vertical" }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }} className="modesel-grid">
+            <input value={metric} onChange={(e) => setMetric(e.target.value)} placeholder="Señal que lo mide (opcional)" style={inputStyle} />
+            <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Meta (opcional)" style={inputStyle} />
+          </div>
+          <input value={horizon} onChange={(e) => setHorizon(e.target.value)} placeholder="Horizonte (ej. este trimestre)" style={inputStyle} />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {objective && <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancelar</Button>}
+            <Button size="sm" icon="Check" disabled={!text.trim() || busy} onClick={save}>{busy ? "Guardando…" : "Guardar objetivo"}</Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+  if (!objective) return null; // miembro sin objetivo definido: no mostramos nada
+  return (
+    <Card pad={18} style={{ borderColor: "color-mix(in srgb, var(--green) 35%, var(--line))", background: "linear-gradient(180deg, rgba(0,232,122,0.05), var(--card))" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div className="eyebrow" style={{ color: "var(--green)", display: "flex", alignItems: "center", gap: 6 }}><Icon name="Compass" size={14} /> Objetivo del equipo{objective.horizon ? ` · ${objective.horizon}` : ""}</div>
+        {isFacil && <button onClick={() => setEditing(true)} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Pencil" size={12} /> Editar</button>}
+      </div>
+      <p style={{ fontSize: "var(--t-md)", fontWeight: 700, lineHeight: 1.4, marginTop: 8 }}>{objective.text}</p>
+      {(objective.metric || objective.target) && (
+        <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>Señal: {objective.metric || "—"}{objective.target ? ` · meta ${objective.target}` : ""}</p>
+      )}
+    </Card>
+  );
+}
+
+/** Ritmo / cadencia del equipo: convierte la mejora en hábito. */
+function RitmoCard({ teamId, everyDays, lastSessionAt, isFacil, onSaved }: { teamId: string; everyDays: number; lastSessionAt?: string; isFacil: boolean; onSaved: () => void }) {
+  const { show } = useToast();
+  const [busy, setBusy] = useState(false);
+  const days = lastSessionAt ? Math.floor((Date.now() - new Date(lastSessionAt).getTime()) / 86400000) : null;
+  const overdue = days !== null && days > everyDays;
+  const setCad = async (d: number) => {
+    if (d === everyDays || busy) return;
+    setBusy(true);
+    const res = await setTeamCadence(teamId, d);
+    setBusy(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    onSaved();
+  };
+  return (
+    <Card pad={20}>
+      <SectionTitle icon="CalendarClock" sub="La mejora continua es un hábito, no un evento">Ritmo del equipo</SectionTitle>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4, marginBottom: 12 }}>
+        {days === null ? (
+          <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Todavía no hicieron sesiones.</span>
+        ) : (
+          <>
+            <span className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, color: overdue ? "var(--warning)" : "var(--ink-0)" }}>{days === 0 ? "hoy" : `hace ${days}d`}</span>
+            <span className="muted" style={{ fontSize: "var(--t-xs)" }}>la última sesión</span>
+          </>
+        )}
+      </div>
+      {overdue && <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: "var(--r-md)", background: "var(--warning-bg)", color: "var(--warning)", fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 12 }}><Icon name="Bell" size={14} /> Toca una nueva sesión para sostener el ritmo.</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        {[{ d: 7, l: "Semanal" }, { d: 14, l: "Quincenal" }].map((o) => {
+          const on = everyDays === o.d;
+          return (
+            <button key={o.d} disabled={!isFacil || busy} onClick={() => setCad(o.d)}
+              style={{ flex: 1, padding: "8px 0", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", fontWeight: 700, background: on ? "var(--green-soft)" : "var(--card-2)", color: on ? "var(--green)" : "var(--ink-2)", border: `1px solid ${on ? "var(--green)" : "var(--line-2)"}`, cursor: isFacil ? "pointer" : "default" }}>
+              {o.l}
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onInvite: () => void }) {
   const router = useRouter();
   const { show } = useToast();
@@ -351,6 +447,9 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
     router.push(`/sala/${res.session.id}`);
   };
   const newInitiative = () => { if (!hasContract) setGate(true); else setModal(true); };
+  const live = getTeam(team.id) ?? team;
+  const objective = live.data?.objective;
+  const cadence = live.data?.cadence?.everyDays ?? 14;
   const inits = getInitiatives(team.id);
   const counts = {
     active: inits.filter((i) => i.status === "active").length,
@@ -376,15 +475,19 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
           {isFacil && <Button icon="Plus" onClick={newInitiative}>Nueva iniciativa</Button>}
         </div>
 
+        {isFacil && <ObjetivoCard teamId={team.id} objective={objective} isFacil={isFacil} onSaved={refresh} />}
+
         {isFacil && (() => {
           const membersDone = team.members.length > 0;
+          const objectiveDone = !!objective;
           const contractDone = hasContract;
           const initDone = inits.length > 0;
-          if (membersDone && contractDone && initDone) return null;
+          if (membersDone && objectiveDone && contractDone && initDone) return null;
           const STEPS = [
             { done: membersDone, n: 1, title: "Invitá a los integrantes", desc: "Sumá al equipo para que participen en vivo.", btn: "Invitar", icon: "UserPlus", onClick: onInvite },
-            { done: contractDone, n: 2, title: "Hagan la Sesión Fundacional", desc: "Acuerden cómo va a funcionar el equipo y firmen el contrato.", btn: launching ? "Abriendo…" : "Iniciar Fundacional", icon: "Handshake", onClick: startFounding },
-            { done: initDone, n: 3, title: "Creen la primera iniciativa", desc: "Lo que el equipo va a trabajar para mejorar.", btn: "Nueva iniciativa", icon: "Plus", onClick: newInitiative },
+            { done: objectiveDone, n: 2, title: "Definí el objetivo del equipo", desc: "El Norte al que van a apuntar las iniciativas. Cargalo en la tarjeta de arriba.", btn: "Definir objetivo", icon: "Compass", onClick: () => { const el = document.querySelector("textarea"); (el as HTMLElement | null)?.focus(); } },
+            { done: contractDone, n: 3, title: "Hagan la Sesión Fundacional", desc: "Acuerden cómo va a funcionar el equipo y firmen el contrato.", btn: launching ? "Abriendo…" : "Iniciar Fundacional", icon: "Handshake", onClick: startFounding },
+            { done: initDone, n: 4, title: "Creen la primera iniciativa", desc: "Lo que el equipo va a trabajar para mejorar.", btn: "Nueva iniciativa", icon: "Plus", onClick: newInitiative },
           ];
           const nextIdx = STEPS.findIndex((s) => !s.done);
           return (
@@ -460,6 +563,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
             <Row label="Sesiones realizadas" value={team.sessions.length} />
           </div>
         </Card>
+        <RitmoCard teamId={team.id} everyDays={cadence} lastSessionAt={live.data?.lastSessionAt} isFacil={isFacil} onSaved={refresh} />
         {hasContract && <ContractCard team={team} />}
       </div>
 

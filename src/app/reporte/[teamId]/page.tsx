@@ -32,6 +32,8 @@ export default function ReportePage() {
   const last = pulse[pulse.length - 1];
   const first = pulse[0];
   const overall = last ? Math.round((last.confianza + last.comunic + last.claridad + last.foco + last.seguridad) / 5) : 0;
+  const overallFirst = first ? Math.round((first.confianza + first.comunic + first.claridad + first.foco + first.seguridad) / 5) : null;
+  const pulseDelta = last && overallFirst !== null ? overall - overallFirst : null;
   const sessions = team.sessions.slice(0, 12);
 
   const kpis = [
@@ -74,7 +76,16 @@ export default function ReportePage() {
         </div>
 
         {/* proposito */}
-        {team.purpose && <p style={{ fontSize: 15, lineHeight: 1.6, color: C.soft, marginBottom: 24, fontStyle: "italic" }}>“{team.purpose}”</p>}
+        {team.purpose && <p style={{ fontSize: 15, lineHeight: 1.6, color: C.soft, marginBottom: 16, fontStyle: "italic" }}>“{team.purpose}”</p>}
+
+        {/* objetivo (el Norte) */}
+        {team.data?.objective && (
+          <div style={{ border: `1px solid ${C.green}`, borderRadius: 12, padding: 16, marginBottom: 24, background: "rgba(0,170,85,0.06)" }}>
+            <div style={{ fontSize: 12, color: C.green, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Objetivo del equipo{team.data.objective.horizon ? ` · ${team.data.objective.horizon}` : ""}</div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{team.data.objective.text}</div>
+            {(team.data.objective.metric || team.data.objective.target) && <div style={{ fontSize: 13, color: C.soft, marginTop: 6 }}>Señal: {team.data.objective.metric || "—"}{team.data.objective.target ? ` · meta ${team.data.objective.target}` : ""}</div>}
+          </div>
+        )}
 
         {/* KPIs */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
@@ -86,8 +97,11 @@ export default function ReportePage() {
           ))}
         </div>
 
-        {/* pulso */}
-        <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 12 }}>Pulso del equipo</h2>
+        {/* pulso (salud del equipo) */}
+        <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 12 }}>
+          Salud del equipo
+          {pulseDelta !== null && <span style={{ fontSize: 13, fontWeight: 700, color: pulseDelta >= 0 ? C.green : "#dc2626", marginLeft: 10 }}>{pulseDelta >= 0 ? "+" : ""}{pulseDelta} pts desde el inicio</span>}
+        </h2>
         <div style={{ ...box, marginBottom: 28 }}>
           {last ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
