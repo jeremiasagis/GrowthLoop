@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { homeFor } from "@/lib/auth/access";
@@ -12,6 +12,23 @@ import { STAGES, type StageKey } from "@/lib/data";
 // ⚠️ Reemplazar por el número real (formato internacional sin +, ej: 5491122334455)
 const WHATSAPP = "5491100000000";
 const waLink = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent("Hola, me interesa llevar Growthloop a mi organización.")}`;
+
+// Posiciones de los 5 nodos alrededor del círculo (en % del contenedor cuadrado), desde arriba en sentido horario.
+const NODE_POS = [
+  { x: 50, y: 10 },     // Exploración (arriba)
+  { x: 88, y: 37.6 },   // Foco
+  { x: 73.5, y: 82.4 }, // Prueba
+  { x: 26.5, y: 82.4 }, // Seguimiento
+  { x: 12, y: 37.6 },   // Aprendizaje
+];
+// Flechas de dirección en los puntos medios del anillo, rotadas en sentido horario.
+const ARROW_POS = [
+  { x: 73.5, y: 17.6, rot: 36 },
+  { x: 88, y: 62.4, rot: 108 },
+  { x: 50, y: 90, rot: 180 },
+  { x: 12, y: 62.4, rot: 252 },
+  { x: 26.5, y: 17.6, rot: 324 },
+];
 
 const CYCLE: { key: StageKey; desc: string }[] = [
   { key: "explore", desc: "¿Dónde estamos? Sacan a la luz las tensiones que traban al equipo." },
@@ -98,34 +115,65 @@ export default function Home() {
             Cada iniciativa de mejora recorre cinco etapas. Arranca con la <b style={{ color: "var(--ink-1)" }}>Sesión Fundacional</b> (el acuerdo del equipo) y cierra consolidando lo que funcionó.
           </p>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", justifyContent: "center", gap: 8 }}>
-          {CYCLE.map(({ key, desc }, idx) => {
+        {/* círculo (desktop) */}
+        <div className="gl-ring-wrap">
+          <svg className="gl-ring" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="color-mix(in srgb, var(--green) 38%, transparent)" strokeWidth="0.5" strokeDasharray="1.6 2.2" />
+          </svg>
+          {CYCLE.map(({ key }, i) => {
             const st = STAGES[key];
+            const p = NODE_POS[i];
             return (
-              <Fragment key={key}>
-                <Card pad={18} style={{ flex: "1 1 180px", minWidth: 168, maxWidth: 232, borderTop: `3px solid ${st.color}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <span style={{ width: 30, height: 30, borderRadius: "var(--r-full)", display: "grid", placeItems: "center", background: `color-mix(in srgb, ${st.color} 16%, transparent)`, color: st.color, fontWeight: 800, fontSize: "var(--t-sm)" }} className="num">{st.n}</span>
-                    <span style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>{st.label}</span>
-                  </div>
-                  <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55 }}>{desc}</p>
-                </Card>
-                {idx < CYCLE.length - 1 && (
-                  <span style={{ flex: "0 0 auto", alignSelf: "center", color: "var(--ink-3)" }}><Icon name="ChevronRight" size={20} /></span>
-                )}
-              </Fragment>
+              <div key={key} className="gl-node" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
+                <span className="gl-node-badge num" style={{ background: `color-mix(in srgb, ${st.color} 18%, var(--card))`, borderColor: st.color, color: st.color }}>{st.n}</span>
+                <span className="gl-node-label">{st.label}</span>
+              </div>
             );
           })}
-          <span style={{ flex: "0 0 auto", alignSelf: "center", color: "var(--green)" }}><Icon name="ChevronRight" size={20} /></span>
-          <div style={{ flex: "0 0 auto", alignSelf: "center", display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "14px 16px", borderRadius: "var(--r-lg)", border: "1px dashed color-mix(in srgb, var(--green) 50%, transparent)", color: "var(--green)", background: "var(--green-soft)" }}>
-            <Icon name="RefreshCw" size={24} />
-            <span style={{ fontSize: "var(--t-xs)", fontWeight: 800 }}>se repite</span>
+          {ARROW_POS.map((a, i) => (
+            <span key={i} className="gl-arrow" style={{ left: `${a.x}%`, top: `${a.y}%`, transform: `translate(-50%,-50%) rotate(${a.rot}deg)` }}><Icon name="ChevronRight" size={18} /></span>
+          ))}
+          <div className="gl-hub">
+            <span style={{ display: "inline-flex", animation: "spin 9s linear infinite" }}><Icon name="RefreshCw" size={28} /></span>
+            <span style={{ fontWeight: 800, fontSize: "var(--t-sm)", marginTop: 4 }}>se repite</span>
+            <span className="faint" style={{ fontSize: 11, lineHeight: 1.3 }}>cada vuelta sube<br />hacia el objetivo</span>
           </div>
         </div>
-        <p className="muted" style={{ textAlign: "center", marginTop: 22, fontSize: "var(--t-sm)" }}>
-          <Icon name="RefreshCw" size={13} style={{ verticalAlign: "-2px", color: "var(--green)" }} /> Cada vuelta sube hacia el <b style={{ color: "var(--ink-1)" }}>objetivo del equipo</b>.
-          <span className="faint"> · Antes: Sesión Fundacional · Después: Consolidación a 30 días.</span>
+
+        {/* leyenda / detalle (y único contenido en mobile) */}
+        <div className="gl-legend">
+          {CYCLE.map(({ key, desc }) => {
+            const st = STAGES[key];
+            return (
+              <div key={key} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span className="num" style={{ flex: "0 0 auto", width: 26, height: 26, borderRadius: "var(--r-full)", display: "grid", placeItems: "center", background: `color-mix(in srgb, ${st.color} 16%, transparent)`, color: st.color, fontWeight: 800, fontSize: "var(--t-xs)" }}>{st.n}</span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{st.label}</div>
+                  <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, marginTop: 2 }}>{desc}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="muted" style={{ textAlign: "center", marginTop: 28, fontSize: "var(--t-sm)" }}>
+          <span className="faint">Antes: Sesión Fundacional · Después: Consolidación a 30 días.</span>
         </p>
+
+        <style>{`
+          .gl-ring-wrap { position: relative; width: 100%; max-width: 460px; aspect-ratio: 1/1; margin: 0 auto; }
+          .gl-ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+          .gl-node { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 7px; width: 130px; }
+          .gl-node-badge { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 18px; border: 2px solid; }
+          .gl-node-label { font-weight: 700; font-size: 15px; text-align: center; white-space: nowrap; }
+          .gl-arrow { position: absolute; color: color-mix(in srgb, var(--green) 60%, var(--ink-3)); }
+          .gl-hub { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; text-align: center; color: var(--green); width: 130px; }
+          .gl-legend { display: none; }
+          @media (max-width: 720px) {
+            .gl-ring-wrap { display: none; }
+            .gl-legend { display: grid; grid-template-columns: 1fr; gap: 16px; max-width: 420px; margin: 0 auto; }
+          }
+        `}</style>
       </Section>
 
       {/* por qué */}
