@@ -44,7 +44,7 @@ const STEP_SEQ: Record<string, string[]> = {
   consolidate: ["report", "decide", "close"],
   explore: STEPS,
   focus: ["causes", "causes_reveal", "group", "vote", "matrix", "deepen", "close"],
-  proof: ["ideas", "ideas_reveal", "vote", "premortem", "premortem_reveal", "bet", "commit", "close"],
+  proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
   follow: ["progress", "blockers", "blockers_reveal", "decide", "close"],
   learn: ["result", "reflect", "learnings", "learnings_reveal", "decision", "close"],
 };
@@ -817,10 +817,11 @@ export default function SalaPage() {
       </div>
     );
 
-    const myVote = (inputs.find((i) => i.userId === user.id && i.key === "ivote")?.value as { id?: string })?.id;
-    const ivoteCount: Record<string, number> = {};
-    inputs.forEach((i) => { if (i.key === "ivote") { const id = (i.value as { id?: string })?.id; if (id) ivoteCount[id] = (ivoteCount[id] ?? 0) + 1; } });
-    const topIdea = [...ideaCards].sort((a, b) => (ivoteCount[b.id] ?? 0) - (ivoteCount[a.id] ?? 0))[0];
+    const rootNote = (initiative?.data?.focus?.rootCause as string) ?? "";
+    const tensionNote = (initiative?.data?.explore?.priority as string) ?? "";
+    const chosenId = (R.ideaClusterId as string) ?? "";
+    const chosenCluster = clusters.find((c) => c.id === chosenId);
+    const chosenName = chosenCluster?.name ?? chosen;
     const myRisks = myCards.filter((c) => c.columnKey === "risk");
     const riskCards = allCards.filter((c) => c.columnKey === "risk");
     const riskCount = counts["risk"] ?? 0;
@@ -828,18 +829,35 @@ export default function SalaPage() {
     const iConfirmed = inputs.some((i) => i.userId === user.id && i.key === "confirm");
     const addIdea = async () => { const t = (cardDraft.idea ?? "").trim(); if (!t) return; await addCard(sessionId, "idea", t, true); setCardDraft((d) => ({ ...d, idea: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
     const addRisk = async () => { const t = (cardDraft.risk ?? "").trim(); if (!t) return; await addCard(sessionId, "risk", t, true); setCardDraft((d) => ({ ...d, risk: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
-    const fSteps = ["ideas", "ideas_reveal", "vote", "premortem", "premortem_reveal", "bet", "commit", "close"];
+    const groupIdeas = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Idea ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
+    // ICE (Impacto · Confianza · Facilidad) por grupo de ideas
+    const ICE_D: [("i" | "c" | "e"), string][] = [["i", "Impacto"], ["c", "Confianza"], ["e", "Facilidad"]];
+    const iceScore = (cid: string) => { const xs = inputs.filter((i) => i.key === `ice:${cid}`).map((i) => i.value as { i: number; c: number; e: number }); if (!xs.length) return 0; return Math.round((xs.reduce((s, v) => s + ((v.i ?? 0) + (v.c ?? 0) + (v.e ?? 0)) / 3, 0) / xs.length) * 10) / 10; };
+    const iceSubmitters = new Set(inputs.filter((i) => i.key.startsWith("ice:")).map((i) => i.userId)).size;
+    const iMyIce = inputs.some((i) => i.userId === user.id && i.key.startsWith("ice:"));
+    const iceRanked = [...clusters].sort((a, b) => iceScore(b.id) - iceScore(a.id));
+    const iceTop = iceRanked[0];
+    const submitIce = async () => { setBusy(true); for (const cl of clusters) { const d = iceDraft[cl.id] ?? { i: 5, c: 5, e: 5 }; await setMyInput(sessionId, `ice:${cl.id}`, d); } setBusy(false); };
+    const fSteps = ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => {
       setBusy(true);
-      await finalizeSession(session, { pulseAvg: avg, cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosen, betIf, betThen, signal, responsible, deadline, risks: riskCards.map((c) => c.text), committed: confirmCount } });
+      const secondary = iceRanked.filter((c) => c.id !== (chosenId || iceTop?.id)).map((c) => ({ name: c.name, ice: iceScore(c.id) }));
+      await finalizeSession(session, { pulseAvg: avg, cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosenName, betIf, betThen, signal, responsible, deadline, risks: riskCards.map((c) => c.text), committed: confirmCount, secondaryIdeas: secondary } });
       setBusy(false); exit();
     };
+    const proofReminder = (rootNote || tensionNote) ? (
+      <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-focus) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <Icon name="GitBranch" size={13} style={{ color: "var(--st-focus)" }} />
+        <span className="muted">Causa raíz:</span> <b style={{ color: "var(--ink-0)" }}>{rootNote || "—"}</b>
+        {tensionNote && <span className="muted" style={{ width: "100%" }}><Icon name="Star" size={12} /> Tensión: {tensionNote}</span>}
+      </div>
+    ) : null;
     const BetForm = (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Creemos que si… <span className="faint">(acción)</span></label>
-          <textarea defaultValue={betIf || chosen} onBlur={(e) => setResult(sessionId, { betIf: e.target.value })} rows={2} placeholder="cerramos cada reunión con decisiones por escrito" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} />
+          <textarea defaultValue={betIf || chosenName} onBlur={(e) => setResult(sessionId, { betIf: e.target.value })} rows={2} placeholder="cerramos cada reunión con decisiones por escrito" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} />
         </div>
         <div>
           <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>…lograremos que <span className="faint">(resultado)</span></label>
@@ -869,7 +887,7 @@ export default function SalaPage() {
       </div>
     );
 
-    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
     if (step === "ideas") {
       sub = `¿Qué podríamos probar para mover "${subject}"? Tirá ideas a ciegas. Cantidad primero.`;
       content = (
@@ -888,41 +906,86 @@ export default function SalaPage() {
       );
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || ideaCount === 0} onClick={fNext}>Revelar ideas ({ideaCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tus ideas. Se revelan todas juntas.</p>;
     } else if (step === "ideas_reveal") {
-      sub = "Las ideas, a la vista. Después el equipo vota la mejor apuesta.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron ideas.</p>}</div>;
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Votar la mejor idea</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo va a votar la mejor apuesta.</p>;
-    } else if (step === "vote") {
-      const shown = !!session.result.ivoteShown;
-      const iVoters = new Set(inputs.filter((i) => i.key === "ivote").map((i) => i.userId)).size;
-      const maxV = Math.max(1, ...ideaCards.map((c) => ivoteCount[c.id] ?? 0));
-      sub = shown ? "Resultado: la mejor apuesta según el equipo. El facilitador confirma cuál." : "¿Cuál es la mejor apuesta? Votá una. La votación está oculta hasta que el facilitador la muestre.";
+      sub = "Las ideas, a la vista. Después las agrupamos por tema.";
+      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron ideas.</p>}</div>;
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Agrupar ideas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa las ideas parecidas.</p>;
+    } else if (step === "group") {
+      wide = true; sub = isFacil ? "Juntá las ideas parecidas en grupos para puntuarlas mejor." : "El facilitador agrupa las ideas parecidas.";
+      content = (
+        <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span className="eyebrow">Sueltas ({loose.length})</span>
+              {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={groupIdeas}>Agrupar {sel.length}</Button>}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 10 }}>
+              {loose.map((c) => { const on = sel.includes(c.id); const st: React.CSSProperties = { textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4, position: "relative" };
+                return isFacil ? <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))} style={st}>{on && <span style={{ position: "absolute", top: 6, right: 6, color: "var(--green)" }}><Icon name="CheckCircle2" size={14} /></span>}{c.text}</button> : <div key={c.id} style={st}>{c.text}</div>;
+              })}
+              {!loose.length && <div style={{ gridColumn: "1/-1", color: "var(--ink-3)", fontSize: "var(--t-sm)", padding: 16, textAlign: "center" }}>Todas agrupadas.</div>}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <span className="eyebrow">Grupos de ideas ({clusters.length})</span>
+            {clusters.map((cl) => (
+              <Card key={cl.id} pad={12}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ color: "var(--st-proof)" }}><Icon name="Layers" size={15} /></span>
+                  {isFacil ? <input defaultValue={cl.name} onBlur={(e) => renameCluster(cl.id, e.target.value)} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed var(--line-2)" }} /> : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
+                  {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "5px 7px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-proof)" }}>{c.text}</div>)}</div>
+              </Card>
+            ))}
+            {!clusters.length && <div style={{ border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", padding: 18, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>{isFacil ? "Seleccioná ideas y agrupalas." : "Todavía no hay grupos."}</div>}
+          </div>
+        </div>
+      );
+      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={fNext}>Puntuar con ICE</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mirá cómo se agrupan las ideas.</p>;
+    } else if (step === "ice") {
+      const shown = !!session.result.iceShown;
+      sub = shown ? "Resultado ICE: qué idea conviene apostar (impacto · confianza · facilidad)." : "Puntuá cada grupo: Impacto, Confianza y Facilidad (1–10). Oculto hasta que el facilitador lo muestre.";
       content = shown ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[...ideaCards].sort((a, b) => (ivoteCount[b.id] ?? 0) - (ivoteCount[a.id] ?? 0)).map((c) => { const on = c.text === chosen; return (
-            <button key={c.id} onClick={() => isFacil && setResult(sessionId, { idea: c.text })} disabled={!isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default" }}>
-              <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
-              <span style={{ flex: 1 }}>{c.text}</span>
-              <div style={{ width: 80 }}><Bar value={((ivoteCount[c.id] ?? 0) / maxV) * 100} color="var(--st-proof)" height={6} /></div>
-              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{ivoteCount[c.id] ?? 0}</span>
+          {iceRanked.map((cl, i) => { const on = cl.id === (chosenId || iceTop?.id); const sc = iceScore(cl.id); return (
+            <button key={cl.id} onClick={() => isFacil && setResult(sessionId, { ideaClusterId: cl.id, idea: cl.name })} disabled={!isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default" }}>
+              <span className="num" style={{ width: 18, fontWeight: 700, color: i === 0 ? "var(--st-proof)" : "var(--ink-3)" }}>{i + 1}</span>
+              <span style={{ flex: 1 }}>{cl.name}</span>
+              <div style={{ width: 70 }}><Bar value={(sc / 10) * 100} color="var(--st-proof)" height={6} /></div>
+              <span className="num" style={{ fontWeight: 700, width: 28, textAlign: "right" }}>{sc}</span>
             </button>
           ); })}
-          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 4 }}>Tocá la idea a apostar (la más votada queda sugerida).</p>}
+          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 4 }}>Tocá la idea a apostar (la de mayor ICE queda sugerida). Las demás quedan para probar después.</p>}
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {ideaCards.map((c) => { const on = !isFacil && myVote === c.id; return (
-              <button key={c.id} onClick={() => { if (!isFacil) setMyInput(sessionId, "ivote", { id: c.id }); }} disabled={isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "default" : "pointer" }}>
-                <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span><span style={{ flex: 1 }}>{c.text}</span>
-              </button>
-            ); })}
-          </div>
-          <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {iVoters} de {totalInRoom} votaron</p>
+          {isFacil ? (
+            <Card pad={24} style={{ textAlign: "center" }}><div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-proof)" }}>{iceSubmitters}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>puntuaron</div></Card>
+          ) : iMyIce ? (
+            <Card pad={24} style={{ textAlign: "center" }}><Icon name="Check" size={26} style={{ color: "var(--green)" }} /><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Puntuaste. Esperá a que el facilitador muestre el resultado.</p></Card>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {clusters.map((cl) => { const d = iceDraft[cl.id] ?? { i: 5, c: 5, e: 5 }; return (
+                <Card key={cl.id} pad={16}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 10 }}>{cl.name}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                    {ICE_D.map(([k, label]) => (
+                      <div key={k}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-xs)", marginBottom: 3 }}><span className="muted">{label}</span><span className="num" style={{ fontWeight: 700 }}>{d[k]}</span></div>
+                        <input type="range" min={1} max={10} value={d[k]} onChange={(e) => setIceDraft((p) => ({ ...p, [cl.id]: { ...d, [k]: Number(e.target.value) } }))} style={{ width: "100%", accentColor: "var(--st-proof)" }} />
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ); })}
+            </div>
+          )}
+          {!isFacil && !iMyIce && clusters.length > 0 && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)", marginTop: 10 }}><Icon name="EyeOff" size={12} /> Tu puntuación es anónima. {iceSubmitters} de {totalInRoom} puntuaron.</p>}
         </>
       );
       controls = isFacil
-        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !chosen} onClick={() => { if (!chosen && topIdea) setResult(sessionId, { idea: topIdea.text }); fNext(); }}>Pre-mortem de la idea</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { ivoteShown: true })}>Mostrar votación ({iVoters}/{totalInRoom})</Button>)
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la idea que más te convence. El facilitador muestra el resultado cuando todos voten.</p>;
+        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || (!chosenId && !iceTop)} onClick={() => { if (!chosenId && iceTop) setResult(sessionId, { ideaClusterId: iceTop.id, idea: iceTop.name }); fNext(); }}>Pre-mortem de la idea</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { iceShown: true })}>Mostrar ranking ICE ({iceSubmitters}/{totalInRoom})</Button>)
+        : (iMyIce ? <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador muestra el ranking cuando todos puntúen.</p> : <Button full size="lg" icon="Send" disabled={busy || !clusters.length} onClick={submitIce}>{busy ? "Enviando…" : "Enviar mis puntuaciones"}</Button>);
     } else if (step === "premortem") {
       sub = "Pre-mortem: imaginá que en 15 días la prueba fracasó. ¿Qué salió mal? (anónimo)";
       content = (
@@ -969,15 +1032,22 @@ export default function SalaPage() {
       );
     } else {
       sub = "La apuesta quedó definida. ¡A probar!";
-      content = BetCard;
+      const secIdeas = iceRanked.filter((c) => c.id !== (chosenId || iceTop?.id));
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {BetCard}
+          {secIdeas.length > 0 && <div style={{ padding: "10px 12px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><div className="eyebrow" style={{ marginBottom: 6 }}><Icon name="Archive" size={12} /> Ideas para probar después</div>{secIdeas.map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)", display: "flex", justifyContent: "space-between" }}><span>{c.name}</span><span className="num">ICE {iceScore(c.id)}</span></div>)}</div>}
+        </div>
+      );
       controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button> : null;
     }
 
     return (
       <Shell onExit={exit}>
-        <div style={{ width: "100%", maxWidth: 600 }}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {proofReminder}
           {content}
           <div style={{ marginTop: 18 }}>{controls}</div>
         </div>
