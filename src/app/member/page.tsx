@@ -49,6 +49,18 @@ export default function MemberHome() {
         <p className="muted" style={{ marginTop: 4 }}>Tu espacio del equipo: avances, iniciativas y sesiones.</p>
       </div>
 
+      {!live && team.sessions.length === 0 && (
+        <Card pad={18} style={{ marginBottom: 18, borderColor: "color-mix(in srgb, var(--green) 30%, var(--line))" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Sparkles" size={20} /></div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>¡Bienvenido/a al equipo {team.name}!</div>
+              <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 3, lineHeight: 1.5 }}>Acá vas a participar de las sesiones en vivo cuando tu facilitador las inicie — te van a aparecer en esta pantalla. Mientras, podés mirar tu equipo y las iniciativas.</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {live && (
         <Card glow pad={18} style={{ marginBottom: 18, background: "linear-gradient(180deg, rgba(0,232,122,0.12), var(--card))", borderColor: "color-mix(in srgb, var(--green) 45%, transparent)", animation: "glow-pulse 2s infinite" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
