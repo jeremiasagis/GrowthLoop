@@ -8,7 +8,7 @@ import {
   PulseChart, ProgressRing, SectionTitle, StageBadge, Trend,
 } from "@/components/ui";
 import {
-  createInitiative, getFacilitators, getInitiatives, getTeam, inviteMember,
+  createInitiative, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
   setInitiativeStage, setInitiativeStatus, updateInitiative,
 } from "@/lib/repository";
 import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
@@ -575,9 +575,12 @@ export default function TeamPage() {
   const team = getTeam(params.id || "t1");
   const [tab, setTab] = useState("seguimiento");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
+  const [delBusy, setDelBusy] = useState(false);
 
   if (!team) return <div className="screen-pad">Equipo no encontrado.</div>;
   const lead = team.facilitatorId ? getFacilitators().find((f) => f.id === team.facilitatorId) : undefined;
+  const doDeleteTeam = async () => { setDelBusy(true); const res = await deleteTeam(team.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Equipo eliminado", "Trash2"); router.push("/organizaciones"); };
   const lowSafety = team.psychSafety < 70;
 
   const TABS = [
@@ -620,6 +623,7 @@ export default function TeamPage() {
           <Button variant="secondary" icon="Library" onClick={() => router.push(`/equipos/${team.id}/biblioteca`)}>Biblioteca</Button>
           <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
           {isFacil && <Button icon="UserPlus" onClick={() => setInviteOpen(true)}>Invitar integrante</Button>}
+          {isFacil && <Button variant="ghost" icon="Trash2" onClick={() => setDelOpen(true)} style={{ color: "var(--risk)" }}>Eliminar</Button>}
         </div>
       </div>
 
@@ -649,6 +653,19 @@ export default function TeamPage() {
       )}
 
       {inviteOpen && <InviteMemberModal team={team} onClose={() => setInviteOpen(false)} />}
+      {delOpen && (
+        <div onClick={() => setDelOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, textAlign: "center", animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ width: 52, height: 52, borderRadius: "var(--r-lg)", background: "var(--risk-bg)", color: "var(--risk)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Trash2" size={26} /></div>
+            <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>Eliminar “{team.name}”</h3>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, lineHeight: 1.55 }}>Se borran <b style={{ color: "var(--ink-0)" }}>todas sus iniciativas, sesiones, pulso e integrantes</b>. Esta acción no se puede deshacer.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
+              <Button full size="lg" icon="Trash2" disabled={delBusy} onClick={doDeleteTeam} style={{ background: "var(--risk)", color: "#fff" }}>{delBusy ? "Eliminando…" : "Sí, eliminar el equipo"}</Button>
+              <Button full variant="ghost" onClick={() => setDelOpen(false)}>Cancelar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

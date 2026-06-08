@@ -10,7 +10,7 @@ import {
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import {
-  getFacilitators, getInitiatives, getTeam, setInitiativeStage, setInitiativeStatus,
+  deleteInitiative, getFacilitators, getInitiatives, getTeam, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
 import { createLiveSession } from "@/lib/session";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
@@ -302,6 +302,9 @@ export default function InitiativeDetailPage() {
     if (res.error) show(res.error, "TriangleAlert"); else { show("Actualizada", "Check"); refresh(); }
   };
   const scrollTo = (st: StageKey) => document.getElementById(`stage-${st}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const [delOpen, setDelOpen] = useState(false);
+  const [delBusy, setDelBusy] = useState(false);
+  const doDelete = async () => { setDelBusy(true); const res = await deleteInitiative(init.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Iniciativa eliminada", "Trash2"); router.push(`/equipos/${team.id}`); };
 
   return (
     <div className="screen-pad">
@@ -485,6 +488,9 @@ export default function InitiativeDetailPage() {
                   <Button size="sm" variant="ghost" icon="CircleCheck" onClick={() => changeStatus("done")}>Cerrar</Button>
                 </div>
               )}
+              {isFacil && (
+                <button onClick={() => setDelOpen(true)} style={{ marginTop: 4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, color: "var(--risk)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="Trash2" size={14} /> Eliminar iniciativa</button>
+              )}
             </div>
           </Card>
 
@@ -498,6 +504,19 @@ export default function InitiativeDetailPage() {
         </div>
       </div>
 
+      {delOpen && (
+        <div onClick={() => setDelOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, textAlign: "center", animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ width: 52, height: 52, borderRadius: "var(--r-lg)", background: "var(--risk-bg)", color: "var(--risk)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Trash2" size={26} /></div>
+            <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>Eliminar “{init.title}”</h3>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, lineHeight: 1.55 }}>Se borran también sus <b style={{ color: "var(--ink-0)" }}>sesiones y resultados</b>. Esta acción no se puede deshacer.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
+              <Button full size="lg" icon="Trash2" disabled={delBusy} onClick={doDelete} style={{ background: "var(--risk)", color: "#fff" }}>{delBusy ? "Eliminando…" : "Sí, eliminar"}</Button>
+              <Button full variant="ghost" onClick={() => setDelOpen(false)}>Cancelar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

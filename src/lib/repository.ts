@@ -270,6 +270,24 @@ export async function setInitiativeStatus(id: string, status: Initiative["status
   return {};
 }
 
+/** Elimina una iniciativa (en cascada sus sesiones y logs). Irreversible. */
+export async function deleteInitiative(id: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("initiatives").delete().eq("id", id);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
+/** Elimina un equipo (en cascada iniciativas, sesiones, pulso, integrantes…). Irreversible. */
+export async function deleteTeam(id: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("teams").delete().eq("id", id);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
 /** Invita un integrante a un equipo existente (copy-link). */
 export async function inviteMember(input: { teamId: string; orgId: string; email: string; name?: string }): Promise<{ token?: string; error?: string }> {
   const supabase = getSupabaseBrowserClient();
