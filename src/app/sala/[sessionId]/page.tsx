@@ -15,7 +15,7 @@ import {
   addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, deleteCluster,
   finalizeSession, getCardCounts, getCards, getClusters, getInputs, getMyCards, getParticipants,
   getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
-  renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession,
+  renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession, touchPresence,
   type LiveSession, type Participant, type PulseResponse, type SessionCard, type SessionCluster, type SessionInput, type SessionVote,
 } from "@/lib/session";
 
@@ -88,6 +88,7 @@ export default function SalaPage() {
   const [iceDraft, setIceDraft] = useState<Record<string, { i: number; c: number; e: number }>>({});
   const joinedRef = useRef(false);
   const [now, setNow] = useState(() => Date.now());
+  const [voteBusy, setVoteBusy] = useState(false);
   const sessionId = params.sessionId;
 
   const load = async () => {
@@ -100,7 +101,7 @@ export default function SalaPage() {
       ]);
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
-      if (user) { setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
+      if (user) { touchPresence(sessionId); setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
       const needsAll = ["cards_reveal", "cluster", "vote", "close", "group", "matrix", "deepen", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -142,12 +143,23 @@ export default function SalaPage() {
   const closed = session.status === "closed";
   const avg = averagePulse(responses);
   const overall = Math.round((avg.confianza + avg.comunic + avg.claridad + avg.foco + avg.seguridad) / 5);
-  const totalInRoom = participants.length;
+  // Presentes reales: vistos hace menos de ~25s (heartbeat). Evita contar fantasmas.
+  const activeParticipants = participants.filter((p) => !p.lastSeen || Date.now() - new Date(p.lastSeen).getTime() < 25000);
+  const totalInRoom = activeParticipants.length;
   const totalCards = Object.values(counts).reduce((a, b) => a + b, 0);
   const myIds = new Set(myCards.map((c) => c.id));
   const votesByCluster: Record<string, number> = {};
   votes.forEach((v) => { votesByCluster[v.clusterId] = (votesByCluster[v.clusterId] ?? 0) + 1; });
   const myVoteCount = votes.filter((v) => v.userId === user.id).length;
+  // Voto serializado: evita exceder los puntos por doble-click (recalcula remaining tras cada uno).
+  const castVote = async (clusterId: string, delta: number, remaining: number) => {
+    if (voteBusy) return;
+    if (delta > 0 && remaining <= 0) return;
+    setVoteBusy(true);
+    if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId);
+    await load();
+    setVoteBusy(false);
+  };
   const remaining = DOTS_PER - myVoteCount;
   const ranked = [...clusters].sort((a, b) => (votesByCluster[b.id] ?? 0) - (votesByCluster[a.id] ?? 0));
   const cardsOf = (cid: string) => allCards.filter((c) => c.clusterId === cid);
@@ -340,7 +352,7 @@ export default function SalaPage() {
         <div style={{ flex: 1, height: 4, borderRadius: 99, background: "var(--card-2)", overflow: "hidden", minWidth: 60 }}><div style={{ height: "100%", width: `${((stepIdx + 1) / stepTotal) * 100}%`, background: "var(--green)", borderRadius: 99, transition: "width .4s var(--ease)" }} /></div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ display: "flex" }}>{participants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div>
+        <div style={{ display: "flex" }}>{activeParticipants.slice(0, 8).map((p, i) => <span key={p.userId} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={p.name} initials={p.initials} size={28} idx={i} /></span>)}</div>
         <span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{totalInRoom} en la sala</span>
         {isFacil && !timer && (
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -567,7 +579,7 @@ export default function SalaPage() {
     const purposeNote = (initiative?.data?.explore?.purpose as string) ?? "";
     const addCause = async () => { const t = (cardDraft.cause ?? "").trim(); if (!t) return; await addCard(sessionId, "cause", t, true); setCardDraft((d) => ({ ...d, cause: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
     const groupCauses = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Causa ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
-    const voteCause = async (clusterId: string, delta: number) => { if (delta > 0 && remaining <= 0) return; if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId); };
+    const voteCause = (clusterId: string, delta: number) => castVote(clusterId, delta, remaining);
     const fSteps = ["causes", "causes_reveal", "group", "vote", "matrix", "deepen", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const setWhy = (idx: number, val: string) => { const next = [...whys]; next[idx] = val; setResult(sessionId, { whys: next }); };
@@ -1306,18 +1318,26 @@ export default function SalaPage() {
     const reflectedCount = inputs.filter((i) => i.key === "reflected").length;
     const addLearning = async () => { const t = (cardDraft.learning ?? "").trim(); if (!t) return; await addCard(sessionId, "learning", t, true); setCardDraft((d) => ({ ...d, learning: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
     const groupLearnings = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Aprendizaje ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
-    const voteLearn = async (clusterId: string, delta: number) => { if (delta > 0 && remaining <= 0) return; if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId); };
+    const voteLearn = (clusterId: string, delta: number) => castVote(clusterId, delta, remaining);
     const lShown = !!R.lvoteShown;
     const fSteps = ["result", "reflect", "learnings", "learnings_reveal", "group", "vote", "decision", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => {
       setBusy(true);
+      // Decisión/resultado GENERAL de la iniciativa a partir de TODAS las apuestas.
+      // Prioridad de etapa: si alguna apuesta itera, la iniciativa vuelve a Prueba (se re-testea);
+      // si no, queda cerrada. La decisión por apuesta se guarda igual en decisions[]/results[]
+      // (la consolidación de una apuesta puntual se ofrece aparte en la iniciativa).
       const anyIterate = decisions.includes("iterate");
-      const r0 = RESULTS.find((x) => x.k === results[0]);
-      const d0 = DECISIONS.find((x) => x.k === decisions[0]);
+      const anyConsolidate = decisions.includes("consolidate");
+      const overallDecision = anyIterate ? "iterate" : anyConsolidate ? "consolidate" : (decisions[0] ?? "drop");
+      const uniqResults = [...new Set(results.filter(Boolean))];
+      const overallResult = uniqResults.length === 1 ? uniqResults[0] : (results.length ? "partial" : "");
+      const rOv = RESULTS.find((x) => x.k === overallResult);
+      const dOv = DECISIONS.find((x) => x.k === overallDecision);
       await finalizeSession(session, {
-        pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${r0?.l ?? "—"} · ${d0?.l ?? "—"}`,
-        dataKey: "learn", dataValue: { result: results[0] ?? "", results, decision: decisions[0] ?? "", decisions, learnings: learnCards.map((c) => c.text), highlights: ranked.map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })).filter((h) => h.votes > 0) },
+        pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${rOv?.l ?? "—"} · ${dOv?.l ?? "—"}`,
+        dataKey: "learn", dataValue: { result: overallResult, results, decision: overallDecision, decisions, learnings: learnCards.map((c) => c.text), highlights: ranked.map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })).filter((h) => h.votes > 0) },
         noAdvance: true, status: anyIterate ? "active" : "done", stageOverride: anyIterate ? "proof" : undefined,
       });
       setBusy(false); exit();
@@ -1520,7 +1540,7 @@ export default function SalaPage() {
   };
   const submitMyPulse = async () => { setBusy(true); const res = await submitPulse(sessionId, draft); setBusy(false); if (!res.error) setSubmitted(true); };
   const addExploreCard = async (colKey: string) => { const text = (cardDraft[colKey] ?? "").trim(); if (!text) return; await addCard(sessionId, colKey, text, anon); setCardDraft((d) => ({ ...d, [colKey]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
-  const voteCluster = async (clusterId: string, delta: number) => { if (delta > 0 && remaining <= 0) return; if (delta > 0) await addVote(sessionId, clusterId); else await removeVote(sessionId, clusterId); };
+  const voteCluster = (clusterId: string, delta: number) => castVote(clusterId, delta, remaining);
 
   let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
   if (step === "pulse") {

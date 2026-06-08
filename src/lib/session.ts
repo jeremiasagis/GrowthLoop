@@ -26,7 +26,7 @@ export interface LiveSession {
 export interface PulseResponse {
   confianza: number; comunic: number; claridad: number; foco: number; seguridad: number;
 }
-export interface Participant { userId: string; name: string; initials: string; }
+export interface Participant { userId: string; name: string; initials: string; lastSeen?: string; }
 export interface SessionCard { id: string; columnKey: string; text: string; anonymous: boolean; authorId?: string; clusterId?: string; }
 export interface SessionCluster { id: string; name: string; }
 export interface SessionVote { id: string; clusterId: string; userId: string; }
@@ -78,8 +78,18 @@ export async function getOpenSessionForTeam(teamId: string): Promise<LiveSession
 export async function getParticipants(sessionId: string): Promise<Participant[]> {
   const supabase = getSupabaseBrowserClient();
   const { data } = await supabase.from("session_participants")
-    .select("user_id,name,initials").eq("session_id", sessionId);
-  return (data ?? []).map((r: any) => ({ userId: r.user_id, name: r.name, initials: r.initials }));
+    .select("user_id,name,initials,last_seen").eq("session_id", sessionId);
+  return (data ?? []).map((r: any) => ({ userId: r.user_id, name: r.name, initials: r.initials, lastSeen: r.last_seen }));
+}
+
+/** Heartbeat: marca que el usuario actual sigue en la sala (para contar presentes reales). */
+export async function touchPresence(sessionId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return;
+  await supabase.from("session_participants")
+    .update({ last_seen: new Date().toISOString() })
+    .eq("session_id", sessionId).eq("user_id", auth.user.id);
 }
 
 export async function getPulseResponses(sessionId: string): Promise<PulseResponse[]> {
@@ -133,7 +143,7 @@ export async function joinSession(sessionId: string, name: string, initials: str
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return;
   await supabase.from("session_participants").upsert(
-    { session_id: sessionId, user_id: auth.user.id, name, initials },
+    { session_id: sessionId, user_id: auth.user.id, name, initials, last_seen: new Date().toISOString() },
     { onConflict: "session_id,user_id" },
   );
 }
@@ -154,12 +164,10 @@ export async function setStep(sessionId: string, stepKey: string, stepIndex: num
   await supabase.from("sessions").update({ step_key: stepKey, step_index: stepIndex }).eq("id", sessionId);
 }
 
-/** Mergea valores en el resultado vivo de la sesión (lo ven todos por Realtime). */
+/** Mergea valores en el resultado vivo de la sesión (atómico en el servidor; lo ven todos por Realtime). */
 export async function setResult(sessionId: string, partial: Record<string, unknown>): Promise<void> {
   const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.from("sessions").select("result").eq("id", sessionId).maybeSingle();
-  const merged = { ...((data?.result as Record<string, unknown>) ?? {}), ...partial };
-  await supabase.from("sessions").update({ result: merged }).eq("id", sessionId);
+  await supabase.rpc("merge_session_result", { p_session_id: sessionId, p_patch: partial });
 }
 
 // ── Tarjetas (anónimas o públicas) ──

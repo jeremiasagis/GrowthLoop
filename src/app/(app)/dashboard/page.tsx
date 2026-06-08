@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
-  Avatar, AvatarStack, Bar, Button, Card, EmptyState, SectionTitle, Sparkline, StageBadge, Stat,
+  Avatar, AvatarStack, Button, Card, EmptyState, SectionTitle, Sparkline, StageBadge, Stat,
 } from "@/components/ui";
-import { ALERTS, MY_ORG, STAGES, UPCOMING, type Team } from "@/lib/data";
+import { STAGES, type Team } from "@/lib/data";
 import { getFacilitators, getTeams } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 
@@ -115,10 +115,11 @@ export default function DashboardPage() {
   const facilitators = getFacilitators();
   const activeFacils = facilitators.filter((f) => f.status === "active");
   const allInits = teams.flatMap((t) => t.initiatives ?? []);
+  const sessionsTotal = teams.reduce((a, t) => a + (t.sessions?.length ?? 0), 0);
   const stats = [
     { label: "Equipos activos",      value: teams.length, icon: "Users",        color: "var(--green)" },
-    { label: "Pruebas en curso",     value: allInits.filter((i) => i.stage === "proof").length, icon: "FlaskConical", color: "var(--st-proof)" },
-    { label: "Sesiones esta semana", value: UPCOMING.length, icon: "Radio",     color: "var(--violet)" },
+    { label: "Pruebas en curso",     value: allInits.filter((i) => i.stage === "proof" && i.status === "active").length, icon: "FlaskConical", color: "var(--st-proof)" },
+    { label: "Sesiones realizadas",  value: sessionsTotal, icon: "Radio",     color: "var(--violet)" },
     { label: "Iniciativas resueltas", value: allInits.filter((i) => i.status === "done").length, icon: "CircleCheck", color: "var(--success)" },
   ];
   const alertColor: Record<string, [string, string]> = {
@@ -126,6 +127,21 @@ export default function DashboardPage() {
     warning: ["var(--warning)", "var(--warning-bg)"],
     info: ["var(--info)", "var(--info-bg)"],
   };
+  // Alertas reales derivadas del estado de los equipos.
+  type DashAlert = { type: "risk" | "warning" | "info"; icon: string; text: string; team: string; sub: string; teamId: string };
+  const alerts: DashAlert[] = [];
+  for (const t of teams) {
+    if (t.psychSafety > 0 && t.psychSafety < 70)
+      alerts.push({ type: "warning", icon: "HeartPulse", text: "Seguridad psicológica baja", team: t.name, sub: `pulso ${t.psychSafety}%`, teamId: t.id });
+    const paused = (t.initiatives ?? []).filter((i) => i.status === "paused").length;
+    if (paused) alerts.push({ type: "info", icon: "CirclePause", text: `${paused} ${paused === 1 ? "iniciativa en pausa" : "iniciativas en pausa"}`, team: t.name, sub: "para retomar", teamId: t.id });
+    if ((t.sessions?.length ?? 0) === 0 && (t.initiatives?.length ?? 0) === 0)
+      alerts.push({ type: "info", icon: "Sparkles", text: "Equipo nuevo sin actividad", team: t.name, sub: "arrancar con la Fundacional", teamId: t.id });
+  }
+  // Actividad reciente real (últimas sesiones registradas de todos los equipos).
+  const recent = teams
+    .flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, teamName: t.name, teamId: t.id })))
+    .slice(0, 6);
 
   return (
     <div className="screen-pad">
@@ -180,7 +196,7 @@ export default function DashboardPage() {
           <div className="myorg-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
             <OrgStat icon="UserCog" color="var(--info)" label="Facilitadores activos" value={activeFacils.length} sub="en tu organización" />
             <OrgStat icon="Users" color="var(--green)" label="Equipos en total" value={teams.length} sub="entre todos los facilitadores" border />
-            <OrgStat icon="Radio" color="var(--violet)" label="Sesiones este mes" value={MY_ORG.sessionsMonth} sub="en vivo y asíncronas" border />
+            <OrgStat icon="Radio" color="var(--violet)" label="Sesiones realizadas" value={sessionsTotal} sub="en vivo, facilitadas" border />
           </div>
           <div style={{ borderTop: "1px solid var(--line)", padding: "8px 8px 10px" }}>
             <div className="eyebrow" style={{ padding: "8px 12px 6px" }}>Equipos por facilitador</div>
@@ -202,15 +218,11 @@ export default function DashboardPage() {
                     {f.name}
                     {f.you && <span className="muted" style={{ fontWeight: 400 }}> · vos</span>}
                   </div>
-                  <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{f.teams} equipos · {f.sessionsMonth} sesiones este mes</div>
+                  {(() => { const n = teams.filter((t) => t.facilitatorId === f.id).length; return (
+                    <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{n} {n === 1 ? "equipo" : "equipos"}</div>
+                  ); })()}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
-                  <div style={{ width: 90 }} className="hide-sm">
-                    <Bar value={f.health ?? 0} color={(f.health ?? 0) < 70 ? "var(--warning)" : "var(--success)"} height={6} />
-                  </div>
-                  <span className="num" style={{ fontWeight: 700, fontSize: "var(--t-sm)", color: (f.health ?? 0) < 70 ? "var(--warning)" : "var(--success)", width: 34, textAlign: "right" }}>
-                    {f.health}%
-                  </span>
                   <span className="faint"><Icon name="ChevronRight" size={16} /></span>
                 </div>
               </button>
@@ -252,13 +264,13 @@ export default function DashboardPage() {
           <div>
             <SectionTitle icon="Bell">Atención</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {ALERTS.length === 0 && (
+              {alerts.length === 0 && (
                 <Card pad={16}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin alertas por ahora. Todo en orden. 🌱</span></Card>
               )}
-              {ALERTS.map((a, i) => {
+              {alerts.map((a, i) => {
                 const [c] = alertColor[a.type];
                 return (
-                  <Card key={i} pad={14} hover onClick={() => go("/equipos/t1")} style={{ display: "flex", gap: 12, alignItems: "flex-start", borderLeft: `3px solid ${c}` }}>
+                  <Card key={i} pad={14} hover onClick={() => go(`/equipos/${a.teamId}`)} style={{ display: "flex", gap: 12, alignItems: "flex-start", borderLeft: `3px solid ${c}` }}>
                     <span style={{ color: c, display: "inline-flex", marginTop: 1, flex: "none" }}><Icon name={a.icon} size={18} /></span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: "var(--t-sm)" }}>{a.text}</div>
@@ -270,38 +282,32 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* upcoming */}
+          {/* actividad reciente */}
           <div>
-            <SectionTitle
-              icon="CalendarDays"
-              right={<button onClick={() => go("/sesiones")} style={{ color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}>Agenda</button>}
-            >
-              Próximas sesiones
-            </SectionTitle>
-            <Card pad={UPCOMING.length ? 6 : 16}>
-              {UPCOMING.length === 0 && (
-                <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin sesiones agendadas.</span>
+            <SectionTitle icon="History">Actividad reciente</SectionTitle>
+            <Card pad={recent.length ? 6 : 16}>
+              {recent.length === 0 && (
+                <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Todavía no hay sesiones realizadas.</span>
               )}
-              {UPCOMING.map((u, i) => {
-                const st = STAGES[u.stage];
+              {recent.map((u, i) => {
+                const st = STAGES[u.stage] ?? { color: "var(--ink-3)" };
                 return (
                   <button
-                    key={u.id} onClick={() => go("/organizaciones")}
+                    key={u.id} onClick={() => go(`/equipos/${u.teamId}`)}
                     style={{
                       display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 12px",
-                      borderRadius: "var(--r-md)", borderBottom: i < UPCOMING.length - 1 ? "1px solid var(--line)" : "none", transition: "background .15s",
+                      borderRadius: "var(--r-md)", borderBottom: i < recent.length - 1 ? "1px solid var(--line)" : "none", transition: "background .15s",
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "var(--card-2)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <div style={{ textAlign: "center", flex: "none", width: 52 }}>
-                      <div style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: u.date === "Hoy" ? "var(--green)" : "var(--ink-0)" }}>{u.date}</div>
-                      <div className="muted num" style={{ fontSize: "var(--t-xs)" }}>{u.time}</div>
+                      <div className="muted num" style={{ fontSize: "var(--t-xs)" }}>{u.date}</div>
                     </div>
                     <div style={{ width: 3, alignSelf: "stretch", borderRadius: 99, background: st.color, flex: "none" }} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.retro}</div>
-                      <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{u.team} · {u.mode}</div>
+                      <div className="muted" style={{ fontSize: "var(--t-xs)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.teamName} · {u.out}</div>
                     </div>
                     <span className="faint" style={{ flex: "none" }}><Icon name="ChevronRight" size={16} /></span>
                   </button>

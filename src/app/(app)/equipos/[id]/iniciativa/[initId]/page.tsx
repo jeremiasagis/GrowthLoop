@@ -291,7 +291,8 @@ export default function InitiativeDetailPage() {
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
     router.push(`/sala/${res.session.id}`);
   };
-  const canConsolidate = init.data?.learn?.decision === "consolidate" && !init.data?.consolidate;
+  const decidedConsolidate = init.data?.learn?.decision === "consolidate" || (init.data?.learn?.decisions ?? []).includes("consolidate");
+  const canConsolidate = decidedConsolidate && !init.data?.consolidate;
   const consolidated = init.data?.consolidate;
   const changeStage = async (s: StageKey) => {
     const res = await setInitiativeStage(init.id, s);

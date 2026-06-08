@@ -4,8 +4,8 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Avatar, Button, Card, Pill, SectionTitle } from "@/components/ui";
-import { CURRENT_USER, MY_ORG, ROLES } from "@/lib/data";
-import { getFacilitators, getTeams } from "@/lib/repository";
+import { CURRENT_USER, ROLES } from "@/lib/data";
+import { getFacilitators, getOrg, getTeams } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 
@@ -57,8 +57,10 @@ export default function AjustesPage() {
   const profile = user ?? CURRENT_USER;
   const role = ROLES[user?.role ?? "admin"];
   const doLogout = () => { logout(); router.replace("/login"); };
-  const orgName = user?.role === "superadmin" ? "Growthloop · plataforma" : (user?.orgName || MY_ORG.name);
-  const orgStats = { facilitadores: getFacilitators().length, equipos: getTeams().length, sesiones: 0 };
+  const myOrg = user?.orgId ? getOrg(user.orgId) : undefined;
+  const orgName = user?.role === "superadmin" ? "Growthloop · plataforma" : (user?.orgName || myOrg?.name || "Mi organización");
+  const planLabel = myOrg?.status ?? "Piloto";
+  const orgStats = { facilitadores: getFacilitators().length, equipos: getTeams().length, sesiones: getTeams().reduce((a, t) => a + (t.sessions?.length ?? 0), 0) };
 
   return (
     <div className="screen-pad">
@@ -115,7 +117,7 @@ export default function AjustesPage() {
               <SectionTitle icon="Building2" sub="Datos de tu espacio de trabajo">Organización</SectionTitle>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="modesel-grid">
                 <Field label="Nombre" value={orgName} />
-                <Field label="Plan" value={MY_ORG.plan} />
+                <Field label="Plan" value={planLabel} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 20 }} className="modesel-grid">
                 {[["Facilitadores", orgStats.facilitadores], ["Equipos", orgStats.equipos], ["Sesiones/mes", orgStats.sesiones]].map(([l, v]) => (
@@ -147,10 +149,10 @@ export default function AjustesPage() {
               <Card glow pad={20} style={{ background: "linear-gradient(180deg, rgba(0,232,122,0.06), var(--card))", marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <div>
-                    <Pill color="var(--green)" bg="var(--success-bg)" icon="Sparkles">Plan {MY_ORG.plan}</Pill>
+                    <Pill color="var(--green)" bg="var(--success-bg)" icon="Sparkles">Plan {planLabel}</Pill>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 10 }}>
-                      <span className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800 }}>9</span>
-                      <span className="muted">equipos activos · facturación mensual</span>
+                      <span className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800 }}>{orgStats.equipos}</span>
+                      <span className="muted">{orgStats.equipos === 1 ? "equipo activo" : "equipos activos"}</span>
                     </div>
                   </div>
                   <Button variant="secondary" icon="ArrowUpRight" onClick={() => show("Te contactamos para cambiar de plan.", "ArrowUpRight")}>Cambiar de plan</Button>
