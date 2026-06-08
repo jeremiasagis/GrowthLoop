@@ -3,7 +3,6 @@ export const routes = {
   dashboard: () => "/dashboard",
   orgs: () => "/organizaciones",
   team: (teamId: string) => `/equipos/${teamId}`,
-  map: (teamId: string) => `/equipos/${teamId}/mapa`,
   sessions: () => "/sesiones",
   session: (teamId: string) => `/sesion/${teamId}`,
   facilitators: () => "/facilitadores",

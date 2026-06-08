@@ -1692,10 +1692,10 @@ export default function SalaPage() {
       </>
     );
     controls = isFacil
-      ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Cerrar y ver el mapa</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { flowShown: true })}>Mostrar votación ({fVoters}/{totalInRoom})</Button>)
+      ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Cerrar y ver el resumen</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { flowShown: true })}>Mostrar votación ({fVoters}/{totalInRoom})</Button>)
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la etapa más crítica. El facilitador muestra el resultado cuando todos elijan.</p>;
   } else {
-    sub = "El mapa final. Al cerrar, se guarda y la iniciativa avanza de etapa.";
+    sub = "El resumen final. Al cerrar, se guarda y la iniciativa avanza de etapa.";
     content = (
       <>
         {(purposeText || criticalMeta) && (

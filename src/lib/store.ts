@@ -12,8 +12,8 @@ import { create } from "zustand";
 import { getSupabaseBrowserClient } from "./supabase/client";
 import {
   FACILITATOR,
-  type Admin, type Experiment, type Facilitator, type Initiative, type Org,
-  type PulsePoint, type SessionLog, type StageKey, type Team, type Variable,
+  type Admin, type Facilitator, type Initiative, type Org,
+  type PulsePoint, type SessionLog, type StageKey, type Team,
 } from "./data";
 
 interface GLState {
@@ -76,13 +76,6 @@ function mapInitiative(i: any, sessionCount: number): Initiative {
 
 function mapTeam(t: any, initiatives: Initiative[] = []): Team {
   const members = (t.team_members ?? []).map((m: any) => ({ name: m.name, initials: m.initials }));
-  const vars: Variable[] = (t.variables ?? [])
-    .map((v: any): Variable => ({
-      id: v.id, name: v.name, stage: v.stage as StageKey, sessions: v.sessions,
-      last: v.last_seen, trend: v.trend, state: v.state, source: v.source,
-      desc: v.descr, hasExp: v.has_exp,
-    }))
-    .sort(byNumId);
   const pulse: PulsePoint[] = (t.pulse_points ?? [])
     .map((p: any): PulsePoint => ({
       label: p.label, date: p.date, confianza: p.confianza, comunic: p.comunic,
@@ -96,26 +89,12 @@ function mapTeam(t: any, initiatives: Initiative[] = []): Team {
     }))
     .sort((a: SessionLog, b: SessionLog) => numId(b.id) - numId(a.id));
 
-  const exp = (t.experiments ?? [])[0];
-  const experiment: Experiment | null = exp
-    ? {
-        varId: exp.variable_id,
-        varName: vars.find((v) => v.id === exp.variable_id)?.name ?? "",
-        apuesta: { if: exp.apuesta_if, then: exp.apuesta_then, signal: exp.signal_name, by: exp.due_date },
-        accion: "",
-        responsable: members[0] ?? { name: "", initials: "" },
-        signalName: exp.signal_name, baseline: exp.baseline, current: exp.current_value,
-        target: exp.target, unit: exp.unit, dayOf: exp.day_of, dayTotal: exp.day_total,
-        status: exp.status, filters: { observable: true, measurable: true, teamDependent: true },
-      }
-    : null;
-
   return {
     id: t.id, org: t.organizations?.name ?? "", orgId: t.org_id, name: t.name,
     area: t.area, purpose: t.purpose, clientType: t.client_type,
     facilitator: { ...FACILITATOR }, members,
-    psychSafety: t.psych_safety, stage: t.stage as StageKey, activeVar: t.active_var,
-    daysLeft: t.days_left, pulse, vars, experiment, sessions, initiatives,
+    psychSafety: t.psych_safety, stage: t.stage as StageKey,
+    pulse, sessions, initiatives,
     blocked: t.blocked || undefined, facilitatorId: t.facilitator_id ?? undefined,
     data: (t.data as Team["data"]) ?? undefined,
   };
@@ -128,7 +107,7 @@ async function fetchAll() {
     supabase.from("facilitators").select("*"),
     supabase
       .from("teams")
-      .select("*, organizations(name), team_members(*), pulse_points(*), variables(*), experiments(*), session_logs(*)"),
+      .select("*, organizations(name), team_members(*), pulse_points(*), session_logs(*)"),
   ]);
   const err = orgsRes.error || facRes.error || teamsRes.error;
   if (err) throw err;

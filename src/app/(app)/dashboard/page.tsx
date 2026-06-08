@@ -16,6 +16,8 @@ function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
     Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5)
   );
   const lowSafety = team.psychSafety < 70;
+  const activeInits = (team.initiatives ?? []).filter((i) => i.status === "active");
+  const focusInit = activeInits[0];
   return (
     <Card hover onClick={() => go(`/equipos/${team.id}`)} pad={18} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -29,19 +31,19 @@ function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
-        <span style={{ color: st.color, display: "inline-flex" }}><Icon name="Target" size={16} /></span>
+        <span style={{ color: focusInit ? st.color : "var(--ink-3)", display: "inline-flex" }}><Icon name="Target" size={16} /></span>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Variable activa</div>
-          <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {team.activeVar}
+          <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Iniciativa activa</div>
+          <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: focusInit ? "var(--ink-0)" : "var(--ink-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {focusInit?.title ?? "Sin iniciativas todavía"}
           </div>
         </div>
-        {team.daysLeft > 0 && (
+        {activeInits.length > 0 && (
           <div style={{ textAlign: "right", flex: "none" }}>
-            <div className="num" style={{ fontSize: "var(--t-md)", fontWeight: 700, color: team.daysLeft <= 3 ? "var(--warning)" : "var(--ink-0)" }}>
-              {team.daysLeft}d
+            <div className="num" style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink-0)" }}>
+              {activeInits.length}
             </div>
-            <div className="muted" style={{ fontSize: 10 }}>restantes</div>
+            <div className="muted" style={{ fontSize: 10 }}>en curso</div>
           </div>
         )}
       </div>
@@ -112,11 +114,12 @@ export default function DashboardPage() {
   const teams = getTeams();
   const facilitators = getFacilitators();
   const activeFacils = facilitators.filter((f) => f.status === "active");
+  const allInits = teams.flatMap((t) => t.initiatives ?? []);
   const stats = [
     { label: "Equipos activos",      value: teams.length, icon: "Users",        color: "var(--green)" },
-    { label: "Pruebas en curso",     value: teams.filter((t) => t.experiment).length, icon: "FlaskConical", color: "var(--st-proof)" },
+    { label: "Pruebas en curso",     value: allInits.filter((i) => i.stage === "proof").length, icon: "FlaskConical", color: "var(--st-proof)" },
     { label: "Sesiones esta semana", value: UPCOMING.length, icon: "Radio",     color: "var(--violet)" },
-    { label: "Variables mejoradas",  value: teams.reduce((a, t) => a + t.vars.filter((v) => v.stage === "improved").length, 0), icon: "CircleCheck", color: "var(--success)" },
+    { label: "Iniciativas resueltas", value: allInits.filter((i) => i.status === "done").length, icon: "CircleCheck", color: "var(--success)" },
   ];
   const alertColor: Record<string, [string, string]> = {
     risk: ["var(--risk)", "var(--risk-bg)"],

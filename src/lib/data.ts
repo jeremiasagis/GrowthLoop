@@ -92,39 +92,6 @@ export interface PulsePoint {
   seguridad: number;
 }
 
-export type VarState = "critical" | "developing" | "acceptable";
-export type Trend = "up" | "down" | "flat";
-
-export interface Variable {
-  id: string;
-  name: string;
-  stage: StageKey;
-  sessions: number;
-  last: string;
-  trend: Trend;
-  state: VarState;
-  source: string;
-  desc: string;
-  hasExp?: boolean;
-}
-
-export interface Experiment {
-  varId: string;
-  varName: string;
-  apuesta: { if: string; then: string; signal: string; by: string };
-  accion: string;
-  responsable: Person;
-  signalName: string;
-  baseline: number;
-  current: number;
-  target: number;
-  unit: string;
-  dayOf: number;
-  dayTotal: number;
-  status: string;
-  filters: { observable: boolean; measurable: boolean; teamDependent: boolean };
-}
-
 export interface SessionLog {
   id: string;
   date: string;
@@ -174,11 +141,7 @@ export interface Team {
   members: Person[];
   psychSafety: number;
   stage: StageKey;
-  activeVar: string;
-  daysLeft: number;
   pulse: PulsePoint[];
-  vars: Variable[];
-  experiment: Experiment | null;
   sessions: SessionLog[];
   initiatives?: Initiative[];
   blocked?: boolean;
@@ -220,116 +183,6 @@ export const FOUNDING_QUESTIONS: { key: string; q: string; hint: string }[] = [
   { key: "talk", q: "¿Cómo nos hablamos cuando algo no funciona?", hint: "El acuerdo de comunicación honesta y respetuosa." },
   { key: "disagree", q: "¿Qué hacemos cuando no estamos de acuerdo?", hint: "Cómo procesamos el conflicto sin romper el equipo." },
   { key: "commit", q: "¿Qué nos comprometemos a sostener?", hint: "Los compromisos mínimos que todos firmamos." },
-];
-
-// ── Variables for the core team (Operaciones Centro) ──
-const T1_VARS: Variable[] = [
-  { id: "v1", name: "Reuniones sin decisiones", stage: "proof", sessions: 3, last: "hace 2 días", trend: "up", state: "developing",
-    source: "Sesión Exploración", desc: "Las reuniones de equipo terminan sin acuerdos claros ni responsables, y los temas se repiten semana a semana.", hasExp: true },
-  { id: "v2", name: "Traspaso entre turnos", stage: "follow", sessions: 4, last: "hace 5 días", trend: "up", state: "developing",
-    source: "Observación", desc: "La información se pierde en el cambio de turno: el turno entrante no sabe qué quedó pendiente." },
-  { id: "v3", name: "Sobrecarga de los líderes", stage: "focus", sessions: 2, last: "hace 1 día", trend: "flat", state: "critical",
-    source: "Encuesta previa", desc: "Los coordinadores resuelven todo personalmente; el equipo no toma decisiones sin ellos." },
-  { id: "v4", name: "El feedback no llega", stage: "explore", sessions: 1, last: "hace 8 días", trend: "flat", state: "developing",
-    source: "Sesión TeamCook", desc: "La gente no recibe devoluciones sobre su trabajo, ni positivas ni de mejora." },
-  { id: "v5", name: "Retrabajo en reportes", stage: "queue", sessions: 0, last: "sin actividad", trend: "flat", state: "critical",
-    source: "Entrevista", desc: "Los reportes se rehacen 2 o 3 veces por datos inconsistentes entre áreas." },
-  { id: "v6", name: "Onboarding lento", stage: "queue", sessions: 0, last: "sin actividad", trend: "flat", state: "developing",
-    source: "Observación", desc: "Una persona nueva tarda más de un mes en ser autónoma." },
-  { id: "v7", name: "Silos entre áreas", stage: "learn", sessions: 5, last: "hace 3 días", trend: "up", state: "acceptable",
-    source: "Combinación", desc: "Operaciones y Riesgo no comparten contexto; cada uno optimiza lo suyo." },
-  { id: "v8", name: "Errores en captura", stage: "consol", sessions: 5, last: "hace 6 días", trend: "up", state: "acceptable",
-    source: "Encuesta previa", desc: "Errores de tipeo al ingresar solicitudes generan rechazos evitables." },
-  { id: "v9", name: "Prioridades que cambian", stage: "improved", sessions: 6, last: "hace 12 días", trend: "up", state: "acceptable",
-    source: "Sesión Exploración", desc: "Las prioridades cambiaban a media semana; ahora hay un acuerdo de congelamiento." },
-  { id: "v10", name: "Clima en las 1:1", stage: "paused", sessions: 2, last: "hace 20 días", trend: "down", state: "developing",
-    source: "Entrevista", desc: "Pausada a pedido del líder hasta cerrar la reorganización del área." },
-];
-
-// ── Active experiment (la prueba) on v1 ──
-const T1_EXPERIMENT: Experiment = {
-  varId: "v1",
-  varName: "Reuniones sin decisiones",
-  apuesta: {
-    if: "cerramos cada reunión con las decisiones y responsables por escrito",
-    then: "el equipo avanza sin volver a discutir los mismos temas",
-    signal: "el % de reuniones que terminan con decisiones registradas",
-    by: "18 de junio",
-  },
-  accion: "Cerrar cada reunión con un acta de 3 líneas: decisión · responsable · fecha.",
-  responsable: member("Mariana López"),
-  signalName: "% de reuniones con decisiones registradas",
-  baseline: 40, current: 62, target: 80, unit: "%",
-  dayOf: 7, dayTotal: 15,
-  status: "on-track",
-  filters: { observable: true, measurable: true, teamDependent: true },
-};
-
-// ── Sessions log (past) for the core team ──
-const T1_SESSIONS: SessionLog[] = [
-  { id: "s5", date: "28 may", stage: "proof",   retro: "Diseño de la prueba", pulse: 74, delta: +3, out: "Prueba definida: actas de decisión" },
-  { id: "s4", date: "21 may", stage: "proof",   retro: "¿Cuál elegimos?",     pulse: 71, delta: +2, out: "Idea elegida con ICE" },
-  { id: "s3", date: "14 may", stage: "focus",   retro: "¿Por qué pasa esto?",  pulse: 69, delta: -1, out: "Causa raíz: agenda sin cierre" },
-  { id: "s2", date: "07 may", stage: "focus",   retro: "Impacto y frecuencia", pulse: 70, delta: +4, out: "Problema priorizado" },
-  { id: "s1", date: "30 abr", stage: "explore", retro: "¿Dónde estamos?",      pulse: 66, delta: 0,  out: "Mapa de tensiones inicial" },
-];
-
-// ── Teams ──
-export const TEAMS: Team[] = [
-  {
-    id: "t1", org: "Banco Andino", orgId: "o1", name: "Operaciones Centro", area: "Operaciones",
-    purpose: "Procesar solicitudes de crédito con rapidez y sin errores.",
-    clientType: "Interno", facilitator: FACILITATOR,
-    members: [member("Mariana López"), member("Julián Pérez"), member("Sofía Núñez"), member("Andrés Gil"), member("Lucía Vega"), member("Tomás Ruiz")],
-    psychSafety: 62, stage: "proof", activeVar: "Reuniones sin decisiones", daysLeft: 8,
-    pulse: [
-      { label: "S1", date: "30 abr", confianza: 60, comunic: 58, claridad: 55, foco: 62, seguridad: 54 },
-      { label: "S2", date: "07 may", confianza: 64, comunic: 60, claridad: 58, foco: 66, seguridad: 58 },
-      { label: "S3", date: "14 may", confianza: 63, comunic: 64, claridad: 62, foco: 65, seguridad: 56 },
-      { label: "S4", date: "21 may", confianza: 68, comunic: 66, claridad: 66, foco: 70, seguridad: 60 },
-      { label: "S5", date: "28 may", confianza: 72, comunic: 70, claridad: 69, foco: 74, seguridad: 62 },
-    ],
-    vars: T1_VARS, experiment: T1_EXPERIMENT, sessions: T1_SESSIONS,
-  },
-  {
-    id: "t2", org: "Banco Andino", orgId: "o1", name: "Riesgo y Cumplimiento", area: "Riesgo",
-    purpose: "Aprobar operaciones cuidando a la empresa y al cliente.",
-    clientType: "Interno", facilitator: FACILITATOR,
-    members: [member("Paula Sáenz"), member("Diego Mora"), member("Inés Castro"), member("Bruno Lara")],
-    psychSafety: 78, stage: "follow", activeVar: "Tiempos de aprobación", daysLeft: 4,
-    pulse: [
-      { label: "S1", date: "02 may", confianza: 70, comunic: 68, claridad: 66, foco: 64, seguridad: 72 },
-      { label: "S2", date: "09 may", confianza: 72, comunic: 70, claridad: 70, foco: 68, seguridad: 74 },
-      { label: "S3", date: "16 may", confianza: 74, comunic: 73, claridad: 72, foco: 72, seguridad: 76 },
-      { label: "S4", date: "23 may", confianza: 76, comunic: 75, claridad: 75, foco: 74, seguridad: 78 },
-    ],
-    vars: [], experiment: null, sessions: [], blocked: true,
-  },
-  {
-    id: "t3", org: "Logística del Sur", orgId: "o2", name: "Última Milla", area: "Distribución",
-    purpose: "Entregar a tiempo sin quemar al equipo de reparto.",
-    clientType: "Interno", facilitator: FACILITATOR,
-    members: [member("Carla Díaz"), member("Marcos Ortiz"), member("Vale Soto"), member("Hugo Paz"), member("Rita Mena")],
-    psychSafety: 81, stage: "explore", activeVar: "Rutas que se solapan", daysLeft: 0,
-    pulse: [
-      { label: "S1", date: "12 may", confianza: 74, comunic: 72, claridad: 70, foco: 76, seguridad: 80 },
-      { label: "S2", date: "19 may", confianza: 78, comunic: 76, claridad: 74, foco: 79, seguridad: 81 },
-    ],
-    vars: [], experiment: null, sessions: [],
-  },
-  {
-    id: "t4", org: "Clínica Vida", orgId: "o3", name: "Urgencias", area: "Atención",
-    purpose: "Atender rápido sin perder la calidez con el paciente.",
-    clientType: "Interno", facilitator: FACILITATOR,
-    members: [member("Dra. Elena Ramos"), member("Pedro Cano"), member("Lía Ferro")],
-    psychSafety: 70, stage: "focus", activeVar: "Saturación en picos", daysLeft: 11,
-    pulse: [
-      { label: "S1", date: "05 may", confianza: 66, comunic: 64, claridad: 62, foco: 68, seguridad: 66 },
-      { label: "S2", date: "12 may", confianza: 68, comunic: 66, claridad: 65, foco: 70, seguridad: 68 },
-      { label: "S3", date: "19 may", confianza: 70, comunic: 69, claridad: 68, foco: 71, seguridad: 70 },
-    ],
-    vars: [], experiment: null, sessions: [],
-  },
 ];
 
 // ── Organizations ──
@@ -446,7 +299,6 @@ export interface Admin {
 }
 export const ADMINS: Admin[] = [];
 
-export const teamById = (id: string) => TEAMS.find((t) => t.id === id);
 export const orgById = (id: string) => ORGS.find((o) => o.id === id);
 
 // ── Member-facing mock data ──────────────────────────────────

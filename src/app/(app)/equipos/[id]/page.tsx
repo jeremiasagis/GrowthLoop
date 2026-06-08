@@ -4,8 +4,8 @@ import { useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
-  AlertBanner, AvatarStack, Avatar, Bar, Button, Card, CopyLink, EmptyState, Pill,
-  PulseChart, ProgressRing, SectionTitle, StageBadge, Trend,
+  AlertBanner, AvatarStack, Bar, Button, Card, CopyLink, EmptyState, Pill,
+  PulseChart, SectionTitle, StageBadge, Trend,
 } from "@/components/ui";
 import {
   createInitiative, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
@@ -15,81 +15,6 @@ import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, type Initiative, 
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { createLiveSession } from "@/lib/session";
-
-function Hl({ children, c = "var(--green)" }: { children: ReactNode; c?: string }) {
-  return (
-    <span style={{ color: c, fontWeight: 600, borderBottom: `1.5px solid color-mix(in srgb, ${c} 40%, transparent)`, paddingBottom: 1 }}>
-      {children}
-    </span>
-  );
-}
-
-function ExperimentCard({ team, isFacil }: { team: Team; isFacil: boolean }) {
-  const router = useRouter();
-  const e = team.experiment;
-  if (!e) return null;
-  const pct = Math.round(((e.current - e.baseline) / (e.target - e.baseline)) * 100);
-  const ringVal = e.dayOf / e.dayTotal;
-  const daysLeft = e.dayTotal - e.dayOf;
-  return (
-    <Card glow pad={0} style={{ overflow: "hidden" }}>
-      <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "linear-gradient(180deg, rgba(0,232,122,0.06), transparent)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "var(--st-proof)", display: "inline-flex" }}><Icon name="FlaskConical" size={19} /></span>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>Prueba en curso</div>
-            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>sobre <b style={{ color: "var(--ink-1)" }}>{e.varName}</b></div>
-          </div>
-        </div>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 600, color: "var(--success)", background: "var(--success-bg)", border: "1px solid var(--line)" }}>
-          <Icon name="Activity" size={12} /> En marcha
-        </span>
-      </div>
-
-      <div className="exp-body" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, padding: 20 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>La apuesta</div>
-            <p style={{ fontSize: "var(--t-md)", lineHeight: 1.55 }}>
-              Creemos que si <Hl>{e.apuesta.if}</Hl>, lograremos que <Hl c="var(--st-proof)">{e.apuesta.then}</Hl>.
-            </p>
-          </div>
-          <div style={{ background: "var(--card-2)", borderRadius: "var(--r-md)", padding: 14, border: "1px solid var(--line)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink-1)" }}>Señal de avance</span>
-              <span className="muted" style={{ fontSize: "var(--t-xs)" }}>{e.signalName}</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-              <span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--green)" }}>{e.current}{e.unit}</span>
-              <Trend dir="up" value={"+" + (e.current - e.baseline)} />
-              <span className="muted" style={{ fontSize: "var(--t-sm)", marginLeft: "auto" }}>meta <b className="num" style={{ color: "var(--ink-0)" }}>{e.target}{e.unit}</b></span>
-            </div>
-            <div style={{ position: "relative" }}>
-              <Bar value={pct} glow />
-              <div className="muted num" style={{ display: "flex", justifyContent: "space-between", marginTop: 5, fontSize: 10 }}>
-                <span>inicio {e.baseline}{e.unit}</span><span>{pct}% del camino</span>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Avatar name={e.responsable.name} initials={e.responsable.initials} size={28} idx={2} />
-              <div><div className="muted" style={{ fontSize: 10 }}>Responsable</div><div style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{e.responsable.name}</div></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="exp-ring" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, paddingLeft: 8 }}>
-          <ProgressRing value={ringVal} size={108} stroke={9} color={daysLeft <= 3 ? "var(--warning)" : "var(--green)"}>
-            <span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, lineHeight: 1 }}>{daysLeft}</span>
-            <span className="muted" style={{ fontSize: 10 }}>días</span>
-          </ProgressRing>
-          <div className="muted num" style={{ fontSize: "var(--t-xs)" }}>día {e.dayOf} de {e.dayTotal}</div>
-        </div>
-      </div>
-    </Card>
-  );
-}
 
 function SessionsLog({ team }: { team: Team }) {
   const [n, setN] = useState(8);
@@ -516,8 +441,6 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
             {shown.map((i) => <InitiativeCard key={i.id} team={team} init={i} isFacil={isFacil} onChanged={refresh} onEdit={() => setEditing(i)} />)}
           </div>
         )}
-
-        {team.experiment && <ExperimentCard team={team} isFacil={isFacil} />}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -533,7 +456,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Row label="Seguridad ψ" value={team.psychSafety + "%"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
             <Row label="Iniciativas en curso" value={counts.active} />
-            <Row label="Pruebas corriendo" value={team.experiment ? 1 : 0} />
+            <Row label="Pruebas corriendo" value={(team.initiatives ?? []).filter((i) => i.stage === "proof").length} />
             <Row label="Sesiones realizadas" value={team.sessions.length} />
           </div>
         </Card>
@@ -646,7 +569,6 @@ export default function TeamPage() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button variant="secondary" icon="Spline" onClick={() => router.push(`/equipos/${team.id}/mapa`)}>Ver mapa</Button>
           <Button variant="secondary" icon="Library" onClick={() => router.push(`/equipos/${team.id}/biblioteca`)}>Biblioteca</Button>
           <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
           {isFacil && <Button icon="UserPlus" onClick={() => setInviteOpen(true)}>Invitar integrante</Button>}

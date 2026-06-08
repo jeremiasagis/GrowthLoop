@@ -15,6 +15,7 @@ function avgPulse(t: Team): number | null {
 function ReadTeamCard({ team }: { team: Team }) {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
   const series = team.pulse.map((p) => Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5));
+  const focusInit = (team.initiatives ?? []).find((i) => i.status === "active");
   return (
     <Card pad={18} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -25,10 +26,10 @@ function ReadTeamCard({ team }: { team: Team }) {
         <StageBadge stage={team.stage} size="sm" />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
-        <span style={{ color: team.activeVar ? "var(--st-proof)" : "var(--ink-3)", display: "inline-flex" }}><Icon name="Target" size={16} /></span>
+        <span style={{ color: focusInit ? "var(--st-proof)" : "var(--ink-3)", display: "inline-flex" }}><Icon name="Target" size={16} /></span>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Variable activa</div>
-          <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: team.activeVar ? "var(--ink-0)" : "var(--ink-3)" }}>{team.activeVar || "Sin definir"}</div>
+          <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Iniciativa activa</div>
+          <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: focusInit ? "var(--ink-0)" : "var(--ink-3)" }}>{focusInit?.title || "Sin iniciativas todavía"}</div>
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>

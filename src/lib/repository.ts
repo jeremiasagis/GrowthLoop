@@ -380,11 +380,11 @@ export function getMyOrgSummary() {
 // ── Aggregated dashboard metrics ──
 export function getDashboardStats() {
   const teams = useGLStore.getState().teams;
+  const inits = teams.flatMap((t) => t.initiatives ?? []);
   return {
     teamsActive: teams.length,
-    proofsRunning: teams.filter((t) => t.experiment).length || 3,
+    proofsRunning: inits.filter((i) => i.stage === "proof").length,
     sessionsThisWeek: 4,
-    variablesImproved:
-      teams.reduce((a, t) => a + t.vars.filter((v) => v.stage === "improved").length, 0) || 6,
+    variablesImproved: inits.filter((i) => i.status === "done").length,
   };
 }

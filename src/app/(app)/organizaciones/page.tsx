@@ -17,6 +17,8 @@ function TeamRichCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
   const isNew = team.sessions.length === 0 && team.pulse.length === 0;
   const pulseSeries = team.pulse.map((p) => Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5));
+  const activeInits = (team.initiatives ?? []).filter((i) => i.status === "active");
+  const focusInit = activeInits[0];
   return (
     <Card pad={18} hover style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -27,19 +29,19 @@ function TeamRichCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
         <StageBadge stage={team.stage} size="sm" />
       </div>
 
-      {/* variable activa */}
+      {/* iniciativa activa */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
-        <span style={{ color: team.activeVar ? "var(--st-proof)" : "var(--ink-3)", display: "inline-flex" }}><Icon name="Target" size={16} /></span>
+        <span style={{ color: focusInit ? "var(--st-proof)" : "var(--ink-3)", display: "inline-flex" }}><Icon name="Target" size={16} /></span>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Variable activa</div>
-          <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: team.activeVar ? "var(--ink-0)" : "var(--ink-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {team.activeVar || "Sin definir todavía"}
+          <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Iniciativa activa</div>
+          <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: focusInit ? "var(--ink-0)" : "var(--ink-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {focusInit?.title || "Sin iniciativas todavía"}
           </div>
         </div>
-        {team.daysLeft > 0 && (
+        {activeInits.length > 0 && (
           <div style={{ textAlign: "right", flex: "none" }}>
-            <div className="num" style={{ fontSize: "var(--t-md)", fontWeight: 700, color: team.daysLeft <= 3 ? "var(--warning)" : "var(--ink-0)" }}>{team.daysLeft}d</div>
-            <div className="muted" style={{ fontSize: 10 }}>restantes</div>
+            <div className="num" style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink-0)" }}>{activeInits.length}</div>
+            <div className="muted" style={{ fontSize: 10 }}>en curso</div>
           </div>
         )}
       </div>
