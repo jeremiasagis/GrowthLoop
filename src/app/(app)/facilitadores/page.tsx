@@ -165,12 +165,25 @@ export default function FacilitadoresPage() {
                     <Pill color="var(--success)" bg="var(--success-bg)" icon="Check">Activo</Pill>}
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
-                <span style={{ color: f.orgId ? "var(--violet)" : "var(--ink-3)", display: "inline-flex" }}><Icon name="Building2" size={15} /></span>
-                <span style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: f.orgId ? "var(--ink-0)" : "var(--ink-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {f.orgId ? (getOrg(f.orgId)?.name ?? "Organización") : "Sin organización"}
-                </span>
-              </div>
+              {(() => {
+                const fOrgs = f.orgIds?.length ? f.orgIds : (f.orgId ? [f.orgId] : []);
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
+                    <span style={{ color: fOrgs.length ? "var(--violet)" : "var(--ink-3)", display: "inline-flex", flex: "none" }}><Icon name="Building2" size={15} /></span>
+                    {fOrgs.length === 0 ? (
+                      <span style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink-3)" }}>Sin organización</span>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
+                        {fOrgs.map((id) => (
+                          <span key={id} style={{ fontSize: "var(--t-xs)", fontWeight: 600, padding: "2px 9px", borderRadius: "var(--r-full)", background: "var(--violet-soft)", color: "var(--violet)" }}>
+                            {getOrg(id)?.name ?? "Organización"}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {!invited ? (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, background: "var(--card-2)", borderRadius: "var(--r-md)", padding: "12px 8px", border: "1px solid var(--line)" }}>

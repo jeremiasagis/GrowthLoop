@@ -331,6 +331,9 @@ export default function OrganizacionesPage() {
   const teams = getTeams();
   const facilitators = getFacilitators();
   const admins = getAdmins().filter((a) => a.status === "active");
+  // Equipos que facilita el usuario actual (para "Mis equipos" multi-org: no mostrar los de otros facilitadores de la misma org).
+  const myFacIds = new Set(facilitators.filter((f) => (f.email ?? "").toLowerCase() === (user?.email ?? "").toLowerCase()).map((f) => f.id));
+  const myTeams = isFacil ? teams.filter((t) => t.facilitatorId && myFacIds.has(t.facilitatorId)) : teams;
 
   const handleCreate = async (input: { name: string; sector: string; contract: string; status: "Activo" | "Piloto" }) => {
     const res = await createOrg(input);
@@ -369,7 +372,7 @@ export default function OrganizacionesPage() {
           </h1>
           <p className="muted" style={{ marginTop: 4 }}>
             {isFacil
-              ? `${teams.length} ${teams.length === 1 ? "equipo" : "equipos"} · ${orgs.length} ${orgs.length === 1 ? "organización" : "organizaciones"}`
+              ? `${myTeams.length} ${myTeams.length === 1 ? "equipo" : "equipos"} · ${orgs.length} ${orgs.length === 1 ? "organización" : "organizaciones"}`
               : `${orgs.length} clientes · ${teams.length} equipos en acompañamiento`}
           </p>
         </div>
@@ -392,7 +395,7 @@ export default function OrganizacionesPage() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
             {orgs.map((o) => {
-              const ots = teams.filter((t) => t.orgId === o.id);
+              const ots = myTeams.filter((t) => t.orgId === o.id);
               return (
                 <section key={o.id}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
