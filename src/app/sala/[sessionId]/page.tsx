@@ -805,15 +805,32 @@ export default function SalaPage() {
     const responsible = (R.responsible as string) ?? "";
     const deadline = (R.deadline as string) ?? "";
     const field: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" };
+    const betActions = (R.actions as { text: string; who: string }[]) ?? [];
+    const betMitig = (R.mitig as Record<string, string>) ?? {};
+    const betSignalMetric = (R.signalMetric as string) ?? "";
+    const betSignalTarget = (R.signalTarget as string) ?? "";
+    const betSignalHow = (R.signalHow as string) ?? "";
     const BetCard = (
       <div style={{ padding: "14px 16px", background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 30%, transparent)", borderRadius: "var(--r-md)" }}>
         <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>La apuesta</div>
         <p style={{ fontSize: "var(--t-md)", lineHeight: 1.55 }}>Creemos que si <b style={{ color: "var(--green)" }}>{betIf || "…"}</b>, lograremos que <b style={{ color: "var(--st-proof)" }}>{betThen || "…"}</b>.</p>
+        {betActions.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>Acciones · responsables</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{betActions.filter((a) => (a.text ?? "").trim()).map((a, i) => <div key={i} style={{ fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 8 }}><Icon name="CheckSquare" size={14} style={{ color: "var(--st-proof)" }} /><span style={{ flex: 1 }}>{a.text}</span>{a.who && <span className="num" style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>{a.who}</span>}</div>)}</div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10, fontSize: "var(--t-sm)" }}>
-          <span className="muted">Señal: <b style={{ color: "var(--ink-0)" }}>{signal || "—"}</b></span>
-          <span className="muted">Responsable: <b style={{ color: "var(--ink-0)" }}>{responsible || "—"}</b></span>
+          <span className="muted">Señal: <b style={{ color: "var(--ink-0)" }}>{betSignalMetric ? `${betSignalMetric}${betSignalTarget ? ` → ${betSignalTarget}` : ""}` : (signal || "—")}</b></span>
+          {betSignalHow && <span className="muted">Cómo se mide: <b style={{ color: "var(--ink-0)" }}>{betSignalHow}</b></span>}
           <span className="muted">Plazo: <b style={{ color: "var(--ink-0)" }}>{deadline || "—"}</b></span>
         </div>
+        {Object.values(betMitig).some((v) => (v ?? "").trim()) && (
+          <div style={{ marginTop: 10 }}>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>Mitigaciones</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{allCards.filter((c) => c.columnKey === "risk" && (betMitig[c.id] ?? "").trim()).map((rk) => <div key={rk.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}><span style={{ color: "var(--risk)" }}>{rk.text}</span> → <b style={{ color: "var(--ink-0)" }}>{betMitig[rk.id]}</b></div>)}</div>
+          </div>
+        )}
       </div>
     );
 
@@ -838,12 +855,21 @@ export default function SalaPage() {
     const iceRanked = [...clusters].sort((a, b) => iceScore(b.id) - iceScore(a.id));
     const iceTop = iceRanked[0];
     const submitIce = async () => { setBusy(true); for (const cl of clusters) { const d = iceDraft[cl.id] ?? { i: 5, c: 5, e: 5 }; await setMyInput(sessionId, `ice:${cl.id}`, d); } setBusy(false); };
+    // Diseño de apuesta enriquecido: acciones+responsables, señal medible, mitigaciones
+    const actions = (R.actions as { text: string; who: string }[]) ?? [];
+    const setActions = (next: { text: string; who: string }[]) => setResult(sessionId, { actions: next });
+    const signalMetric = (R.signalMetric as string) ?? "";
+    const signalTarget = (R.signalTarget as string) ?? "";
+    const signalHow = (R.signalHow as string) ?? "";
+    const signalLine = signalMetric ? `${signalMetric}${signalTarget ? ` → ${signalTarget}` : ""}` : signal;
+    const mitig = (R.mitig as Record<string, string>) ?? {};
     const fSteps = ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => {
       setBusy(true);
       const secondary = iceRanked.filter((c) => c.id !== (chosenId || iceTop?.id)).map((c) => ({ name: c.name, ice: iceScore(c.id) }));
-      await finalizeSession(session, { pulseAvg: avg, cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosenName, betIf, betThen, signal, responsible, deadline, risks: riskCards.map((c) => c.text), committed: confirmCount, secondaryIdeas: secondary } });
+      const mitigations = riskCards.map((rk) => ({ risk: rk.text, plan: mitig[rk.id] ?? "" })).filter((m) => m.plan.trim());
+      await finalizeSession(session, { pulseAvg: avg, cardCount: ideaCards.length, summaryText: `Apuesta: ${betThen || "—"}`, dataKey: "proof", dataValue: { idea: chosenName, betIf, betThen, signal: signalLine, signalMetric, signalTarget, signalHow, responsible: actions[0]?.who || responsible, actions: actions.filter((a) => (a.text ?? "").trim()), deadline, risks: riskCards.map((c) => c.text), mitigations, committed: confirmCount, secondaryIdeas: secondary } });
       setBusy(false); exit();
     };
     const proofReminder = (rootNote || tensionNote) ? (
@@ -864,20 +890,42 @@ export default function SalaPage() {
           <textarea defaultValue={betThen} onBlur={(e) => setResult(sessionId, { betThen: e.target.value })} rows={2} placeholder="el equipo avance sin volver a discutir lo mismo" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} />
         </div>
         <div>
-          <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Señal a mirar</label>
-          <input defaultValue={signal} onBlur={(e) => setResult(sessionId, { signal: e.target.value })} placeholder="% de reuniones con decisiones registradas" style={field} />
-        </div>
-        <div>
-          <label className="eyebrow" style={{ display: "block", marginBottom: 9 }}>Responsable</label>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {(team?.members ?? []).map((m, i) => { const on = responsible === m.name; return (
-              <button key={i} onClick={() => setResult(sessionId, { responsible: m.name })} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px 6px 6px", borderRadius: "var(--r-full)", background: on ? "color-mix(in srgb, var(--st-proof) 16%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line-2)"}`, fontSize: "var(--t-sm)", fontWeight: 600 }}>
-                <Avatar name={m.name} initials={m.initials} size={24} idx={i} />{m.name}
-              </button>
-            ); })}
-            {!(team?.members ?? []).length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>El equipo no tiene integrantes cargados.</span>}
+          <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Acciones concretas · responsable</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {actions.map((a, i) => (
+              <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input defaultValue={a.text} onBlur={(e) => { const n = [...actions]; n[i] = { ...n[i], text: e.target.value }; setActions(n); }} placeholder={`Acción ${i + 1}…`} style={{ ...field, flex: 1, minWidth: 0 }} />
+                <select value={a.who || ""} onChange={(e) => { const n = [...actions]; n[i] = { ...n[i], who: e.target.value }; setActions(n); }} style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 8px", fontSize: "var(--t-sm)", outline: "none", maxWidth: 130 }}>
+                  <option value="">¿Quién?</option>
+                  {(team?.members ?? []).map((m, k) => <option key={k} value={m.name}>{m.name}</option>)}
+                </select>
+                <button onClick={() => setActions(actions.filter((_, k) => k !== i))} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={15} /></button>
+              </div>
+            ))}
+            <Button size="sm" variant="secondary" icon="Plus" onClick={() => setActions([...actions, { text: "", who: "" }])}>Agregar acción</Button>
           </div>
         </div>
+        <div>
+          <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Señal medible</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <input defaultValue={signalMetric} onBlur={(e) => setResult(sessionId, { signalMetric: e.target.value })} placeholder="Qué medimos (métrica): % de reuniones con decisiones registradas" style={field} />
+            <input defaultValue={signalTarget} onBlur={(e) => setResult(sessionId, { signalTarget: e.target.value })} placeholder="Valor objetivo: de 30% a 80%" style={field} />
+            <input defaultValue={signalHow} onBlur={(e) => setResult(sessionId, { signalHow: e.target.value })} placeholder="Cómo se mide / quién lo registra" style={field} />
+          </div>
+        </div>
+        {riskCards.length > 0 && (
+          <div>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Mitigaciones (de los riesgos del pre-mortem)</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {riskCards.map((rk) => (
+                <div key={rk.id} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span style={{ flex: "0 0 40%", fontSize: "var(--t-xs)", color: "var(--risk)" }}>{rk.text}</span>
+                  <input defaultValue={mitig[rk.id] ?? ""} onBlur={(e) => setResult(sessionId, { mitig: { ...mitig, [rk.id]: e.target.value } })} placeholder="¿Cómo lo prevenimos?" style={{ ...field, flex: 1, minWidth: 0 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div>
           <label className="eyebrow" style={{ display: "block", marginBottom: 9 }}>Plazo para revisar</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1026,7 +1074,7 @@ export default function SalaPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {iConfirmed
             ? <div style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="CircleCheck" size={20} /> Te comprometiste con la prueba</div>
-            : <Button full size="lg" icon="Check" disabled={busy} onClick={() => setMyInput(sessionId, "confirm", { ok: true })}>Entiendo la apuesta y me comprometo</Button>}
+            : <Button full size="lg" icon="Check" disabled={busy} onClick={() => setMyInput(sessionId, "confirm", { ok: true })}>Me comprometo a llevar adelante estas acciones</Button>}
           {isFacil && <Button full size="lg" variant={iConfirmed ? "primary" : "secondary"} icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button>}
         </div>
       );

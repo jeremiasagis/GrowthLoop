@@ -122,11 +122,39 @@ function StageBody({ st, init }: { st: StageKey; init: Initiative }) {
             Creemos que si <b style={{ color: "var(--green)" }}>{d?.betIf || "…"}</b>, lograremos que <b style={{ color: "var(--st-proof)" }}>{d?.betThen || "…"}</b>.
           </p>
         </div>
+        {!!d?.actions?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Acciones · responsables</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {d.actions.map((a, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}>
+                  <Icon name="CheckSquare" size={14} style={{ color: "var(--st-proof)" }} /><span style={{ flex: 1 }}>{a.text}</span>{a.who && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{a.who}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 12 }}>
-          <Field label="Señal a mover" value={d?.signal || "—"} icon="Activity" />
-          <Field label="Responsable" value={d?.responsible || "—"} icon="User" />
+          <Field label="Señal medible" value={d?.signalMetric ? `${d.signalMetric}${d.signalTarget ? ` → ${d.signalTarget}` : ""}` : (d?.signal || "—")} icon="Activity" />
+          <Field label="Cómo se mide" value={d?.signalHow || "—"} icon="Ruler" />
           <Field label="Plazo" value={d?.deadline || "—"} icon="CalendarClock" />
         </div>
+        {!!d?.mitigations?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Mitigaciones</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {d.mitigations.map((m, i) => <div key={i} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}><span style={{ color: "var(--risk)" }}>{m.risk}</span> → <b style={{ color: "var(--ink-0)" }}>{m.plan}</b></div>)}
+            </div>
+          </div>
+        )}
+        {!!d?.secondaryIdeas?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Archive" size={13} /> Ideas para probar después</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {d.secondaryIdeas.map((s, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}><span>{s.name}</span><span className="muted num" style={{ fontSize: "var(--t-xs)" }}>ICE {s.ice}</span></div>)}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
