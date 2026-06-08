@@ -22,17 +22,21 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
   const inits = getInitiatives(team.id);
   const [q, setQ] = useState("");
 
-  const { learnings, bets, rootCauses } = useMemo(() => {
+  const { learnings, bets, rootCauses, highlights } = useMemo(() => {
     const learnings: { text: string; init: Initiative; result?: string; decision?: string }[] = [];
     const bets: { init: Initiative; betThen: string; signal?: string; result?: string }[] = [];
     const rootCauses: { init: Initiative; cause: string }[] = [];
+    const highlights: { name: string; votes: number; init: Initiative }[] = [];
     for (const i of inits) {
       const d = i.data ?? {};
       (d.learn?.learnings ?? []).forEach((t) => learnings.push({ text: t, init: i, result: d.learn?.result, decision: d.learn?.decision }));
-      if (d.proof?.betThen) bets.push({ init: i, betThen: d.proof.betThen, signal: d.proof.signal, result: d.learn?.result });
+      (d.learn?.highlights ?? []).forEach((h) => highlights.push({ name: h.name, votes: h.votes, init: i }));
+      const pbets = d.proof?.bets?.length ? d.proof.bets : (d.proof?.betThen ? [{ betThen: d.proof.betThen, signalMetric: d.proof?.signalMetric }] : []);
+      pbets.forEach((b) => { if (b.betThen) bets.push({ init: i, betThen: b.betThen, signal: b.signalMetric || d.proof?.signal, result: d.learn?.result }); });
       if (d.focus?.rootCause) rootCauses.push({ init: i, cause: d.focus.rootCause });
     }
-    return { learnings, bets, rootCauses };
+    highlights.sort((a, b) => b.votes - a.votes);
+    return { learnings, bets, rootCauses, highlights };
   }, [inits]);
 
   const term = q.trim().toLowerCase();
@@ -67,6 +71,17 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
                   <div className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>{qq.q}</div>
                   <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45 }}>{contract.answers[qq.key]}</div>
                 </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {highlights.length > 0 && (
+          <Card pad={20}>
+            <SectionTitle icon="Star" sub={`${highlights.length} destacados`}>Aprendizajes destacados</SectionTitle>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+              {highlights.filter((h) => !term || h.name.toLowerCase().includes(term) || h.init.title.toLowerCase().includes(term)).map((h, i) => (
+                <span key={i} style={{ fontSize: "var(--t-sm)", padding: "6px 12px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--st-learn) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--st-learn) 35%, transparent)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="Star" size={12} style={{ color: "var(--st-learn)" }} />{h.name}<span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{h.votes}</span></span>
               ))}
             </div>
           </Card>

@@ -113,40 +113,43 @@ function StageBody({ st, init }: { st: StageKey; init: Initiative }) {
 
   if (st === "proof") {
     const d = data.proof;
-    if (!d?.betIf && !d?.betThen) return empty("Todavía no se diseñó la apuesta.");
+    if (!d?.betIf && !d?.betThen && !d?.bets?.length) return empty("Todavía no se diseñó la apuesta.");
+    const betsList = (d?.bets?.length ? d.bets : [{ name: "", betIf: d?.betIf, betThen: d?.betThen, signalMetric: d?.signalMetric, signalTarget: d?.signalTarget, signalHow: d?.signalHow, deadline: d?.deadline, actions: d?.actions, mitigations: d?.mitigations }]);
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ padding: "14px 16px", background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 30%, transparent)", borderRadius: "var(--r-md)" }}>
-          <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>La apuesta</div>
-          <p style={{ fontSize: "var(--t-md)", lineHeight: 1.55 }}>
-            Creemos que si <b style={{ color: "var(--green)" }}>{d?.betIf || "…"}</b>, lograremos que <b style={{ color: "var(--st-proof)" }}>{d?.betThen || "…"}</b>.
-          </p>
-        </div>
-        {!!d?.actions?.length && (
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>Acciones · responsables</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {d.actions.map((a, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}>
-                  <Icon name="CheckSquare" size={14} style={{ color: "var(--st-proof)" }} /><span style={{ flex: 1 }}>{a.text}</span>{a.who && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{a.who}</span>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {betsList.map((b, bi) => (
+          <div key={bi} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ padding: "14px 16px", background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 30%, transparent)", borderRadius: "var(--r-md)" }}>
+              <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>{betsList.length > 1 ? `Apuesta ${bi + 1}` : "La apuesta"}{b.name ? ` · ${b.name}` : ""}</div>
+              <p style={{ fontSize: "var(--t-md)", lineHeight: 1.55 }}>Creemos que si <b style={{ color: "var(--green)" }}>{b.betIf || "…"}</b>, lograremos que <b style={{ color: "var(--st-proof)" }}>{b.betThen || "…"}</b>.</p>
+            </div>
+            {!!b.actions?.length && (
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Acciones · responsables</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {b.actions.map((a, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}>
+                      <Icon name="CheckSquare" size={14} style={{ color: "var(--st-proof)" }} /><span style={{ flex: 1 }}>{a.text}</span>{a.who && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{a.who}</span>}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 12 }}>
+              <Field label="Señal medible" value={b.signalMetric ? `${b.signalMetric}${b.signalTarget ? ` → ${b.signalTarget}` : ""}` : (d?.signal || "—")} icon="Activity" />
+              <Field label="Cómo se mide" value={b.signalHow || "—"} icon="Ruler" />
+              <Field label="Plazo" value={b.deadline || "—"} icon="CalendarClock" />
             </div>
+            {!!b.mitigations?.length && (
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Mitigaciones</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {b.mitigations.map((m, i) => <div key={i} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}><span style={{ color: "var(--risk)" }}>{m.risk}</span> → <b style={{ color: "var(--ink-0)" }}>{m.plan}</b></div>)}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 12 }}>
-          <Field label="Señal medible" value={d?.signalMetric ? `${d.signalMetric}${d.signalTarget ? ` → ${d.signalTarget}` : ""}` : (d?.signal || "—")} icon="Activity" />
-          <Field label="Cómo se mide" value={d?.signalHow || "—"} icon="Ruler" />
-          <Field label="Plazo" value={d?.deadline || "—"} icon="CalendarClock" />
-        </div>
-        {!!d?.mitigations?.length && (
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>Mitigaciones</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {d.mitigations.map((m, i) => <div key={i} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}><span style={{ color: "var(--risk)" }}>{m.risk}</span> → <b style={{ color: "var(--ink-0)" }}>{m.plan}</b></div>)}
-            </div>
-          </div>
-        )}
+        ))}
         {!!d?.secondaryIdeas?.length && (
           <div>
             <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Archive" size={13} /> Ideas para probar después</div>
@@ -198,14 +201,29 @@ function StageBody({ st, init }: { st: StageKey; init: Initiative }) {
   const decisionMap: Record<string, { label: string; color: string }> = {
     consolidate: { label: "Consolidar", color: "var(--success)" }, iterate: { label: "Iterar", color: "var(--st-proof)" }, drop: { label: "Soltar", color: "var(--ink-2)" },
   };
-  const r = d?.result ? resultMap[d.result] : undefined;
-  const dec = d?.decision ? decisionMap[d.decision] : undefined;
+  const resArr = d?.results?.length ? d.results : (d?.result ? [d.result] : []);
+  const decArr = d?.decisions?.length ? d.decisions : (d?.decision ? [d.decision] : []);
+  const rows = Math.max(resArr.length, decArr.length, 1);
+  const multi = rows > 1;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        {r && <Pill color={r.color} bg={`color-mix(in srgb, ${r.color} 14%, transparent)`} icon="Flag">Resultado: {r.label}</Pill>}
-        {dec && <Pill color={dec.color} bg={`color-mix(in srgb, ${dec.color} 14%, transparent)`} icon="GitFork">Decisión: {dec.label}</Pill>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {Array.from({ length: rows }).map((_, i) => { const r = resArr[i] ? resultMap[resArr[i]] : undefined; const dec = decArr[i] ? decisionMap[decArr[i]] : undefined; return (
+          <div key={i} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            {multi && <span style={{ fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--ink-2)", minWidth: 64 }}>Apuesta {i + 1}</span>}
+            {r && <Pill color={r.color} bg={`color-mix(in srgb, ${r.color} 14%, transparent)`} icon="Flag">{r.label}</Pill>}
+            {dec && <Pill color={dec.color} bg={`color-mix(in srgb, ${dec.color} 14%, transparent)`} icon="GitFork">{dec.label}</Pill>}
+          </div>
+        ); })}
       </div>
+      {!!d?.highlights?.length && (
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Star" size={13} style={{ color: "var(--st-learn)" }} /> Aprendizajes destacados</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {d.highlights.map((h, i) => <span key={i} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--st-learn) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--st-learn) 35%, transparent)", fontWeight: 600 }}>{h.name} · {h.votes}</span>)}
+          </div>
+        </div>
+      )}
       {!!d?.learnings?.length && (
         <div>
           <div className="eyebrow" style={{ marginBottom: 8 }}>Aprendizajes</div>
