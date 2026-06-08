@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { homeFor } from "@/lib/auth/access";
@@ -98,20 +98,34 @@ export default function Home() {
             Cada iniciativa de mejora recorre cinco etapas. Arranca con la <b style={{ color: "var(--ink-1)" }}>Sesión Fundacional</b> (el acuerdo del equipo) y cierra consolidando lo que funcionó.
           </p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14 }}>
-          {CYCLE.map(({ key, desc }) => {
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", justifyContent: "center", gap: 8 }}>
+          {CYCLE.map(({ key, desc }, idx) => {
             const st = STAGES[key];
             return (
-              <Card key={key} pad={20} style={{ borderTop: `3px solid ${st.color}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <span style={{ width: 30, height: 30, borderRadius: "var(--r-full)", display: "grid", placeItems: "center", background: `color-mix(in srgb, ${st.color} 16%, transparent)`, color: st.color, fontWeight: 800, fontSize: "var(--t-sm)" }} className="num">{st.n}</span>
-                  <span style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>{st.label}</span>
-                </div>
-                <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55 }}>{desc}</p>
-              </Card>
+              <Fragment key={key}>
+                <Card pad={18} style={{ flex: "1 1 180px", minWidth: 168, maxWidth: 232, borderTop: `3px solid ${st.color}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <span style={{ width: 30, height: 30, borderRadius: "var(--r-full)", display: "grid", placeItems: "center", background: `color-mix(in srgb, ${st.color} 16%, transparent)`, color: st.color, fontWeight: 800, fontSize: "var(--t-sm)" }} className="num">{st.n}</span>
+                    <span style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>{st.label}</span>
+                  </div>
+                  <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55 }}>{desc}</p>
+                </Card>
+                {idx < CYCLE.length - 1 && (
+                  <span style={{ flex: "0 0 auto", alignSelf: "center", color: "var(--ink-3)" }}><Icon name="ChevronRight" size={20} /></span>
+                )}
+              </Fragment>
             );
           })}
+          <span style={{ flex: "0 0 auto", alignSelf: "center", color: "var(--green)" }}><Icon name="ChevronRight" size={20} /></span>
+          <div style={{ flex: "0 0 auto", alignSelf: "center", display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "14px 16px", borderRadius: "var(--r-lg)", border: "1px dashed color-mix(in srgb, var(--green) 50%, transparent)", color: "var(--green)", background: "var(--green-soft)" }}>
+            <Icon name="RefreshCw" size={24} />
+            <span style={{ fontSize: "var(--t-xs)", fontWeight: 800 }}>se repite</span>
+          </div>
         </div>
+        <p className="muted" style={{ textAlign: "center", marginTop: 22, fontSize: "var(--t-sm)" }}>
+          <Icon name="RefreshCw" size={13} style={{ verticalAlign: "-2px", color: "var(--green)" }} /> Cada vuelta sube hacia el <b style={{ color: "var(--ink-1)" }}>objetivo del equipo</b>.
+          <span className="faint"> · Antes: Sesión Fundacional · Después: Consolidación a 30 días.</span>
+        </p>
       </Section>
 
       {/* por qué */}
