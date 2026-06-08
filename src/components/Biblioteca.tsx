@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Icon } from "@/components/icon";
 import { Card, EmptyState, Pill, SectionTitle } from "@/components/ui";
 import { getInitiatives } from "@/lib/repository";
@@ -16,6 +16,22 @@ const DECISION_META: Record<string, { l: string; c: string; i: string }> = {
   iterate: { l: "Iterada", c: "var(--st-proof)", i: "RefreshCw" },
   drop: { l: "Soltada", c: "var(--ink-2)", i: "Archive" },
 };
+
+const PAGE = 12;
+/** Lista con "ver más" para no renderizar cientos de items de una. */
+function Paged<T>({ items, render }: { items: T[]; render: (it: T, i: number) => ReactNode }) {
+  const [n, setN] = useState(PAGE);
+  return (
+    <>
+      {items.slice(0, n).map(render)}
+      {items.length > n && (
+        <button onClick={() => setN((x) => x + PAGE)} className="muted" style={{ alignSelf: "flex-start", fontSize: "var(--t-xs)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+          <Icon name="ChevronDown" size={13} /> Ver más ({items.length - n})
+        </button>
+      )}
+    </>
+  );
+}
 
 /** Contenido reutilizable de la Biblioteca del equipo (facilitador y miembro). */
 export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOpenInitiative?: (init: Initiative) => void }) {
@@ -80,9 +96,9 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
           <Card pad={20}>
             <SectionTitle icon="Star" sub={`${highlights.length} destacados`}>Aprendizajes destacados</SectionTitle>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-              {highlights.filter((h) => !term || h.name.toLowerCase().includes(term) || h.init.title.toLowerCase().includes(term)).map((h, i) => (
+              <Paged items={highlights.filter((h) => !term || h.name.toLowerCase().includes(term) || h.init.title.toLowerCase().includes(term))} render={(h, i) => (
                 <span key={i} style={{ fontSize: "var(--t-sm)", padding: "6px 12px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--st-learn) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--st-learn) 35%, transparent)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="Star" size={12} style={{ color: "var(--st-learn)" }} />{h.name}<span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{h.votes}</span></span>
-              ))}
+              )} />
             </div>
           </Card>
         )}
@@ -91,7 +107,7 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
           <SectionTitle icon="GraduationCap" sub={`${learnings.length} en total`}>Aprendizajes</SectionTitle>
           {matchL.length ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-              {matchL.map((l, i) => { const r = l.result ? RESULT_META[l.result] : undefined; const d = l.decision ? DECISION_META[l.decision] : undefined; return (
+              <Paged items={matchL} render={(l, i) => { const r = l.result ? RESULT_META[l.result] : undefined; const d = l.decision ? DECISION_META[l.decision] : undefined; return (
                 <div key={i} style={{ padding: "12px 14px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)" }}>
                   <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5 }}>{l.text}</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
@@ -100,7 +116,7 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
                     {d && <Pill color={d.c} bg={`color-mix(in srgb, ${d.c} 14%, transparent)`} icon={d.i}>{d.l}</Pill>}
                   </div>
                 </div>
-              ); })}
+              ); }} />
             </div>
           ) : <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, fontStyle: "italic" }}>Sin aprendizajes que coincidan.</p>}
         </Card>
@@ -109,7 +125,7 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
           <SectionTitle icon="Lightbulb" sub={`${bets.length} en total`}>Apuestas probadas</SectionTitle>
           {matchB.length ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-              {matchB.map((b, i) => { const r = b.result ? RESULT_META[b.result] : undefined; return (
+              <Paged items={matchB} render={(b, i) => { const r = b.result ? RESULT_META[b.result] : undefined; return (
                 <div key={i} style={{ padding: "12px 14px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)" }}>
                   <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5 }}>{b.betThen}</p>
                   {b.signal && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>Señal: {b.signal}</p>}
@@ -118,7 +134,7 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
                     {r && <Pill color={r.c} bg={`color-mix(in srgb, ${r.c} 14%, transparent)`} icon={r.i}>{r.l}</Pill>}
                   </div>
                 </div>
-              ); })}
+              ); }} />
             </div>
           ) : <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, fontStyle: "italic" }}>Sin apuestas que coincidan.</p>}
         </Card>
@@ -127,12 +143,12 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
           <SectionTitle icon="GitBranch" sub={`${rootCauses.length} en total`}>Causas raíz detectadas</SectionTitle>
           {matchC.length ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-              {matchC.map((c, i) => (
+              <Paged items={matchC} render={(c, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)" }}>
                   <span style={{ fontSize: "var(--t-sm)", flex: 1, minWidth: 0 }}>{c.cause}</span>
                   <InitLink init={c.init} />
                 </div>
-              ))}
+              )} />
             </div>
           ) : <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, fontStyle: "italic" }}>Sin causas que coincidan.</p>}
         </Card>

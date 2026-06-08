@@ -92,15 +92,17 @@ function ExperimentCard({ team, isFacil }: { team: Team; isFacil: boolean }) {
 }
 
 function SessionsLog({ team }: { team: Team }) {
+  const [n, setN] = useState(8);
+  const shown = team.sessions.slice(0, n);
   return (
     <Card pad={20}>
-      <SectionTitle icon="History">Sesiones recientes</SectionTitle>
+      <SectionTitle icon="History" sub={team.sessions.length > 8 ? `${team.sessions.length} en total` : undefined}>Sesiones recientes</SectionTitle>
       <div style={{ position: "relative" }}>
         <div style={{ position: "absolute", left: 6, top: 8, bottom: 8, width: 2, background: "var(--line)" }} />
-        {team.sessions.map((s, i) => {
+        {shown.map((s, i) => {
           const st = STAGES[s.stage] ?? { color: "var(--ink-3)" };
           return (
-            <div key={s.id} style={{ display: "flex", gap: 14, paddingBottom: i < team.sessions.length - 1 ? 16 : 0, position: "relative" }}>
+            <div key={s.id} style={{ display: "flex", gap: 14, paddingBottom: i < shown.length - 1 ? 16 : 0, position: "relative" }}>
               <span style={{ width: 14, height: 14, borderRadius: 99, background: "var(--bg-1)", border: "2px solid " + st.color, marginTop: 2, flex: "none", zIndex: 1 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -119,6 +121,11 @@ function SessionsLog({ team }: { team: Team }) {
           );
         })}
       </div>
+      {team.sessions.length > n && (
+        <button onClick={() => setN((x) => x + 12)} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5, marginTop: 14 }}>
+          <Icon name="ChevronDown" size={13} /> Ver más ({team.sessions.length - n})
+        </button>
+      )}
     </Card>
   );
 }
