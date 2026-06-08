@@ -1269,9 +1269,18 @@ export default function SalaPage() {
     const myLearn = myCards.filter((c) => c.columnKey === "learning");
     const learnCount = counts["learning"] ?? 0;
     const RESULTS = [{ k: "yes", l: "Funcionó", c: "var(--success)", i: "CircleCheck" }, { k: "partial", l: "A medias", c: "var(--warning)", i: "CircleDot" }, { k: "no", l: "No funcionó", c: "var(--risk)", i: "CircleX" }];
-    const DECISIONS = [{ k: "consolidate", l: "Consolidar", c: "var(--success)", i: "Anchor", d: "Volverlo hábito" }, { k: "iterate", l: "Iterar", c: "var(--st-proof)", i: "RefreshCw", d: "Nueva apuesta" }, { k: "drop", l: "Soltar", c: "var(--ink-2)", i: "Archive", d: "Atender otra" }];
+    const DECISIONS = [{ k: "consolidate", l: "Consolidar", c: "var(--success)", i: "Anchor", d: "Volverlo hábito · se revisa en ~30 días" }, { k: "iterate", l: "Iterar", c: "var(--st-proof)", i: "RefreshCw", d: "Nueva apuesta" }, { k: "drop", l: "Soltar", c: "var(--ink-2)", i: "Archive", d: "Atender otra" }];
     const rl = RESULTS.find((x) => x.k === resultKey);
     const dl = DECISIONS.find((x) => x.k === decision);
+    // Recordatorio + datos de la(s) apuesta(s) y su resultado en Seguimiento
+    const proofD = initiative?.data?.proof as { betThen?: string; signalMetric?: string; signalTarget?: string; bets?: { name?: string; betThen?: string; signalMetric?: string; signalTarget?: string }[] } | undefined;
+    const followCheckins = (initiative?.data?.follow?.betCheckins as { value?: string; pct?: number }[] | undefined) ?? [];
+    const learnBets = (proofD?.bets?.length ? proofD.bets : [{ name: "", betThen: proofD?.betThen, signalMetric: proofD?.signalMetric, signalTarget: proofD?.signalTarget }]);
+    const learnReminder = (proofD?.betThen || proofD?.bets?.length) ? (
+      <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", display: "flex", flexDirection: "column", gap: 4 }}>
+        {learnBets.map((b, i) => <div key={i}><span className="muted">{learnBets.length > 1 ? `Apuesta ${i + 1}: ` : "La apuesta: "}</span><b style={{ color: "var(--st-proof)" }}>{b.betThen || "—"}</b>{(b.signalMetric || b.signalTarget) && <span className="muted"> · señal: {b.signalMetric}{b.signalTarget ? ` (meta ${b.signalTarget})` : ""}{followCheckins[i]?.value ? ` → logrado ${followCheckins[i]?.value}` : ""}</span>}</div>)}
+      </div>
+    ) : null;
     const Picked = (
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         {rl && <Pill color={rl.c} bg={`color-mix(in srgb, ${rl.c} 14%, transparent)`} icon="Flag">Resultado: {rl.l}</Pill>}
@@ -1359,7 +1368,7 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !decision} onClick={fNext}>Revisar y cerrar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define la decisión con el equipo.</p>;
     } else {
       sub = decision === "iterate" ? "Al cerrar, la iniciativa vuelve a Prueba." : "Al cerrar, la iniciativa queda cerrada.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>{Picked}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{learnCount} {learnCount === 1 ? "aprendizaje" : "aprendizajes"} registrados</div></div>;
+      content = <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>{Picked}<div className="muted" style={{ fontSize: "var(--t-sm)" }}>{learnCount} {learnCount === 1 ? "aprendizaje" : "aprendizajes"} registrados</div>{decision === "consolidate" && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", display: "flex", alignItems: "center", gap: 6 }}><Icon name="CalendarClock" size={14} style={{ color: "var(--st-learn)" }} /> Consolidación: se revisa en ~30 días para confirmar que se volvió hábito.</p>}</div>;
       controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar el ciclo"}</Button> : null;
     }
 
@@ -1368,6 +1377,7 @@ export default function SalaPage() {
         <div style={{ width: "100%", maxWidth: 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {learnReminder}
           {content}
           <div style={{ marginTop: 18 }}>{controls}</div>
         </div>
