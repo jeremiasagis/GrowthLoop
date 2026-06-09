@@ -329,6 +329,37 @@ export async function deleteTeam(id: string): Promise<{ error?: string }> {
   return {};
 }
 
+/** Elimina un admin: borra su ficha, desasigna sus organizaciones y le revoca el acceso. Irreversible. */
+export async function deleteAdmin(id: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const admin = useGLStore.getState().admins.find((a) => a.id === id);
+  const email = (admin?.email ?? "").toLowerCase();
+  const { error } = await supabase.from("admins").delete().eq("id", id);
+  if (error) return { error: error.message };
+  if (email) {
+    // Desasignar las organizaciones que tenía a cargo y revocarle el rol.
+    await supabase.from("organizations").update({ owner_email: null }).eq("owner_email", email);
+    await supabase.from("profiles").update({ role: "member" }).eq("email", email).eq("role", "admin");
+  }
+  await reloadData();
+  return {};
+}
+
+/** Elimina un facilitador: borra su ficha y membresías, desvincula sus equipos y le revoca el acceso. Irreversible. */
+export async function deleteFacilitator(id: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const fac = useGLStore.getState().facilitators.find((f) => f.id === id);
+  const email = (fac?.email ?? "").toLowerCase();
+  // Los equipos que facilitaba quedan sin facilitador (no se borran).
+  await supabase.from("teams").update({ facilitator_id: null }).eq("facilitator_id", id);
+  if (email) await supabase.from("facilitator_orgs").delete().eq("email", email);
+  const { error } = await supabase.from("facilitators").delete().eq("id", id);
+  if (error) return { error: error.message };
+  if (email) await supabase.from("profiles").update({ role: "member" }).eq("email", email).eq("role", "facilitator");
+  await reloadData();
+  return {};
+}
+
 /** Invita un integrante a un equipo existente (copy-link). */
 export async function inviteMember(input: { teamId: string; orgId: string; email: string; name?: string }): Promise<{ token?: string; error?: string }> {
   const supabase = getSupabaseBrowserClient();

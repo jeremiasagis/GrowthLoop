@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Avatar, Button, Card, CopyLink, EmptyState, Pill, StageBadge } from "@/components/ui";
-import { createInvitation, getFacilitators, getOrg, getOrgs, getTeams, inviteFacilitator } from "@/lib/repository";
+import { createInvitation, deleteFacilitator, getFacilitators, getOrg, getOrgs, getTeams, inviteFacilitator } from "@/lib/repository";
 import { useToast } from "@/components/Toast";
 import type { Facilitator } from "@/lib/data";
 
@@ -100,8 +100,18 @@ export default function FacilitadoresPage() {
   const withHealth = active.filter((f) => f.health != null);
   const avgHealth = withHealth.length ? Math.round(withHealth.reduce((a, f) => a + (f.health ?? 0), 0) / withHealth.length) : 0;
 
-  const toggle = (id: string) =>
-    setList((l) => l.map((f) => (f.id === id ? { ...f, status: f.status === "active" ? "inactive" : "active" } : f)));
+  const [del, setDel] = useState<Facilitator | null>(null);
+  const [delBusy, setDelBusy] = useState(false);
+  const doDelete = async () => {
+    if (!del) return;
+    setDelBusy(true);
+    const res = await deleteFacilitator(del.id);
+    setDelBusy(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setList(getFacilitators());
+    show(`Facilitador eliminado: ${del.name}.`, "Trash2");
+    setDel(null);
+  };
 
   const handleInvite = async (email: string, orgId: string) => {
     const res = await inviteFacilitator({ email, orgId, orgName: getOrg(orgId)?.name });
@@ -217,12 +227,9 @@ export default function FacilitadoresPage() {
               )}
 
               <div style={{ display: "flex", gap: 8 }}>
-                {invited ? (
-                  <Button size="sm" variant="secondary" icon="Copy" full onClick={() => copyLink(f)}>Copiar link de invitación</Button>
-                ) : !f.you ? (
-                  <Button size="sm" variant={inactive ? "secondary" : "dark"} icon={inactive ? "UserCheck" : "UserMinus"} full onClick={() => toggle(f.id)}>
-                    {inactive ? "Activar facilitador" : "Desactivar facilitador"}
-                  </Button>
+                {invited && <Button size="sm" variant="secondary" icon="Copy" full={f.you} onClick={() => copyLink(f)}>Copiar link de invitación</Button>}
+                {!f.you ? (
+                  <Button size="sm" variant="ghost" icon="Trash2" full={!invited} onClick={() => setDel(f)} style={{ color: "var(--risk)" }}>Eliminar</Button>
                 ) : (
                   <span className="muted" style={{ fontSize: "var(--t-xs)", padding: "4px 0" }}>Esta es tu cuenta</span>
                 )}
@@ -233,6 +240,26 @@ export default function FacilitadoresPage() {
       </div>
 
       {invite && <InviteModal onClose={() => setInvite(false)} onInvite={handleInvite} />}
+
+      {del && (
+        <div onClick={() => !delBusy && setDel(null)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
+              <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--risk-bg)", color: "var(--risk)", display: "grid", placeItems: "center" }}><Icon name="Trash2" size={20} /></div>
+              <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>Eliminar facilitador</h3>
+            </div>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginBottom: 20 }}>
+              Vas a eliminar a <b style={{ color: "var(--ink-0)" }}>{del.name}</b> y pierde el acceso.
+              {teamCount(del) > 0 && <> Sus <b style={{ color: "var(--ink-0)" }}>{teamCount(del)} {teamCount(del) === 1 ? "equipo queda" : "equipos quedan"} sin facilitador</b> (no se borran; podés reasignarlos).</>}
+              {" "}Esta acción no se puede deshacer.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="ghost" disabled={delBusy} onClick={() => setDel(null)}>Cancelar</Button>
+              <Button icon="Trash2" disabled={delBusy} onClick={doDelete} style={{ background: "var(--risk)", borderColor: "var(--risk)" }}>{delBusy ? "Eliminando…" : "Eliminar facilitador"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

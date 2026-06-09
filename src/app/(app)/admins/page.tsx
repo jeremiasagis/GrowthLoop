@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { Avatar, Button, Card, CopyLink, EmptyState, Pill } from "@/components/ui";
-import { createAdmin, createInvitation, getAdmins } from "@/lib/repository";
+import { createAdmin, createInvitation, deleteAdmin, getAdmins } from "@/lib/repository";
 import { useToast } from "@/components/Toast";
 import type { Admin } from "@/lib/data";
 
@@ -84,6 +84,8 @@ export default function AdminsPage() {
   const { show } = useToast();
   const [list, setList] = useState<Admin[]>(() => getAdmins());
   const [open, setOpen] = useState(false);
+  const [del, setDel] = useState<Admin | null>(null);
+  const [delBusy, setDelBusy] = useState(false);
   const active = list.filter((a) => a.status === "active");
 
   const handleCreate = async (input: { name: string; email: string }) => {
@@ -93,6 +95,17 @@ export default function AdminsPage() {
       show(`Admin invitado: ${input.email}.`);
     }
     return res;
+  };
+
+  const doDelete = async () => {
+    if (!del) return;
+    setDelBusy(true);
+    const res = await deleteAdmin(del.id);
+    setDelBusy(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setList(getAdmins());
+    show(`Admin eliminado: ${del.name}.`, "Trash2");
+    setDel(null);
   };
 
   const copyLink = async (a: Admin) => {
@@ -153,13 +166,34 @@ export default function AdminsPage() {
                   <Icon name="Mail" size={15} className="" style={{ color: "var(--warning)" }} /> Esperando que cree su cuenta
                 </div>
               )}
-              {invited && <Button size="sm" variant="secondary" icon="Copy" full onClick={() => copyLink(a)}>Copiar link de invitación</Button>}
+              <div style={{ display: "flex", gap: 8 }}>
+                {invited && <Button size="sm" variant="secondary" icon="Copy" full onClick={() => copyLink(a)}>Copiar link de invitación</Button>}
+                {!a.you && <Button size="sm" variant="ghost" icon="Trash2" full={!invited} onClick={() => setDel(a)} style={{ color: "var(--risk)" }}>Eliminar</Button>}
+              </div>
             </Card>
           );
         })}
       </div>
 
       {open && <CreateAdminModal onClose={() => setOpen(false)} onCreate={handleCreate} />}
+
+      {del && (
+        <div onClick={() => !delBusy && setDel(null)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
+              <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--risk-bg)", color: "var(--risk)", display: "grid", placeItems: "center" }}><Icon name="Trash2" size={20} /></div>
+              <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>Eliminar admin</h3>
+            </div>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginBottom: 20 }}>
+              Vas a eliminar a <b style={{ color: "var(--ink-0)" }}>{del.name}</b>. Sus organizaciones quedan sin admin asignado y pierde el acceso. Esta acción no se puede deshacer.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="ghost" disabled={delBusy} onClick={() => setDel(null)}>Cancelar</Button>
+              <Button icon="Trash2" disabled={delBusy} onClick={doDelete} style={{ background: "var(--risk)", borderColor: "var(--risk)" }}>{delBusy ? "Eliminando…" : "Eliminar admin"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
