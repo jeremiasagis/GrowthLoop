@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
@@ -12,8 +12,10 @@ import { useToast } from "@/components/Toast";
 import {
   deleteInitiative, getFacilitators, getInitiatives, getTeam, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
-import { createLiveSession } from "@/lib/session";
+import { createLiveSession, getInitiativeSessions, getSessionContent, type SessionCard, type SessionCluster, type SessionVote } from "@/lib/session";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
+
+type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[] };
 
 function fmtDate(iso?: string): string {
   if (!iso) return "—";
@@ -29,9 +31,9 @@ const OUTCOME: Record<string, string> = {
 };
 
 /* ── cuerpo de cada etapa ─────────────────────────────────── */
-function StageBody({ st, init }: { st: StageKey; init: Initiative }) {
+function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; hasSession?: boolean }) {
   const data = init.data ?? {};
-  const empty = (text: string) => <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>{text}</p>;
+  const empty = (text: string) => hasSession ? null : <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>{text}</p>;
 
   if (st === "explore") {
     const d = data.explore;
@@ -207,6 +209,46 @@ function StageBody({ st, init }: { st: StageKey; init: Initiative }) {
   );
 }
 
+const COL_LABELS: Record<string, string> = {
+  works: "Funciona", blocks: "Traba", unsaid: "No se dice", cause: "Causa", idea: "Idea", learning: "Aprendizaje", risk: "Riesgo",
+  pa: "Propósito", pb: "Propósito", pc: "Propósito", fin: "Entrada", fstart: "Arranque", fexec: "Ejecución", fdeliver: "Entrega",
+};
+
+/** Lo que el equipo escribió y votó en la sesión de esa etapa (datos reales). */
+function SessionCards({ sess }: { sess: StageContent }) {
+  const { cards, clusters, votes } = sess;
+  if (!cards.length) return null;
+  const votesByCluster: Record<string, number> = {};
+  votes.forEach((v) => { votesByCluster[v.clusterId] = (votesByCluster[v.clusterId] ?? 0) + 1; });
+  const cardsOf = (clId: string) => cards.filter((c) => c.clusterId === clId);
+  const loose = cards.filter((c) => !c.clusterId);
+  const orderedClusters = [...clusters].sort((a, b) => (votesByCluster[b.id] ?? 0) - (votesByCluster[a.id] ?? 0));
+  return (
+    <div style={{ marginTop: 4, paddingTop: 12, borderTop: "1px dashed var(--line)" }}>
+      <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="MessagesSquare" size={13} /> Lo que compartió el equipo · {cards.length}</div>
+      {orderedClusters.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: loose.length ? 10 : 0 }}>
+          {orderedClusters.map((cl) => (
+            <div key={cl.id} style={{ background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "9px 11px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: cardsOf(cl.id).length ? 7 : 0 }}>
+                <span style={{ color: "var(--green)" }}><Icon name="Layers" size={14} /></span>
+                <b style={{ fontSize: "var(--t-sm)", flex: 1, minWidth: 0 }}>{cl.name}</b>
+                {(votesByCluster[cl.id] ?? 0) > 0 && <Pill color="var(--green)" bg="var(--success-bg)" icon="Vote">{votesByCluster[cl.id]}</Pill>}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{cardsOf(cl.id).map((c) => <span key={c.id} style={{ fontSize: "var(--t-xs)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "4px 8px" }}>{c.text}</span>)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {loose.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {loose.map((c) => <span key={c.id} style={{ fontSize: "var(--t-xs)", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: "2px solid var(--ink-3)", borderRadius: "var(--r-sm)", padding: "4px 8px" }}>{c.text}{COL_LABELS[c.columnKey] && <span className="faint" style={{ marginLeft: 5, fontSize: 9 }}>· {COL_LABELS[c.columnKey]}</span>}</span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Field({ label, value, icon }: { label: string; value: ReactNode; icon: string }) {
   return (
     <div style={{ padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
@@ -223,6 +265,25 @@ export default function InitiativeDetailPage() {
   const { show } = useToast();
   const [, setNonce] = useState(0);
   const refresh = () => setNonce((n) => n + 1);
+  const [stageContent, setStageContent] = useState<Record<string, StageContent>>({});
+
+  useEffect(() => {
+    const id = params.initId;
+    if (!id) return;
+    let active = true;
+    (async () => {
+      const ss = await getInitiativeSessions(id);
+      const byType: Record<string, string> = {};
+      for (const s of ss) byType[s.type] = s.id; // última sesión de cada etapa (orden ascendente)
+      const out: Record<string, StageContent> = {};
+      for (const [type, sid] of Object.entries(byType)) {
+        const c = await getSessionContent(sid);
+        out[type] = { cards: c.cards, clusters: c.clusters, votes: c.votes };
+      }
+      if (active) setStageContent(out);
+    })();
+    return () => { active = false; };
+  }, [params.initId]);
 
   const teamId = params.id || "";
   const team = getTeam(teamId);
@@ -352,7 +413,12 @@ export default function InitiativeDetailPage() {
                         : <Pill icon="Clock">pendiente</Pill>}
                   </span>
                 </div>
-                <StageBody st={st} init={init} />
+                {(() => { const sc = stageContent[st]; const hasS = !!(sc && sc.cards.length); return (
+                  <>
+                    <StageBody st={st} init={init} hasSession={hasS} />
+                    {sc && <SessionCards sess={sc} />}
+                  </>
+                ); })()}
                 {current && isFacil && (
                   <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
                     <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>

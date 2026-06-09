@@ -66,6 +66,22 @@ export async function getSession(id: string): Promise<LiveSession | null> {
   return data ? mapSession(data) : null;
 }
 
+/** Sesiones (cerradas o no) de una iniciativa, en orden cronológico. Para ver lo facilitado por etapa. */
+export async function getInitiativeSessions(initiativeId: string): Promise<LiveSession[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.from("sessions").select("*")
+    .eq("initiative_id", initiativeId).order("created_at", { ascending: true });
+  return (data ?? []).map(mapSession);
+}
+
+/** Todo el contenido capturado en una sesión (tarjetas reveladas, clusters, votos, inputs). */
+export async function getSessionContent(sessionId: string): Promise<{ cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; inputs: SessionInput[] }> {
+  const [cards, clusters, votes, inputs] = await Promise.all([
+    getCards(sessionId), getClusters(sessionId), getVotes(sessionId), getInputs(sessionId),
+  ]);
+  return { cards, clusters, votes, inputs };
+}
+
 /** La sesión en vivo abierta de un equipo (si hay). */
 export async function getOpenSessionForTeam(teamId: string): Promise<LiveSession | null> {
   const supabase = getSupabaseBrowserClient();
