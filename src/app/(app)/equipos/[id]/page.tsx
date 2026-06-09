@@ -559,7 +559,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Row label="Seguridad ψ" value={team.psychSafety + "%"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
             <Row label="Iniciativas en curso" value={counts.active} />
-            <Row label="Pruebas corriendo" value={(team.initiatives ?? []).filter((i) => i.stage === "proof").length} />
+            <Row label="Ideación en curso" value={(team.initiatives ?? []).filter((i) => i.stage === "proof").length} />
             <Row label="Sesiones realizadas" value={team.sessions.length} />
           </div>
         </Card>
@@ -638,7 +638,7 @@ export default function TeamPage() {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
 
   const TABS = [
-    { key: "seguimiento", label: "Seguimiento", icon: "Target" },
+    { key: "seguimiento", label: "Iniciativas", icon: "Target" },
     { key: "pulso", label: "Pulso", icon: "Activity" },
     { key: "sesiones", label: "Sesiones", icon: "History" },
   ];
@@ -699,7 +699,7 @@ export default function TeamPage() {
         team.sessions.length ? <SessionsLog team={team} /> : (
           <Card>
             <EmptyState icon="History" title="Sin sesiones aún">
-              Las sesiones se hacen dentro de cada iniciativa. Abrí una iniciativa en <b style={{ color: "var(--ink-1)" }}>Seguimiento</b> y arrancá una sesión desde ahí; acá vas a ver el registro de todas.
+              Las sesiones se hacen dentro de cada iniciativa. Abrí una iniciativa en <b style={{ color: "var(--ink-1)" }}>Iniciativas</b> y arrancá una sesión desde ahí; acá vas a ver el registro de todas.
             </EmptyState>
           </Card>
         )

@@ -13,29 +13,26 @@ import { STAGES, type StageKey } from "@/lib/data";
 const WHATSAPP = "5491100000000";
 const waLink = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent("Hola, me interesa llevar Growthloop a mi organización.")}`;
 
-// Posiciones de los 5 nodos alrededor del círculo (en % del contenedor cuadrado), desde arriba en sentido horario.
+// Posiciones de los 4 nodos alrededor del círculo (en % del contenedor cuadrado), desde arriba en sentido horario.
 const NODE_POS = [
-  { x: 50, y: 10 },     // Exploración (arriba)
-  { x: 88, y: 37.6 },   // Foco
-  { x: 73.5, y: 82.4 }, // Prueba
-  { x: 26.5, y: 82.4 }, // Seguimiento
-  { x: 12, y: 37.6 },   // Aprendizaje
+  { x: 50, y: 10 },  // Exploración (arriba)
+  { x: 90, y: 50 },  // Foco (derecha)
+  { x: 50, y: 90 },  // Ideación (abajo)
+  { x: 10, y: 50 },  // Aprendizaje (izquierda)
 ];
 // Flechas de dirección en los puntos medios del anillo, rotadas en sentido horario.
 const ARROW_POS = [
-  { x: 73.5, y: 17.6, rot: 36 },
-  { x: 88, y: 62.4, rot: 108 },
-  { x: 50, y: 90, rot: 180 },
-  { x: 12, y: 62.4, rot: 252 },
-  { x: 26.5, y: 17.6, rot: 324 },
+  { x: 78.3, y: 21.7, rot: 45 },
+  { x: 78.3, y: 78.3, rot: 135 },
+  { x: 21.7, y: 78.3, rot: 225 },
+  { x: 21.7, y: 21.7, rot: 315 },
 ];
 
 const CYCLE: { key: StageKey; desc: string }[] = [
-  { key: "explore", desc: "¿Dónde estamos? Sacan a la luz las tensiones que traban al equipo." },
-  { key: "focus", desc: "¿Por qué pasa? Encuentran la causa raíz, no el síntoma." },
-  { key: "proof", desc: "¿Qué probamos? Diseñan 1 o 2 apuestas con acciones y responsables." },
-  { key: "follow", desc: "¿Cómo vamos? Revisan la señal y destraban lo que frena." },
-  { key: "learn", desc: "¿Qué aprendimos? Deciden consolidar, iterar o soltar." },
+  { key: "explore", desc: "¿Dónde estamos y por qué? Las 3 preguntas, el flujo de trabajo y las causas posibles." },
+  { key: "focus", desc: "¿Cuál atacamos? Priorizan las causas por impacto y esfuerzo, y eligen una." },
+  { key: "proof", desc: "¿Qué probamos? Idean soluciones y eligen una apuesta con acciones y responsables." },
+  { key: "learn", desc: "¿Qué aprendimos? Revisan cómo salió y deciden implementar o iterar." },
 ];
 
 const AUDIENCE = [
@@ -112,7 +109,7 @@ export default function Home() {
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Un ciclo simple, que se repite</h2>
           <p className="muted" style={{ fontSize: "var(--t-base)", maxWidth: 620, margin: "0 auto", lineHeight: 1.6 }}>
-            Cada iniciativa de mejora recorre cinco etapas. Arranca con la <b style={{ color: "var(--ink-1)" }}>Sesión Fundacional</b> (el acuerdo del equipo) y cierra consolidando lo que funcionó.
+            Cada iniciativa de mejora recorre cuatro etapas, en sesiones en vivo. El equipo arranca con la <b style={{ color: "var(--ink-1)" }}>Sesión Fundacional</b> (su acuerdo de trabajo) y desde ahí el ciclo se repite.
           </p>
         </div>
         {/* círculo (desktop) */}
@@ -157,7 +154,7 @@ export default function Home() {
         </div>
 
         <p className="muted" style={{ textAlign: "center", marginTop: 28, fontSize: "var(--t-sm)" }}>
-          <span className="faint">Antes: Sesión Fundacional · Después: Consolidación a 30 días.</span>
+          <span className="faint">Arranca una vez con la Sesión Fundacional · después, cada vuelta es Exploración → Foco → Ideación → Aprendizaje.</span>
         </p>
 
         <style>{`

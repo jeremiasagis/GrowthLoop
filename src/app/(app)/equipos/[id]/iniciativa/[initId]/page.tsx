@@ -22,10 +22,9 @@ function fmtDate(iso?: string): string {
 }
 
 const OUTCOME: Record<string, string> = {
-  explore: "Tensiones detectadas y priorizadas",
-  focus: "Causa raíz identificada",
+  explore: "Tensiones y causas detectadas",
+  focus: "Causa elegida (impacto/esfuerzo)",
   proof: "Apuesta diseñada y en marcha",
-  follow: "Avance de la prueba registrado",
   learn: "Aprendizajes y decisión de cierre",
 };
 
@@ -162,36 +161,6 @@ function StageBody({ st, init }: { st: StageKey; init: Initiative }) {
     );
   }
 
-  if (st === "follow") {
-    const d = data.follow;
-    if (d?.current == null) return empty("Todavía no se hizo seguimiento de la prueba.");
-    const target = d.target ?? 100;
-    const pct = Math.max(0, Math.min(100, target ? (d.current / target) * 100 : 0));
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 600, fontSize: "var(--t-sm)" }}>{d.signalName || "Señal de avance"}</span>
-          <Pill color={d.onTrack ? "var(--success)" : "var(--warning)"} bg={d.onTrack ? "var(--success-bg)" : "var(--warning-bg)"} icon={d.onTrack ? "TrendingUp" : "TriangleAlert"}>{d.onTrack ? "En camino" : "Necesita atención"}</Pill>
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-follow)" }}>{d.current}{d.unit}</span>
-          <span className="muted" style={{ fontSize: "var(--t-sm)", marginLeft: "auto" }}>meta <b className="num" style={{ color: "var(--ink-0)" }}>{target}{d.unit}</b></span>
-        </div>
-        <Bar value={pct} glow color={d.onTrack ? "var(--green)" : "var(--warning)"} />
-        {!!d.blockers?.length && (
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 8, color: "var(--warning)" }}>Trabas</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {d.blockers.map((b, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, fontSize: "var(--t-sm)", padding: "7px 10px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--warning)" }}><Icon name="Construction" size={14} style={{ color: "var(--warning)" }} />{b}</div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   // learn
   const d = data.learn;
   if (!d?.decision && !d?.learnings?.length) return empty("Todavía no se cerró el ciclo.");
@@ -286,14 +255,6 @@ export default function InitiativeDetailPage() {
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
     router.push(`/sala/${res.session.id}`);
   };
-  const startConsolidate = async () => {
-    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: "consolidate" });
-    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
-    router.push(`/sala/${res.session.id}`);
-  };
-  const decidedConsolidate = init.data?.learn?.decision === "consolidate" || (init.data?.learn?.decisions ?? []).includes("consolidate");
-  const canConsolidate = decidedConsolidate && !init.data?.consolidate;
-  const consolidated = init.data?.consolidate;
   const changeStage = async (s: StageKey) => {
     const res = await setInitiativeStage(init.id, s);
     if (res.error) show(res.error, "TriangleAlert"); else { show(`Etapa: ${STAGES[s].label}`, "Check"); refresh(); }
@@ -337,29 +298,6 @@ export default function InitiativeDetailPage() {
           </div>
         )}
       </div>
-
-      {isFacil && canConsolidate && (
-        <Card pad={18} style={{ marginBottom: 20, borderColor: "color-mix(in srgb, var(--st-learn) 40%, var(--line))", background: "color-mix(in srgb, var(--st-learn) 8%, transparent)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--st-learn) 20%, transparent)", color: "var(--st-learn)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Anchor" size={22} /></div>
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>Consolidación a 30 días</div>
-              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>El equipo decidió consolidar este cambio. Pasados ~30 días, hacé una micro-sesión para confirmar si se volvió hábito.</p>
-            </div>
-            <Button icon="Anchor" onClick={startConsolidate}>Hacer consolidación</Button>
-          </div>
-        </Card>
-      )}
-      {consolidated && (
-        <Card pad={16} style={{ marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Icon name="Anchor" size={16} style={{ color: "var(--st-learn)" }} />
-            <span className="eyebrow">Consolidación{consolidated.date ? ` · ${consolidated.date}` : ""}</span>
-            <Pill color="var(--st-learn)" bg="color-mix(in srgb, var(--st-learn) 14%, transparent)">{consolidated.outcome === "habit" ? "Se volvió hábito" : consolidated.outcome === "partial" ? "Parcial" : "Se perdió"}</Pill>
-          </div>
-          {consolidated.note && <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, lineHeight: 1.5 }}>{consolidated.note}</p>}
-        </Card>
-      )}
 
       {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px,1fr))", gap: 14, marginBottom: 24 }}>

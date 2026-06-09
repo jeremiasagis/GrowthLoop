@@ -22,9 +22,9 @@ export const STAGES: Record<StageKey, Stage> = {
   queue:    { key: "queue",    label: "Cola",          color: "var(--st-queue)",    n: "·" },
   explore:  { key: "explore",  label: "Exploración",   color: "var(--st-explore)",  n: "1" },
   focus:    { key: "focus",    label: "Foco",          color: "var(--st-focus)",    n: "2" },
-  proof:    { key: "proof",    label: "Prueba",        color: "var(--st-proof)",    n: "3" },
-  follow:   { key: "follow",   label: "Seguimiento",   color: "var(--st-follow)",   n: "4" },
-  learn:    { key: "learn",    label: "Aprendizaje",   color: "var(--st-learn)",    n: "5" },
+  proof:    { key: "proof",    label: "Ideación",      color: "var(--st-proof)",    n: "3" },
+  follow:   { key: "follow",   label: "Seguimiento",   color: "var(--st-follow)",   n: "·" }, // legacy (fuera del ciclo)
+  learn:    { key: "learn",    label: "Aprendizaje",   color: "var(--st-learn)",    n: "4" },
   consol:   { key: "consol",   label: "Consolidación", color: "var(--st-consol)",   n: "✦" },
   improved: { key: "improved", label: "Mejorada",      color: "var(--st-improved)", n: "✓" },
   paused:   { key: "paused",   label: "Pausada",       color: "var(--st-paused)",   n: "‖" },
@@ -35,7 +35,7 @@ export const STAGE_ORDER: StageKey[] = [
 ];
 
 // Las etapas que recorre una iniciativa (el ciclo de mejora, en orden).
-export const CYCLE_STAGES: StageKey[] = ["explore", "focus", "proof", "follow", "learn"];
+export const CYCLE_STAGES: StageKey[] = ["explore", "focus", "proof", "learn"];
 
 // The 5-stage guided process used by the session stepper
 export const PROCESS = [
@@ -109,11 +109,11 @@ export interface SessionLog {
 // Varias pueden convivir en paralelo, en etapas distintas.
 // Resultados que va dejando cada etapa del ciclo (los escribe el conductor).
 export interface InitiativeData {
-  explore?: { priority?: string; tensions?: { name: string; signals: number; dots: number }[]; pausedCount?: number; purpose?: string; criticalStage?: string };
+  explore?: { priority?: string; tensions?: { name: string; signals: number; dots: number }[]; pausedCount?: number; purpose?: string; criticalStage?: string; causes?: string[] };
   focus?: { rootCause?: string; roots?: string[]; cause?: string; causes?: string[]; whys?: string[]; secondaryCauses?: { name: string; votes: number; signals?: number }[] };
   proof?: { betIf?: string; betThen?: string; signal?: string; signalMetric?: string; signalTarget?: string; signalHow?: string; responsible?: string; deadline?: string; actions?: { text: string; who: string }[]; mitigations?: { risk: string; plan: string }[]; bets?: ProofBet[]; risks?: string[]; committed?: number; secondaryIdeas?: { name: string; ice: number }[] };
   follow?: { current?: number; target?: number; unit?: string; signalName?: string; signalNow?: string; onTrack?: boolean; blockers?: string[]; actionStatus?: { text: string; who: string; status: string }[]; betCheckins?: { name: string; signal: string; value: string; pct: number; actions: { text: string; who: string; status: string }[] }[]; newActions?: { text: string; who: string }[]; escalateTo?: string; decision?: string };
-  learn?: { result?: string; results?: string[]; learnings?: string[]; highlights?: { name: string; votes: number }[]; decision?: string; decisions?: string[] };
+  learn?: { result?: string; results?: string[]; achieved?: string[]; learnings?: string[]; highlights?: { name: string; votes: number }[]; decision?: string; decisions?: string[] };
   consolidate?: { outcome?: string; note?: string; date?: string };
 }
 

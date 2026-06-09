@@ -33,12 +33,12 @@ export interface SessionVote { id: string; clusterId: string; userId: string; }
 export interface SessionInput { userId: string; key: string; value: Record<string, unknown>; }
 
 const RETRO_NAME: Record<string, string> = {
-  founding: "Sesión Fundacional", consolidate: "Consolidación (30 días)",
-  explore: "¿Dónde estamos?", focus: "¿Por qué pasa esto?", proof: "Diseñar la apuesta",
-  follow: "¿Cómo vamos?", learn: "Cerrar el ciclo",
+  founding: "Sesión Fundacional",
+  explore: "Exploración", focus: "Foco · impacto/esfuerzo", proof: "Ideación",
+  learn: "Aprendizaje",
 };
 
-const CYCLE = ["explore", "focus", "proof", "follow", "learn"];
+const CYCLE = ["explore", "focus", "proof", "learn"];
 function nextStageForward(current: string | undefined | null, completed: string): string | undefined {
   // Si la sesión cerrada no es una etapa del ciclo (founding/consolidate), no tocar la etapa.
   if (CYCLE.indexOf(completed) < 0) return current ?? undefined;
@@ -111,7 +111,7 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
   // Primer paso "real" de cada tipo (sin pulso). El pulso se antepone abajo si toca.
-  const NORMAL_FIRST: Record<string, string> = { founding: "welcome", consolidate: "report", explore: "cards", focus: "causes", proof: "ideas", follow: "progress", learn: "result" };
+  const NORMAL_FIRST: Record<string, string> = { founding: "welcome", explore: "cards", focus: "matrix", proof: "ideas", learn: "result" };
   const normalFirst = NORMAL_FIRST[p.type] || "cards";
   // Pulso semanal: si el equipo no hizo pulso esta semana (lun–dom), la sesión arranca con el pulso.
   // La Sesión Fundacional nunca lleva pulso (es el contrato inicial).

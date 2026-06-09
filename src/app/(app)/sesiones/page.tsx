@@ -6,11 +6,10 @@ import { Button, Card, StageBadge } from "@/components/ui";
 import { type StageKey } from "@/lib/data";
 
 const RETROS: { stage: StageKey; name: string; sub: string; phases: string[] }[] = [
-  { stage: "explore", name: "¿Dónde estamos?", sub: "La foto honesta del equipo: sacar las tensiones y priorizar una.", phases: ["Pulso anónimo (5 señales)", "Tarjetas anónimas en 3 columnas", "Revelación simultánea", "Agrupar en tensiones", "Votación con puntos", "Mapa de tensiones priorizado"] },
-  { stage: "focus", name: "¿Por qué pasa esto?", sub: "Ir del síntoma a la causa raíz, sin culpables.", phases: ["Lluvia de causas posibles", "Los 5 porqués", "Elegir la causa raíz"] },
-  { stage: "proof", name: "Diseñar la apuesta", sub: "Convertir la causa en una prueba concreta y medible.", phases: ["Lluvia de ideas", "Elegir la idea", "Escribir la apuesta (si / entonces)", "Señal, responsable y plazo"] },
-  { stage: "follow", name: "¿Cómo vamos?", sub: "Check-in del avance de la prueba en curso.", phases: ["Pulso del equipo", "Avance de la señal", "Trabas a destrabar"] },
-  { stage: "learn", name: "Cerrar el ciclo", sub: "Mirar qué aprendimos y decidir el próximo paso.", phases: ["¿Funcionó? (resultado)", "Aprendizajes del equipo", "Decisión: consolidar / iterar / soltar"] },
+  { stage: "explore", name: "Exploración", sub: "La foto honesta del equipo: tensiones, flujo de trabajo y causas posibles.", phases: ["Pulso anónimo (5 señales)", "3 preguntas en columnas (anónimo)", "Propósito del equipo", "Flujo de trabajo (4 pasos)", "Lluvia de causas posibles"] },
+  { stage: "focus", name: "Foco · impacto / esfuerzo", sub: "Priorizar las causas de Exploración y elegir cuál atacar primero.", phases: ["Puntuar cada causa (impacto y esfuerzo)", "Matriz 2×2 revelada", "Elegir la causa a trabajar"] },
+  { stage: "proof", name: "Ideación", sub: "Convertir la causa elegida en una apuesta concreta y medible.", phases: ["Lluvia de ideas", "Priorizar con ICE", "Pre-mortem (riesgos)", "Apuesta (si / entonces) + acciones y responsables"] },
+  { stage: "learn", name: "Aprendizaje", sub: "Mirar cómo salió lo que se probó y decidir el próximo paso.", phases: ["¿Funcionó? + dato logrado", "Reflexión privada", "Aprendizajes del equipo", "Decisión: implementar / iterar / soltar"] },
 ];
 
 export default function SesionesPage() {

@@ -36,16 +36,16 @@ const FLOW_COLS = [
   { key: "fexec", label: "Ejecución", icon: "Cog", color: "var(--warning)", sub: "¿Dónde se traba?" },
   { key: "fdeliver", label: "Entrega", icon: "PackageCheck", color: "var(--violet)", sub: "¿Cómo sabemos que terminó bien?" },
 ];
-const STEPS = ["pulse", "pulse_reveal", "cards", "cards_reveal", "cluster", "vote", "purpose", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "close"];
+// Cierre de Exploración: lluvia de causas posibles (van a Foco para priorizar).
+const CAUSE_COLS = [{ key: "cause", label: "¿Por qué pasa? · causas posibles" }];
+const STEPS = ["pulse", "pulse_reveal", "cards", "cards_reveal", "cluster", "vote", "purpose", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "causes", "causes_reveal", "close"];
 const DOTS_PER = 2;
 // Secuencia de pasos por tipo de sesión (para el indicador de progreso y "volver atrás").
 const STEP_SEQ: Record<string, string[]> = {
   founding: ["welcome", "contract", "sign", "close"],
-  consolidate: ["report", "decide", "close"],
   explore: STEPS,
-  focus: ["causes", "causes_reveal", "group", "vote", "matrix", "deepen", "close"],
+  focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
-  follow: ["progress", "actions", "blockers", "blockers_reveal", "decide", "close"],
   learn: ["result", "reflect", "learnings", "learnings_reveal", "group", "vote", "decision", "close"],
 };
 
@@ -369,7 +369,7 @@ export default function SalaPage() {
   // Si la sesión arranca con "pulse"/"pulse_reveal" (porque el equipo no hizo el pulso esta
   // semana), se maneja acá para cualquier tipo; al terminar va al primer paso real de la etapa.
   if (step === "pulse" || step === "pulse_reveal") {
-    const NORMAL_FIRST: Record<string, string> = { explore: "cards", focus: "causes", proof: "ideas", follow: "progress", learn: "result", consolidate: "report" };
+    const NORMAL_FIRST: Record<string, string> = { explore: "cards", focus: "matrix", proof: "ideas", learn: "result" };
     const afterPulse = NORMAL_FIRST[session.type] ?? "cards";
     const toReveal = async () => { setBusy(true); await setStep(sessionId, "pulse_reveal", 1); setBusy(false); };
     const goAfterPulse = async () => { setBusy(true); await setStep(sessionId, afterPulse, 0); setBusy(false); };
@@ -491,325 +491,131 @@ export default function SalaPage() {
     );
   }
 
-  // ════════ CONSOLIDACIÓN · micro-sesión a 30 días ════════
-  if (session.type === "consolidate") {
+  // ════════ FOCO (¿Por qué pasa esto?) ════════
+  if (session.type === "focus") {
     const R = session.result;
-    const outcome = (R.outcome as string) ?? "";
-    const cnote = (R.cnote as string) ?? "";
-    const bet = initiative?.data?.proof as { betThen?: string } | undefined;
-    const change = bet?.betThen || initiative?.title || "el cambio probado";
-    const CONS = [{ k: "habit", l: "Se volvió hábito", c: "var(--success)", i: "Anchor", d: "Ya es parte de cómo trabajamos" }, { k: "partial", l: "Parcial", c: "var(--warning)", i: "CircleDot", d: "A veces sí, a veces no" }, { k: "lost", l: "Se perdió", c: "var(--risk)", i: "CircleX", d: "Volvimos a lo de antes" }];
-    const ol = CONS.find((x) => x.k === outcome);
-    const STUCK = [{ v: 0, l: "No se mantuvo" }, { v: 1, l: "A veces" }, { v: 2, l: "Sí, se mantuvo" }];
-    const stuckVals = inputs.filter((i) => i.key === "stuck").map((i) => Number((i.value as { v?: number })?.v ?? 0));
-    const stuckCount: Record<number, number> = { 0: 0, 1: 0, 2: 0 };
-    stuckVals.forEach((v) => { stuckCount[v] = (stuckCount[v] ?? 0) + 1; });
+    // Causas que dejó Exploración (el insumo de Foco).
+    const exploreCauses = ((initiative?.data?.explore?.causes as string[] | undefined) ?? []).filter((c) => (c ?? "").trim());
+    const causes = exploreCauses.map((text, i) => ({ id: `c${i}`, text }));
+    const matrixShown = !!R.matrixShown;
+    const chosenIdx = R.causeIdx as number | undefined;
+    const ieFor = (id: string) => inputs.filter((i) => i.key === `ie:${id}`).map((i) => i.value as { impact?: number; effort?: number });
+    const avgIE = (id: string): { impact: number; effort: number; n: number } | null => { const xs = ieFor(id); if (!xs.length) return null; const im = xs.reduce((a, v) => a + (v.impact ?? 0), 0) / xs.length; const ef = xs.reduce((a, v) => a + (v.effort ?? 0), 0) / xs.length; return { impact: im, effort: ef, n: xs.length }; };
+    const myIE = (id: string) => inputs.find((i) => i.userId === user.id && i.key === `ie:${id}`)?.value as { impact?: number; effort?: number } | undefined;
+    const setMyIE = (id: string, patch: Record<string, number>) => { const cur = myIE(id) ?? {}; setMyInput(sessionId, `ie:${id}`, { ...cur, ...patch }); };
+    const raters = new Set(inputs.filter((i) => i.key.startsWith("ie:")).map((i) => i.userId)).size;
+    const scored = causes.map((c) => { const a = avgIE(c.id); return { ...c, ie: a, score: a ? a.impact - a.effort : -99 }; }).sort((x, y) => y.score - x.score);
+    const chosen = chosenIdx != null ? causes[chosenIdx] : undefined;
+    const fSteps = ["matrix", "close"];
+    const fFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg, summaryText: `Causa elegida: ${chosen?.text ?? "—"}`,
+        dataKey: "focus", dataValue: { cause: chosen?.text ?? "", rootCause: chosen?.text ?? "", causes: exploreCauses },
+      });
+      setBusy(false); exit();
+    };
 
-    const myStuck = (inputs.find((i) => i.userId === user.id && i.key === "stuck")?.value as { v?: number })?.v;
-    const maxS = Math.max(1, ...STUCK.map((s) => stuckCount[s.v] ?? 0));
-    const fSteps = ["report", "decide", "close"];
-    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const fFinish = async () => { setBusy(true); await finalizeSession(session, { pulseAvg: avg, summaryText: `Consolidación: ${ol?.l ?? "—"}`, dataKey: "consolidate", dataValue: { outcome, note: cnote, date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) }, noAdvance: true, status: "done" }); setBusy(false); exit(); };
-
-    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
-    if (step === "report") {
-      const shown = !!session.result.stuckShown;
-      sub = shown ? `Resultado: ¿se mantuvo "${change}"?` : `Pasaron ~30 días. ¿Se mantuvo "${change}"? Respondé. El conteo está oculto hasta que el facilitador lo muestre.`;
-      content = (
-        <Card pad={20}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {STUCK.map((s) => { const on = myStuck === s.v; return (
-              <button key={s.v} onClick={() => { if (!shown) setMyInput(sessionId, "stuck", { v: s.v }); }} disabled={shown} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-learn) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-learn)" : "var(--line)"}`, textAlign: "left", cursor: shown ? "default" : "pointer" }}>
-                <span style={{ color: on ? "var(--st-learn)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
-                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{s.l}</span>
-                {shown && <><div style={{ width: 110 }}><Bar value={((stuckCount[s.v] ?? 0) / maxS) * 100} color="var(--st-learn)" height={7} /></div><span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{stuckCount[s.v] ?? 0}</span></>}
-              </button>
-            ); })}
-          </div>
-          <div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", marginTop: 12 }}>{!shown && <Icon name="EyeOff" size={13} />} {stuckVals.length} de {totalInRoom} respondieron</div>
-        </Card>
-      );
-      controls = isFacil
-        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Definir el resultado</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { stuckShown: true })}>Mostrar respuestas ({stuckVals.length}/{totalInRoom})</Button>)
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador muestra el resultado y lo define con el equipo.</p>;
-    } else if (step === "decide") {
-      sub = "¿El cambio se consolidó? El facilitador lo define con el equipo.";
-      content = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 10 }}>
-            {CONS.map((o) => { const on = outcome === o.k; const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: isFacil || on ? 1 : 0.5 }; const inner = (<><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p></>); return isFacil ? <button key={o.k} onClick={() => setResult(sessionId, { outcome: o.k })} style={st}>{inner}</button> : <div key={o.k} style={st}>{inner}</div>; })}
-          </div>
-          {isFacil
-            ? <textarea defaultValue={cnote} onBlur={(e) => setResult(sessionId, { cnote: e.target.value.trim() })} rows={3} placeholder="¿Qué ayudó o qué faltó para sostenerlo? Una nota para el equipo." style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
-            : cnote ? <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, padding: "0 4px" }}>{cnote}</p> : null}
+    // Matriz 2×2 impacto (alto arriba) × esfuerzo (bajo izquierda).
+    const QUAD = (impHigh: boolean, effLow: boolean) => scored.filter((c) => c.ie && (c.ie.impact >= 3) === impHigh && (c.ie.effort < 3) === effLow);
+    const QuadBox = (title: string, color: string, items: typeof scored) => (
+      <div style={{ background: `color-mix(in srgb, ${color} 7%, var(--card))`, border: `1px solid color-mix(in srgb, ${color} 30%, var(--line))`, borderRadius: "var(--r-md)", padding: 12, minHeight: 96 }}>
+        <div style={{ fontSize: "var(--t-xs)", fontWeight: 800, color, marginBottom: 8 }}>{title}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{items.length ? items.map((c) => <span key={c.id} style={{ fontSize: "var(--t-xs)", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "4px 8px" }}>{c.text}</span>) : <span className="faint" style={{ fontSize: 10 }}>—</span>}</div>
+      </div>
+    );
+    const TheMatrix = (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><Icon name="ArrowUp" size={12} style={{ color: "var(--ink-3)" }} /><span className="faint" style={{ fontSize: 10 }}>más impacto</span></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {QuadBox("Quick win · priorizar", "var(--success)", QUAD(true, true))}
+          {QuadBox("Apuesta grande", "var(--violet)", QUAD(true, false))}
+          {QuadBox("Relleno", "var(--ink-3)", QUAD(false, true))}
+          {QuadBox("Evitar", "var(--risk)", QUAD(false, false))}
         </div>
-      );
-      controls = isFacil
-        ? <Button full size="lg" icon="Check" disabled={busy || !outcome} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar consolidación"}</Button>
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra cuando esté definido.</p>;
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}><span className="faint" style={{ fontSize: 10 }}>menos esfuerzo</span><span className="faint" style={{ fontSize: 10 }}>más esfuerzo</span></div>
+      </div>
+    );
+
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (causes.length === 0) {
+      sub = "Foco necesita las causas que salen de Exploración.";
+      content = <Card pad={24} style={{ textAlign: "center" }}><p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55 }}>Esta iniciativa todavía no tiene causas cargadas. Primero hacé la sesión de <b style={{ color: "var(--ink-0)" }}>Exploración</b> con el equipo (termina con la lluvia de causas) y volvé a Foco.</p></Card>;
+      controls = isFacil ? <Button full size="lg" icon="ArrowLeft" onClick={exit}>Volver</Button> : null;
+    } else if (step === "matrix") {
+      wide = true;
+      sub = matrixShown ? "Dónde cae cada causa. El facilitador elige cuál atacar primero." : "Puntuá cada causa por impacto y esfuerzo (1–5). Anónimo y oculto hasta que el facilitador lo muestre.";
+      if (!matrixShown && !isFacil) {
+        content = (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {causes.map((c) => { const mine = (myIE(c.id) ?? {}) as Record<string, number>; return (
+              <Card key={c.id} pad={14}>
+                <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 10 }}>{c.text}</div>
+                {[{ k: "impact", l: "Impacto", hint: "si lo resolvemos, ¿cuánto mejora?" }, { k: "effort", l: "Esfuerzo", hint: "¿cuánto cuesta resolverlo?" }].map((row) => (
+                  <div key={row.k} style={{ marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><span style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>{row.l}</span><span className="faint" style={{ fontSize: 10 }}>{row.hint}</span></div>
+                    <div style={{ display: "flex", gap: 6 }}>{[1, 2, 3, 4, 5].map((v) => { const on = mine[row.k] === v; return <button key={v} onClick={() => setMyIE(c.id, { [row.k]: v })} style={{ flex: 1, padding: "7px 0", borderRadius: "var(--r-sm)", fontWeight: 700, fontSize: "var(--t-sm)", background: on ? "var(--st-focus)" : "var(--card-2)", color: on ? "#06121f" : "var(--ink-2)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line-2)"}` }}>{v}</button>; })}</div>
+                  </div>
+                ))}
+              </Card>
+            ); })}
+            <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}><Icon name="EyeOff" size={12} /> {raters} de {totalInRoom} puntuaron</p>
+          </div>
+        );
+        controls = <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Puntuá las causas. El facilitador muestra el resultado cuando todos terminen.</p>;
+      } else {
+        content = (
+          <>
+            {TheMatrix}
+            {matrixShown && (
+              <div style={{ marginTop: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Elegí la causa a trabajar</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {scored.map((c) => { const idx = causes.findIndex((x) => x.id === c.id); const on = chosenIdx === idx; return (
+                    <button key={c.id} disabled={!isFacil} onClick={() => setResult(sessionId, { causeIdx: idx })} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, cursor: isFacil ? "pointer" : "default" }}>
+                      <span style={{ color: on ? "var(--st-focus)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={17} /></span>
+                      <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{c.text}</span>
+                      {c.ie && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>I {c.ie.impact.toFixed(1)} · E {c.ie.effort.toFixed(1)}</span>}
+                    </button>
+                  ); })}
+                </div>
+              </div>
+            )}
+            {!matrixShown && isFacil && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)", marginTop: 12 }}><Icon name="EyeOff" size={12} /> {raters} de {totalInRoom} puntuaron · vos también podés puntuar (abajo)</p>}
+            {!matrixShown && isFacil && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
+                {causes.map((c) => { const mine = (myIE(c.id) ?? {}) as Record<string, number>; return (
+                  <Card key={c.id} pad={14}>
+                    <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 10 }}>{c.text}</div>
+                    {[{ k: "impact", l: "Impacto" }, { k: "effort", l: "Esfuerzo" }].map((row) => (
+                      <div key={row.k} style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 5 }}>{row.l}</div>
+                        <div style={{ display: "flex", gap: 6 }}>{[1, 2, 3, 4, 5].map((v) => { const on = mine[row.k] === v; return <button key={v} onClick={() => setMyIE(c.id, { [row.k]: v })} style={{ flex: 1, padding: "7px 0", borderRadius: "var(--r-sm)", fontWeight: 700, fontSize: "var(--t-sm)", background: on ? "var(--st-focus)" : "var(--card-2)", color: on ? "#06121f" : "var(--ink-2)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line-2)"}` }}>{v}</button>; })}</div>
+                      </div>
+                    ))}
+                  </Card>
+                ); })}
+              </div>
+            )}
+          </>
+        );
+        controls = isFacil
+          ? (matrixShown
+            ? <Button full size="lg" icon="Check" disabled={busy || chosenIdx == null} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar Foco con esta causa"}</Button>
+            : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { matrixShown: true })}>Mostrar la matriz ({raters}/{totalInRoom})</Button>)
+          : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador elige la causa y cierra Foco.</p>;
+      }
     } else {
-      sub = "Consolidación del equipo.";
-      content = <Card pad={24} style={{ textAlign: "center" }}>{ol ? <><Pill color={ol.c} bg={`color-mix(in srgb, ${ol.c} 14%, transparent)`} icon={ol.i}>{ol.l}</Pill>{cnote && <p style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>{cnote}</p>}</> : <span className="muted">—</span>}</Card>;
+      sub = "Foco cerrado. La iniciativa pasa a Ideación.";
+      content = <Card pad={24} style={{ textAlign: "center" }}>{chosen ? <Pill color="var(--st-focus)" bg="color-mix(in srgb, var(--st-focus) 14%, transparent)" icon="Crosshair">{chosen.text}</Pill> : <span className="muted">—</span>}</Card>;
       controls = isFacil ? <Button full size="lg" icon="ArrowLeft" onClick={exit}>Volver</Button> : null;
     }
 
     return (
       <Shell onExit={exit}>
-        <div style={{ width: "100%", maxWidth: 560 }}>
+        <div style={{ width: "100%", maxWidth: wide ? 760 : 560 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
-          {content}
-          <div style={{ marginTop: 18 }}>{controls}</div>
-        </div>
-      </Shell>
-    );
-  }
-
-  // ════════ FOCO (¿Por qué pasa esto?) ════════
-  if (session.type === "focus") {
-    const causeCards = allCards.filter((c) => c.columnKey === "cause");
-    const myCauses = myCards.filter((c) => c.columnKey === "cause");
-    const causeCount = counts["cause"] ?? 0;
-    const whys = (session.result?.whys as string[]) ?? [];
-    const cleanWhys = whys.filter((w) => (w ?? "").trim());
-    const chosenId = (session.result?.causeClusterId as string) ?? "";
-    const chosenCluster = clusters.find((c) => c.id === chosenId);
-    const votedCause = chosenCluster?.name ?? (session.result?.cause as string) ?? "";
-    const root = [...whys].reverse().find((w) => (w ?? "").trim()) || (session.result?.rootCause as string) || votedCause || "";
-    const purposeNote = (initiative?.data?.explore?.purpose as string) ?? "";
-    const addCause = async () => { const t = (cardDraft.cause ?? "").trim(); if (!t) return; await addCard(sessionId, "cause", t, true); setCardDraft((d) => ({ ...d, cause: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
-    const groupCauses = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Causa ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
-    const voteCause = (clusterId: string, delta: number) => castVote(clusterId, delta, remaining);
-    const fSteps = ["causes", "causes_reveal", "group", "vote", "matrix", "deepen", "close"];
-    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const setWhy = (idx: number, val: string) => { const next = [...whys]; next[idx] = val; setResult(sessionId, { whys: next }); };
-    // 5 Porqués colaborativo + causas raíz múltiples
-    const whycCards = allCards.filter((c) => c.columnKey === "whyc");
-    const myWhyc = myCards.filter((c) => c.columnKey === "whyc");
-    const addWhyc = async () => { const t = (cardDraft.whyc ?? "").trim(); if (!t) return; await addCard(sessionId, "whyc", t, false); setCardDraft((d) => ({ ...d, whyc: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
-    const extraRoots = (session.result?.extraRoots as string[]) ?? [];
-    const setExtraRoot = (idx: number, val: string) => { const next = [...extraRoots]; next[idx] = val; setResult(sessionId, { extraRoots: next }); };
-    const roots = [root, ...extraRoots.map((r) => (r ?? "").trim())].filter(Boolean);
-    const topCluster = ranked[0];
-    const fFinish = async () => {
-      setBusy(true);
-      const secondary = ranked.filter((c) => c.id !== (chosenId || topCluster?.id)).map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0, signals: cardsOf(c.id).length }));
-      const allRoots = [root, ...extraRoots.map((r) => (r ?? "").trim())].filter(Boolean);
-      await finalizeSession(session, { pulseAvg: avg, cardCount: causeCards.length, summaryText: `Causa raíz: ${root || "—"}`, dataKey: "focus", dataValue: { rootCause: root, roots: allRoots, cause: votedCause, whys: cleanWhys, causes: causeCards.map((c) => c.text), secondaryCauses: secondary } });
-      setBusy(false); exit();
-    };
-    const focusReminder = (subject || purposeNote) ? (
-      <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-explore) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <Icon name="Star" size={13} style={{ color: "var(--st-explore)" }} />
-        <span className="muted">De Exploración:</span> <b style={{ color: "var(--ink-0)" }}>{subject}</b>
-        {purposeNote && <span className="muted" style={{ width: "100%" }}><Icon name="Compass" size={12} /> {purposeNote}</span>}
-      </div>
-    ) : null;
-
-    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
-    if (step === "causes") {
-      sub = `¿Por qué pasa "${subject}"? Tirá causas a ciegas. Hablamos de causas, no de personas.`;
-      content = (
-        <Card pad={20}>
-          <div style={{ textAlign: "center", marginBottom: isFacil ? 0 : 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-focus)" }}>{causeCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>causas propuestas</div></div>
-          {!isFacil && (
-            <>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <input autoFocus value={cardDraft.cause ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, cause: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addCause()} placeholder="Una posible causa…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
-                <Button icon="Plus" onClick={addCause}>Sumar</Button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myCauses.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>
-            </>
-          )}
-        </Card>
-      );
-      controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || causeCount === 0} onClick={fNext}>Revelar causas ({causeCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá las causas que veas. Se revelan todas juntas.</p>;
-    } else if (step === "causes_reveal") {
-      sub = "Las causas, a la vista. Después las agrupamos por tema.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{causeCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!causeCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron causas.</p>}</div>;
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Agrupar causas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa las causas parecidas.</p>;
-    } else if (step === "group") {
-      wide = true; sub = isFacil ? "Juntá las causas que hablan de lo mismo. Seleccioná varias y armá un grupo." : "El facilitador agrupa las causas parecidas. Mirá cómo se arman.";
-      content = (
-        <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <span className="eyebrow">Sueltas ({loose.length})</span>
-              {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={groupCauses}>Agrupar {sel.length}</Button>}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 10 }}>
-              {loose.map((c) => { const on = sel.includes(c.id); const st: React.CSSProperties = { textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "10px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4, position: "relative" };
-                return isFacil ? <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))} style={st}>{on && <span style={{ position: "absolute", top: 6, right: 6, color: "var(--green)" }}><Icon name="CheckCircle2" size={14} /></span>}{c.text}</button> : <div key={c.id} style={st}>{c.text}</div>;
-              })}
-              {!loose.length && <div style={{ gridColumn: "1/-1", color: "var(--ink-3)", fontSize: "var(--t-sm)", padding: 16, textAlign: "center" }}>Todas agrupadas.</div>}
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <span className="eyebrow">Grupos de causas ({clusters.length})</span>
-            {clusters.map((cl) => (
-              <Card key={cl.id} pad={12}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ color: "var(--st-focus)" }}><Icon name="Layers" size={15} /></span>
-                  {isFacil ? <input defaultValue={cl.name} onBlur={(e) => renameCluster(cl.id, e.target.value)} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed var(--line-2)" }} /> : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
-                  {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "5px 7px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-focus)" }}>{c.text}</div>)}</div>
-              </Card>
-            ))}
-            {!clusters.length && <div style={{ border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", padding: 18, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>{isFacil ? "Seleccioná causas y agrupalas." : "Todavía no hay grupos."}</div>}
-          </div>
-        </div>
-      );
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={fNext}>Votar los grupos</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mirá cómo se agrupan las causas.</p>;
-    } else if (step === "vote") {
-      const shown = !!session.result.cvoteShown;
-      const cVoters = new Set(votes.map((v) => v.userId)).size;
-      const maxC = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
-      sub = shown ? "Resultado: qué grupo de causas pesa más para el equipo." : "¿Qué grupo de causas pesa más? Repartí tus puntos. La votación está oculta hasta que el facilitador la muestre.";
-      content = shown ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {ranked.map((cl, i) => (
-            <div key={cl.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num" style={{ width: 18, fontWeight: 700, color: i === 0 ? "var(--st-focus)" : "var(--ink-3)" }}>{i + 1}</span>
-              <span style={{ flex: 1 }}>{cl.name} <span className="faint" style={{ fontSize: 10 }}>· {cardsOf(cl.id).length}</span></span>
-              <div style={{ width: 80 }}><Bar value={((votesByCluster[cl.id] ?? 0) / maxC) * 100} color="var(--st-focus)" height={6} /></div>
-              <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <>
-          {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--st-focus)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
-              <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
-                <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name} <span className="faint" style={{ fontSize: 10 }}>· {cardsOf(cl.id).length}</span></div>
-                {isFacil
-                  ? (mine > 0 ? <span className="num" style={{ color: "var(--st-focus)", fontWeight: 700 }}>{mine}</span> : <span className="faint" style={{ fontSize: "var(--t-xs)" }}>—</span>)
-                  : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <button onClick={() => voteCause(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
-                      <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
-                      <button onClick={() => voteCause(cl.id, 1)} disabled={remaining === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--st-focus)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#08120c" }}><Icon name="Plus" size={15} /></button>
-                    </div>}
-              </div>
-            ); })}
-          </div>
-          <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {cVoters} de {totalInRoom} votaron</p>
-        </>
-      );
-      controls = isFacil
-        ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Priorizar (impacto / esfuerzo)</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { cvoteShown: true })}>Mostrar votación ({cVoters}/{totalInRoom})</Button>)
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado cuando todos voten.</p>;
-    } else if (step === "matrix") {
-      wide = true; sub = "Ubicamos cada grupo por impacto y esfuerzo. La esquina ideal: alto impacto, bajo esfuerzo.";
-      const mat = (session.result?.matrix as Record<string, { impact?: boolean; effort?: boolean }>) ?? {};
-      const setMat = (id: string, field: "impact" | "effort", val: boolean) => setResult(sessionId, { matrix: { ...mat, [id]: { ...(mat[id] || {}), [field]: val } } });
-      const quad = (hiImpact: boolean, loEffort: boolean) => clusters.filter((cl) => { const m = mat[cl.id]; return m && !!m.impact === hiImpact && (m.effort !== true) === loEffort; });
-      const QChip = ({ cl }: { cl: SessionCluster }) => { const on = cl.id === chosenId; return <button onClick={() => isFacil && setResult(sessionId, { causeClusterId: cl.id, cause: cl.name })} disabled={!isFacil} style={{ fontSize: "var(--t-xs)", padding: "4px 9px", borderRadius: "var(--r-full)", background: on ? "var(--st-focus)" : "var(--card)", color: on ? "#08120c" : "var(--ink-1)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line-2)"}`, fontWeight: 600, cursor: isFacil ? "pointer" : "default", margin: 2 }}>{cl.name}</button>; };
-      const QCell = ({ title, hint, hiImpact, loEffort, good }: { title: string; hint: string; hiImpact: boolean; loEffort: boolean; good?: boolean }) => (
-        <div style={{ minHeight: 92, padding: 10, border: `1px solid ${good ? "color-mix(in srgb, var(--green) 40%, var(--line))" : "var(--line)"}`, borderRadius: "var(--r-md)", background: good ? "color-mix(in srgb, var(--green) 7%, transparent)" : "var(--bg-2)" }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: good ? "var(--green)" : "var(--ink-2)", textTransform: "uppercase", letterSpacing: ".04em" }}>{title}</div>
-          <div className="faint" style={{ fontSize: 10, marginBottom: 6 }}>{hint}</div>
-          <div style={{ display: "flex", flexWrap: "wrap" }}>{quad(hiImpact, loEffort).map((cl) => <QChip key={cl.id} cl={cl} />)}</div>
-        </div>
-      );
-      const unclassified = clusters.filter((cl) => !mat[cl.id]);
-      content = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--ink-3)", padding: "0 2px" }}>← Impacto →</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <QCell title="Quick win" hint="Alto impacto · bajo esfuerzo" hiImpact loEffort good />
-                <QCell title="Apuesta grande" hint="Alto impacto · alto esfuerzo" hiImpact loEffort={false} />
-                <QCell title="Relleno" hint="Bajo impacto · bajo esfuerzo" hiImpact={false} loEffort />
-                <QCell title="Evitar" hint="Bajo impacto · alto esfuerzo" hiImpact={false} loEffort={false} />
-              </div>
-              <div style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--ink-3)", marginTop: 4 }}>← Esfuerzo →</div>
-            </div>
-          </div>
-          {isFacil && unclassified.length > 0 && (
-            <div>
-              <div className="eyebrow" style={{ marginBottom: 8 }}>Clasificá cada grupo</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {clusters.map((cl) => { const m = mat[cl.id] || {}; return (
-                  <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
-                    <span style={{ flex: 1, minWidth: 120, fontSize: "var(--t-sm)", fontWeight: 600 }}>{cl.name}</span>
-                    <span className="faint" style={{ fontSize: 10 }}>Impacto</span>
-                    {[["Bajo", false], ["Alto", true]].map(([l, v]) => <button key={String(v)} onClick={() => setMat(cl.id, "impact", v as boolean)} style={{ fontSize: 11, padding: "3px 9px", borderRadius: "var(--r-full)", fontWeight: 700, background: m.impact === v ? "var(--st-focus)" : "var(--card-2)", color: m.impact === v ? "#08120c" : "var(--ink-2)", border: "1px solid var(--line-2)" }}>{l}</button>)}
-                    <span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>Esfuerzo</span>
-                    {[["Bajo", false], ["Alto", true]].map(([l, v]) => <button key={String(v)} onClick={() => setMat(cl.id, "effort", v as boolean)} style={{ fontSize: 11, padding: "3px 9px", borderRadius: "var(--r-full)", fontWeight: 700, background: m.effort === v ? "var(--warning)" : "var(--card-2)", color: m.effort === v ? "#08120c" : "var(--ink-2)", border: "1px solid var(--line-2)" }}>{l}</button>)}
-                  </div>
-                ); })}
-              </div>
-            </div>
-          )}
-          {chosenCluster && <div style={{ textAlign: "center", fontSize: "var(--t-sm)" }}><span className="muted">A profundizar: </span><b style={{ color: "var(--st-focus)" }}>{chosenCluster.name}</b></div>}
-        </div>
-      );
-      controls = isFacil
-        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || (!chosenId && !topCluster)} onClick={() => { if (!chosenId && topCluster) setResult(sessionId, { causeClusterId: topCluster.id, cause: topCluster.name }); fNext(); }}>Profundizar el grupo elegido</Button>
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador prioriza y elige cuál profundizar.</p>;
-    } else if (step === "deepen") {
-      wide = true; sub = 'Los "5 Porqués": el equipo aporta y el facilitador arma la cadena hasta la raíz.';
-      content = (
-        <div className="team-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
-          {/* Aportes del equipo (todos escriben) */}
-          <Card pad={18}>
-            <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>Grupo elegido</div>
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>{votedCause || "—"}</div>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>Aportes del equipo ({whycCards.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12, maxHeight: 220, overflowY: "auto" }}>
-              {whycCards.map((c) => { const author = c.authorId ? participants.find((p) => p.userId === c.authorId)?.name : undefined; const isMine = myWhyc.some((m) => m.id === c.id); return <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${isMine ? "var(--st-focus)" : "var(--line-2)"}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}{author && <span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· {author}</span>}</div>; })}
-              {!whycCards.length && <span className="muted" style={{ fontSize: "var(--t-xs)" }}>Aporten posibles «por qué»…</span>}
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <input value={cardDraft.whyc ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, whyc: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addWhyc()} placeholder="¿Por qué pasa? Aportá…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
-              <button onClick={addWhyc} style={{ background: "var(--st-focus)", color: "#08120c", borderRadius: "var(--r-sm)", padding: "0 11px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={16} /></button>
-            </div>
-          </Card>
-          {/* La cadena acordada (facilitador escribe; todos ven) */}
-          <Card pad={18}>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>La cadena (acordada)</div>
-            {isFacil ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span className="num" style={{ color: "var(--st-focus)", fontWeight: 800, width: 16 }}>{i + 1}</span>
-                    <input defaultValue={whys[i] ?? ""} onBlur={(e) => setWhy(i, e.target.value)} placeholder={`¿Por qué? (${i + 1})`} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
-                  </div>
-                ))}
-                <div style={{ borderTop: "1px solid var(--line)", marginTop: 6, paddingTop: 10 }}>
-                  <div className="eyebrow" style={{ marginBottom: 6 }}>¿Hay otra causa raíz? (opcional)</div>
-                  {[0, 1].map((i) => <input key={i} defaultValue={extraRoots[i] ?? ""} onBlur={(e) => setExtraRoot(i, e.target.value.trim())} placeholder={`Causa raíz adicional ${i + 1}…`} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", marginBottom: 6 }} />)}
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{cleanWhys.map((w, i) => <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><span className="num" style={{ color: "var(--st-focus)", fontWeight: 800 }}>{i + 1}.</span><div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45 }}>{w}</div></div>)}{!cleanWhys.length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Profundizando…</span>}{extraRoots.filter((r) => (r ?? "").trim()).map((r, i) => <div key={`x${i}`} style={{ fontSize: "var(--t-sm)", color: "var(--st-focus)", fontWeight: 600 }}>+ {r}</div>)}</div>
-            )}
-          </Card>
-        </div>
-      );
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !root} onClick={fNext}>Confirmar causa raíz{roots.length > 1 ? "s" : ""}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Aportá tus «por qué». El facilitador arma la cadena.</p>;
-    } else {
-      sub = "Causa raíz definida. Al cerrar, la iniciativa avanza a Prueba.";
-      const secondaryNow = ranked.filter((c) => c.id !== (chosenId || topCluster?.id));
-      content = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Card pad={18} style={{ textAlign: "center", borderColor: "var(--st-focus)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>{roots.length > 1 ? "Causas raíz" : "Causa raíz"}</div>{roots.length ? roots.map((r, i) => <div key={i} style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{r}</div>) : <div style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>—</div>}</Card>
-          {cleanWhys.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{cleanWhys.map((w, i) => <div key={i} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}><b style={{ color: "var(--st-focus)" }}>{i + 1}.</b> {w}</div>)}</div>}
-          {secondaryNow.length > 0 && <div style={{ padding: "10px 12px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}><div className="eyebrow" style={{ marginBottom: 6 }}><Icon name="Archive" size={12} /> Causas secundarias (quedan guardadas)</div>{secondaryNow.map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)", display: "flex", justifyContent: "space-between" }}><span>{c.name}</span><span className="num">{votesByCluster[c.id] ?? 0} votos</span></div>)}</div>}
-        </div>
-      );
-      controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button> : null;
-    }
-
-    return (
-      <Shell onExit={exit}>
-        <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
-          {Header(sub)}
-          <div style={{ marginBottom: 16 }}>{facBar}</div>
-          {focusReminder}
           {content}
           <div style={{ marginTop: 18 }}>{controls}</div>
         </div>
@@ -1099,192 +905,6 @@ export default function SalaPage() {
     );
   }
 
-  // ════════ SEGUIMIENTO (¿Cómo vamos?) ════════
-  if (session.type === "follow") {
-    const R = session.result;
-    const current = Number(R.current ?? 0);
-    type FBet = { name?: string; betIf?: string; betThen?: string; signalMetric?: string; signalTarget?: string; signalHow?: string; actions?: { text: string; who: string }[] };
-    const proof = initiative?.data?.proof as (FBet & { signal?: string; bets?: FBet[] }) | undefined;
-    const followBets: FBet[] = (proof?.bets?.length ? proof.bets : [{ name: "", betIf: proof?.betIf, betThen: proof?.betThen, signalMetric: proof?.signalMetric, signalTarget: proof?.signalTarget, signalHow: proof?.signalHow, actions: proof?.actions ?? [] }]);
-    const signalName = proof?.signalMetric || proof?.signal || "Señal de avance";
-    const signalTargetNote = proof?.signalTarget ?? "";
-    const bp = (R.bp as Record<string, { pct?: number; value?: string }>) ?? {};
-    const setBp = (bi: number, patch: { pct?: number; value?: string }) => setResult(sessionId, { bp: { ...bp, [bi]: { ...(bp[bi] || {}), ...patch } } });
-    const avgPct = followBets.length ? Math.round(followBets.reduce((s, _b, bi) => s + (bp[bi]?.pct ?? 0), 0) / followBets.length) : 0;
-    const astatus = (R.astatus as Record<string, string>) ?? {};
-    const ASTAT = [{ k: "done", l: "Hecha", c: "var(--success)", i: "CircleCheck" }, { k: "wip", l: "En curso", c: "var(--warning)", i: "Loader" }, { k: "blocked", l: "Trabada", c: "var(--risk)", i: "CircleX" }];
-    // Decisión con consecuencia: nuevas acciones (de ajustes o trabas) + a quién se escala
-    const newActions = (R.newActions as { text: string; who: string }[]) ?? [];
-    const setNewActions = (next: { text: string; who: string }[]) => setResult(sessionId, { newActions: next });
-    const escalateTo = (R.escalateTo as string) ?? "";
-    const followReminder = (proof?.betThen || proof?.betIf) ? (
-      <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", lineHeight: 1.5 }}>
-        <span className="muted">La apuesta: </span>si <b style={{ color: "var(--ink-0)" }}>{proof?.betIf || "…"}</b> → <b style={{ color: "var(--st-proof)" }}>{proof?.betThen || "…"}</b>
-        {signalTargetNote && <span className="muted"> · objetivo: <b style={{ color: "var(--ink-0)" }}>{signalTargetNote}</b></span>}
-      </div>
-    ) : null;
-    const onTrack = current >= 50;
-    const blockerCards = allCards.filter((c) => c.columnKey === "blocker");
-    const myBlockers = myCards.filter((c) => c.columnKey === "blocker");
-    const blockerCount = counts["blocker"] ?? 0;
-    const seeVals = inputs.filter((i) => i.key === "see").map((i) => Number((i.value as { v?: number })?.v ?? 0));
-    const seeAvg = seeVals.length ? Math.round((seeVals.reduce((a, b) => a + b, 0) / seeVals.length) * 33) : 0;
-    const FDECIDE = [{ k: "continue", l: "Continuar", c: "var(--success)", i: "Play", d: "Vamos bien, seguimos" }, { k: "adjust", l: "Ajustar", c: "var(--warning)", i: "Wrench", d: "Corregimos algo" }, { k: "escalate", l: "Escalar", c: "var(--risk)", i: "TriangleAlert", d: "Necesitamos ayuda" }];
-    const fdecision = (R.fdecision as string) ?? "";
-    const fdl = FDECIDE.find((x) => x.k === fdecision);
-    const PROG = [{ l: "Sin avance", v: 0 }, { l: "Algo", v: 33 }, { l: "Bien", v: 66 }, { l: "Logrado", v: 100 }];
-    const Gauge = (
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{signalName}</span>
-          <Pill color={onTrack ? "var(--success)" : "var(--warning)"} bg={onTrack ? "var(--success-bg)" : "var(--warning-bg)"} icon={onTrack ? "TrendingUp" : "TriangleAlert"}>{onTrack ? "En camino" : "Necesita atención"}</Pill>
-        </div>
-        <div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-follow)", marginBottom: 8 }}>{current}%</div>
-        <Bar value={current} glow color={onTrack ? "var(--green)" : "var(--warning)"} />
-      </div>
-    );
-
-    const mySee = (inputs.find((i) => i.userId === user.id && i.key === "see")?.value as { v?: number })?.v;
-    const SEE = [{ v: 0, l: "Sin avance" }, { v: 1, l: "Algo" }, { v: 2, l: "Bien" }, { v: 3, l: "Logrado" }];
-    const fSteps = ["progress", "actions", "blockers", "blockers_reveal", "decide", "close"];
-    const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
-    const fFinish = async () => { setBusy(true); const betCheckins = followBets.map((b, bi) => ({ name: b.name ?? "", signal: b.signalMetric ?? "", value: bp[bi]?.value ?? "", pct: bp[bi]?.pct ?? 0, actions: (b.actions ?? []).map((a, ai) => ({ text: a.text, who: a.who, status: astatus[`${bi}:${ai}`] ?? "wip" })) })); await finalizeSession(session, { pulseAvg: avg, cardCount: blockerCount, summaryText: `Avance: ${avgPct}% · ${fdl?.l ?? "—"}`, dataKey: "follow", dataValue: { current: avgPct, signal: signalName, signalNow: betCheckins[0]?.value ?? "", betCheckins, blockers: blockerCards.map((c) => c.text), actionStatus: betCheckins[0]?.actions ?? [], newActions: newActions.filter((a) => (a.text ?? "").trim()), escalateTo, decision: fdecision }, noAdvance: true }); setBusy(false); exit(); };
-    const addBlocker = async () => { const t = (cardDraft.blocker ?? "").trim(); if (!t) return; await addCard(sessionId, "blocker", t, true); setCardDraft((d) => ({ ...d, blocker: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
-
-    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
-    if (step === "progress") {
-      sub = followBets.length > 1 ? "¿Cómo viene cada apuesta? El facilitador registra el valor actual y el avance." : "¿Cómo viene la prueba? El facilitador registra el valor actual y el avance.";
-      content = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {followBets.map((b, bi) => { const cur = bp[bi]?.pct ?? 0; const onTk = cur >= 50; const sName = b.signalMetric || "Señal de avance"; return (
-            <Card key={bi} pad={18}>
-              {followBets.length > 1 && <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 8 }}>Apuesta {bi + 1}{b.name ? ` · ${b.name}` : ""}</div>}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{sName}{b.signalTarget && <span className="faint"> · objetivo {b.signalTarget}</span>}</span>
-                <Pill color={onTk ? "var(--success)" : "var(--warning)"} bg={onTk ? "var(--success-bg)" : "var(--warning-bg)"} icon={onTk ? "TrendingUp" : "TriangleAlert"}>{onTk ? "En camino" : "Necesita atención"}</Pill>
-              </div>
-              <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-follow)", marginBottom: 8 }}>{cur}%</div>
-              <Bar value={cur} glow color={onTk ? "var(--green)" : "var(--warning)"} />
-              {isFacil && (
-                <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                  <input defaultValue={bp[bi]?.value ?? ""} onBlur={(e) => setBp(bi, { value: e.target.value })} placeholder="Valor actual (ej: 55%, venía de 30%)" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{PROG.map((p) => { const on = cur === p.v; return <button key={p.v} onClick={() => setBp(bi, { pct: p.v })} style={{ padding: "8px 13px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? "var(--st-follow)" : "var(--card-2)", color: on ? "#08120c" : "var(--ink-1)", border: "1px solid " + (on ? "var(--st-follow)" : "var(--line-2)") }}>{p.l}</button>; })}</div>
-                </div>
-              )}
-              {!isFacil && bp[bi]?.value && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 8 }}>Valor actual: {bp[bi]?.value}</p>}
-            </Card>
-          ); })}
-        </div>
-      );
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: acciones</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador registra el avance de {followBets.length > 1 ? "cada apuesta" : "la apuesta"}.</p>;
-    } else if (step === "actions") {
-      sub = "¿Cómo van las acciones que nos comprometimos? Estado por responsable.";
-      const anyActions = followBets.some((b) => (b.actions ?? []).length);
-      content = anyActions ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {followBets.map((b, bi) => (b.actions ?? []).length ? (
-            <div key={bi}>
-              {followBets.length > 1 && <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 8 }}>Apuesta {bi + 1}{b.name ? ` · ${b.name}` : ""}</div>}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {(b.actions ?? []).map((a, ai) => { const key = `${bi}:${ai}`; const cur = astatus[key] ?? "wip"; return (
-                  <div key={ai} style={{ padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><Icon name="CheckSquare" size={14} style={{ color: "var(--st-proof)" }} /><span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{a.text}</span>{a.who && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{a.who}</span>}</div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {ASTAT.map((s) => { const on = cur === s.k; return <button key={s.k} onClick={() => { if (isFacil) setResult(sessionId, { astatus: { ...astatus, [key]: s.k } }); }} disabled={!isFacil} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, background: on ? `color-mix(in srgb, ${s.c} 18%, var(--card))` : "var(--card-2)", color: on ? s.c : "var(--ink-2)", border: `1px solid ${on ? s.c : "var(--line-2)"}`, cursor: isFacil ? "pointer" : "default" }}><Icon name={s.i} size={12} />{s.l}</button>; })}
-                    </div>
-                  </div>
-                ); })}
-              </div>
-            </div>
-          ) : null)}
-        </div>
-      ) : <Card pad={20}><p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No hay acciones cargadas en la apuesta.</p></Card>;
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: trabas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador marca el estado de cada acción.</p>;
-    } else if (step === "blockers") {
-      sub = "¿Qué nos está trabando para sostener la prueba? Se escriben a ciegas.";
-      content = (
-        <Card pad={20}>
-          <div style={{ textAlign: "center", marginBottom: isFacil ? 0 : 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--warning)" }}>{blockerCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>trabas señaladas</div></div>
-          {!isFacil && (
-            <>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <input autoFocus value={cardDraft.blocker ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, blocker: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addBlocker()} placeholder="Algo que nos traba…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
-                <Button icon="Plus" onClick={addBlocker}>Sumar</Button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myBlockers.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>
-            </>
-          )}
-        </Card>
-      );
-      controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={fNext}>Revelar trabas ({blockerCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá las trabas que veas. El facilitador las revela.</p>;
-    } else if (step === "blockers_reveal") {
-      sub = "Las trabas del equipo. El facilitador puede convertir una en acción con responsable.";
-      content = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {blockerCards.map((c) => { const added = newActions.some((a) => a.text === c.text); return (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>
-              <span style={{ flex: 1 }}>{c.text}</span>
-              {isFacil && (added
-                ? <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Check" size={13} /> acción</span>
-                : <button onClick={() => setNewActions([...newActions, { text: c.text, who: "" }])} style={{ fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--st-proof)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Plus" size={13} /> acción</button>)}
-            </div>
-          ); })}
-          {!blockerCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin trabas. 🙌</p>}
-        </div>
-      );
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Decidir cómo sigue</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador decide cómo sigue.</p>;
-    } else if (step === "decide") {
-      sub = "¿La prueba continúa, se ajusta o hay que escalar?";
-      content = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
-            {FDECIDE.map((o) => { const on = fdecision === o.k; const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: isFacil || on ? 1 : 0.5 }; const inner = (<><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p></>); return isFacil ? <button key={o.k} onClick={() => setResult(sessionId, { fdecision: o.k })} style={st}>{inner}</button> : <div key={o.k} style={st}>{inner}</div>; })}
-          </div>
-          {(fdecision === "adjust" || newActions.length > 0) && (
-            <div>
-              <div className="eyebrow" style={{ marginBottom: 8 }}>Ajustes · nuevas acciones {newActions.length > 0 && <span className="faint">({newActions.length})</span>}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {newActions.map((a, k) => (
-                  <div key={k} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input defaultValue={a.text} onBlur={(e) => { const n = newActions.map((x) => ({ ...x })); n[k] = { ...n[k], text: e.target.value }; setNewActions(n); }} disabled={!isFacil} placeholder={`Acción ${k + 1}…`} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
-                    {isFacil && <><select value={a.who || ""} onChange={(e) => { const n = newActions.map((x) => ({ ...x })); n[k] = { ...n[k], who: e.target.value }; setNewActions(n); }} style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 8px", fontSize: "var(--t-sm)", outline: "none", maxWidth: 130 }}><option value="">¿Quién?</option>{(team?.members ?? []).map((m, mk) => <option key={mk} value={m.name}>{m.name}</option>)}</select><button onClick={() => setNewActions(newActions.filter((_, x) => x !== k))} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={15} /></button></>}
-                  </div>
-                ))}
-                {isFacil && <Button size="sm" variant="secondary" icon="Plus" onClick={() => setNewActions([...newActions, { text: "", who: "" }])}>Agregar acción</Button>}
-              </div>
-            </div>
-          )}
-          {fdecision === "escalate" && (
-            <div>
-              <div className="eyebrow" style={{ marginBottom: 8 }}>¿A quién se escala?</div>
-              {isFacil ? <input defaultValue={escalateTo} onBlur={(e) => setResult(sessionId, { escalateTo: e.target.value })} placeholder="Nombre / rol / área a la que se pide ayuda" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} /> : <p style={{ fontSize: "var(--t-sm)" }}>{escalateTo || "—"}</p>}
-            </div>
-          )}
-        </div>
-      );
-      controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy || !fdecision} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar check-in"}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define cómo sigue y cierra.</p>;
-    } else {
-      sub = "Check-in registrado. La prueba sigue en curso.";
-      content = <Card pad={20} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {followBets.map((b, bi) => <div key={bi} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-sm)" }}><span style={{ flex: 1 }}>{followBets.length > 1 ? `Apuesta ${bi + 1}` : (b.signalMetric || "Señal")}</span><span className="num" style={{ fontWeight: 800, color: "var(--st-follow)" }}>{bp[bi]?.pct ?? 0}%</span></div>)}
-        {fdl && <div><Pill color={fdl.c} bg={`color-mix(in srgb, ${fdl.c} 14%, transparent)`} icon={fdl.i}>{fdl.l}</Pill></div>}
-      </Card>;
-      controls = isFacil ? <Button full size="lg" icon="ArrowLeft" onClick={exit}>Volver</Button> : null;
-    }
-
-    return (
-      <Shell onExit={exit}>
-        <div style={{ width: "100%", maxWidth: 600 }}>
-          {Header(sub)}
-          <div style={{ marginBottom: 16 }}>{facBar}</div>
-          {followReminder}
-          {content}
-          <div style={{ marginTop: 18 }}>{controls}</div>
-        </div>
-      </Shell>
-    );
-  }
-
   // ════════ APRENDIZAJE (Cerrar el ciclo) ════════
   if (session.type === "learn") {
     const R = session.result;
@@ -1294,7 +914,7 @@ export default function SalaPage() {
     const myLearn = myCards.filter((c) => c.columnKey === "learning");
     const learnCount = counts["learning"] ?? 0;
     const RESULTS = [{ k: "yes", l: "Funcionó", c: "var(--success)", i: "CircleCheck" }, { k: "partial", l: "A medias", c: "var(--warning)", i: "CircleDot" }, { k: "no", l: "No funcionó", c: "var(--risk)", i: "CircleX" }];
-    const DECISIONS = [{ k: "consolidate", l: "Consolidar", c: "var(--success)", i: "Anchor", d: "Volverlo hábito · se revisa en ~30 días" }, { k: "iterate", l: "Iterar", c: "var(--st-proof)", i: "RefreshCw", d: "Nueva apuesta" }, { k: "drop", l: "Soltar", c: "var(--ink-2)", i: "Archive", d: "Atender otra" }];
+    const DECISIONS = [{ k: "consolidate", l: "Implementar", c: "var(--success)", i: "Anchor", d: "Lo adoptamos como forma de trabajo" }, { k: "iterate", l: "Iterar", c: "var(--st-proof)", i: "RefreshCw", d: "Nueva apuesta sobre lo mismo" }, { k: "drop", l: "Soltar", c: "var(--ink-2)", i: "Archive", d: "No siguió · atender otra causa" }];
     const rl = RESULTS.find((x) => x.k === resultKey);
     const dl = DECISIONS.find((x) => x.k === decision);
     // Recordatorio + datos de la(s) apuesta(s) y su resultado en Seguimiento
@@ -1344,7 +964,7 @@ export default function SalaPage() {
       const dOv = DECISIONS.find((x) => x.k === overallDecision);
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${rOv?.l ?? "—"} · ${dOv?.l ?? "—"}`,
-        dataKey: "learn", dataValue: { result: overallResult, results, decision: overallDecision, decisions, learnings: learnCards.map((c) => c.text), highlights: ranked.map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })).filter((h) => h.votes > 0) },
+        dataKey: "learn", dataValue: { result: overallResult, results, decision: overallDecision, decisions, achieved, learnings: learnCards.map((c) => c.text), highlights: ranked.map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })).filter((h) => h.votes > 0) },
         noAdvance: true, status: anyIterate ? "active" : "done", stageOverride: anyIterate ? "proof" : undefined,
       });
       setBusy(false); exit();
@@ -1352,6 +972,8 @@ export default function SalaPage() {
     const results = (R.results as string[]) ?? (resultKey ? [resultKey] : []);
     const decisions = (R.decisions as string[]) ?? (decision ? [decision] : []);
     const setArr = (which: "results" | "decisions", i: number, val: string) => { const arr = (which === "results" ? results : decisions).slice(); while (arr.length <= i) arr.push(""); arr[i] = val; setResult(sessionId, { [which]: arr }); };
+    const achieved = (R.achieved as string[]) ?? [];
+    const setAchieved = (i: number, val: string) => { const arr = achieved.slice(); while (arr.length <= i) arr.push(""); arr[i] = val; setResult(sessionId, { achieved: arr }); };
     const PickRow = (opts: { k: string; l: string; c: string; i: string; d?: string }[], value: string, onPick: (k: string) => void, editable = true) => (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
         {opts.map((o) => { const on = value === o.k; const inner = (
@@ -1380,8 +1002,22 @@ export default function SalaPage() {
 
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
     if (step === "result") {
-      sub = learnBets.length > 1 ? "¿Funcionó cada apuesta? La mirada honesta del equipo, con los datos al lado." : "¿Funcionó la prueba? La mirada honesta del equipo. El facilitador la marca.";
-      content = PickPerBet(RESULTS, "results");
+      sub = learnBets.length > 1 ? "¿Funcionó cada apuesta que probaron? La mirada honesta del equipo, con el dato al lado." : "¿Funcionó la apuesta que probaron? La mirada honesta del equipo, con el dato al lado.";
+      content = (
+        <>
+          {PickPerBet(RESULTS, "results")}
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            {learnBets.map((b, i) => (
+              <Card key={i} pad={12}>
+                <div className="eyebrow" style={{ marginBottom: 6 }}>{learnBets.length > 1 ? `Apuesta ${i + 1} · ` : ""}¿Qué dato vimos?{b.signalMetric ? ` (${b.signalMetric}${b.signalTarget ? `, meta ${b.signalTarget}` : ""})` : ""}</div>
+                {isFacil
+                  ? <input defaultValue={achieved[i] ?? ""} onBlur={(e) => setAchieved(i, e.target.value.trim())} placeholder="Valor logrado / qué pasó (opcional)" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} />
+                  : <p className="muted" style={{ fontSize: "var(--t-sm)" }}>{achieved[i] || "—"}</p>}
+              </Card>
+            ))}
+          </div>
+        </>
+      );
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || results.filter(Boolean).length < learnBets.length} onClick={fNext}>Siguiente: reflexión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador marca el resultado con el equipo.</p>;
     } else if (step === "reflect") {
       sub = "Un minuto de silencio para pensar. Lo que cada uno escribe es privado: el facilitador no lo ve.";
@@ -1533,13 +1169,14 @@ export default function SalaPage() {
   const finish = async () => {
     setBusy(true);
     const hasClusters = clusters.length > 0;
-    const hasData = hasClusters || !!purposeText || !!criticalMeta;
+    const causeList = allCards.filter((c) => c.columnKey === "cause").map((c) => c.text);
+    const hasData = hasClusters || !!purposeText || !!criticalMeta || causeList.length > 0;
     await finalizeSession(session, {
       pulseAvg: avg, cardCount: allCards.length,
-      summaryText: hasClusters ? `prioridad: ${ranked[0]?.name ?? "—"}` : (purposeText ? "propósito definido" : undefined),
+      summaryText: hasClusters ? `prioridad: ${ranked[0]?.name ?? "—"}` : (causeList.length ? `${causeList.length} causas` : (purposeText ? "propósito definido" : undefined)),
       dataKey: hasData ? "explore" : undefined,
       dataValue: hasData
-        ? { priority: ranked[0]?.name ?? "", tensions: ranked.map((c) => ({ name: c.name, signals: cardsOf(c.id).length, dots: votesByCluster[c.id] ?? 0 })), pausedCount: ranked.slice(1).length, purpose: purposeText || undefined, criticalStage: criticalMeta ? criticalMeta.label : undefined }
+        ? { priority: ranked[0]?.name ?? "", tensions: ranked.map((c) => ({ name: c.name, signals: cardsOf(c.id).length, dots: votesByCluster[c.id] ?? 0 })), pausedCount: ranked.slice(1).length, purpose: purposeText || undefined, criticalStage: criticalMeta ? criticalMeta.label : undefined, causes: causeList }
         : undefined,
       pausedNames: hasClusters ? ranked.slice(1).map((c) => c.name) : undefined,
     });
@@ -1732,8 +1369,23 @@ export default function SalaPage() {
       </>
     );
     controls = isFacil
-      ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Cerrar y ver el resumen</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { flowShown: true })}>Mostrar votación ({fVoters}/{totalInRoom})</Button>)
+      ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { critical: criticalStage }); setBusy(false); goNext(); }}>Siguiente: causas</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { flowShown: true })}>Mostrar votación ({fVoters}/{totalInRoom})</Button>)
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tocá la etapa más crítica. El facilitador muestra el resultado cuando todos elijan.</p>;
+  } else if (step === "causes") {
+    wide = true;
+    const n = counts["cause"] ?? 0;
+    sub = "¿Por qué pasa? Cada uno suma causas posibles (anónimas, ocultas hasta revelar). Van a Foco para elegir cuál atacar.";
+    content = MultiWrite(CAUSE_COLS, "var(--st-focus)", !isFacil);
+    controls = isFacil
+      ? <Button full size="lg" icon="Eye" disabled={busy || n === 0} onClick={goNext}>Revelar causas ({n})</Button>
+      : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá las causas que veas. El facilitador las revela cuando todos terminen.</p>;
+  } else if (step === "causes_reveal") {
+    wide = true;
+    sub = "Todas las causas a la vista. En Foco van a priorizarlas por impacto y esfuerzo.";
+    content = MultiReveal(CAUSE_COLS);
+    controls = isFacil
+      ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: cerrar</Button>
+      : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Quedan registradas para la etapa de Foco.</p>;
   } else {
     sub = "El resumen final. Al cerrar, se guarda y la iniciativa avanza de etapa.";
     content = (
@@ -1744,6 +1396,12 @@ export default function SalaPage() {
             {criticalMeta && <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name={criticalMeta.icon} size={15} style={{ color: "var(--st-explore)" }} /><span className="muted">Etapa más crítica del flujo:</span> <b>{criticalMeta.label}</b></div>}
           </div>
         )}
+        {(() => { const cz = allCards.filter((c) => c.columnKey === "cause"); return cz.length > 0 ? (
+          <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-focus) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-focus) 26%, transparent)", borderRadius: "var(--r-md)", marginBottom: 16 }}>
+            <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 6 }}>Causas posibles ({cz.length}) · pasan a Foco</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{cz.map((c) => <span key={c.id} style={{ fontSize: "var(--t-xs)", padding: "4px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>{c.text}</span>)}</div>
+          </div>
+        ) : null; })()}
         {RankedMap}
         {ranked.length > 1 && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Pause" size={13} /> Las {ranked.length - 1} tensiones no priorizadas quedan como iniciativas <b style={{ color: "var(--warning)" }}>pausadas</b> del equipo.</p>}
       </>

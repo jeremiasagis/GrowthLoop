@@ -118,7 +118,7 @@ export default function DashboardPage() {
   const sessionsTotal = teams.reduce((a, t) => a + (t.sessions?.length ?? 0), 0);
   const stats = [
     { label: "Equipos activos",      value: teams.length, icon: "Users",        color: "var(--green)" },
-    { label: "Pruebas en curso",     value: allInits.filter((i) => i.stage === "proof" && i.status === "active").length, icon: "FlaskConical", color: "var(--st-proof)" },
+    { label: "Ideación en curso",    value: allInits.filter((i) => i.stage === "proof" && i.status === "active").length, icon: "FlaskConical", color: "var(--st-proof)" },
     { label: "Sesiones realizadas",  value: sessionsTotal, icon: "Radio",     color: "var(--violet)" },
     { label: "Iniciativas resueltas", value: allInits.filter((i) => i.status === "done").length, icon: "CircleCheck", color: "var(--success)" },
   ];
