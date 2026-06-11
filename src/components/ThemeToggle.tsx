@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/icon";
 
-/** Botón día/noche. Default = día (claro). Persiste en localStorage('gl-theme'). */
+/** Botón día/noche. Default = noche (oscuro). Persiste en localStorage('gl-theme'). */
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
 
   useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); }, []);
 
