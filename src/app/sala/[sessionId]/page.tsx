@@ -14,7 +14,7 @@ import { retroByKey } from "@/lib/retros";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS } from "@/lib/data";
 import {
-  addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, deleteCluster,
+  addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCluster,
   finalizeSession, getCardCounts, getCards, getClusters, getInputs, getMyCards, getParticipants,
   getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
   renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession, touchPresence,
@@ -95,8 +95,11 @@ export default function SalaPage() {
   const [sel, setSel] = useState<string[]>([]);
   const [iceDraft, setIceDraft] = useState<Record<string, { i: number; c: number; e: number }>>({});
   const joinedRef = useRef(false);
+  const movedRef = useRef(false);
   const [now, setNow] = useState(() => Date.now());
   const [voteBusy, setVoteBusy] = useState(false);
+  // Sesión continua: tras cerrar una etapa, el facilitador puede encadenar la siguiente.
+  const [afterClose, setAfterClose] = useState<string | null>(null);
   const sessionId = params.sessionId;
   // Resultado "más fresco que el poll": evita que dos ediciones seguidas (< 2s) se pisen
   // entre sí — cada patch local se acumula acá y los setters leen de este ref, no del estado.
@@ -115,6 +118,10 @@ export default function SalaPage() {
     const s = await getSession(sessionId);
     setSession(s);
     if (s) resultRef.current = { ...s.result, ...resultRef.current };
+    // Sesión continua: si esta sesión cerró y el facilitador abrió la siguiente etapa,
+    // toda la sala se muda automáticamente a la sesión nueva.
+    const nextId = s?.status === "closed" ? (s.result?.nextSessionId as string | undefined) : undefined;
+    if (nextId && !movedRef.current) { movedRef.current = true; router.replace(`/sala/${nextId}`); return; }
     if (s) {
       const [r, p, c, cl, v] = await Promise.all([
         getPulseResponses(sessionId), getParticipants(sessionId), getCardCounts(sessionId),
@@ -214,6 +221,31 @@ export default function SalaPage() {
   };
 
   if (closed) {
+    // Sesión continua: el facilitador puede encadenar la siguiente etapa en la misma reunión.
+    if (isFacil && afterClose && session.initiativeId) {
+      const nextLabel: Record<string, string> = { focus: "Foco", proof: "Ideación", learn: "Aprendizaje" };
+      const continueNow = async () => {
+        const res = await createLiveSession({ teamId: session.teamId, initiativeId: session.initiativeId, type: afterClose });
+        if (res.session) {
+          await setResult(sessionId, { nextSessionId: res.session.id }); // arrastra a toda la sala
+          movedRef.current = true;
+          router.replace(`/sala/${res.session.id}`);
+        }
+      };
+      return (
+        <Shell mood={teamMood}>
+          <Card pad={28} style={{ textAlign: "center", maxWidth: 460 }}>
+            <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px", animation: "pop-in .35s var(--spring)" }}><Icon name="Check" size={28} /></div>
+            <h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>Etapa cerrada y guardada</h2>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6, marginBottom: 20 }}>¿Siguen ahora con <b style={{ color: "var(--ink-0)" }}>{nextLabel[afterClose]}</b>? El equipo pasa automáticamente, sin volver a entrar.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <Button full size="lg" iconRight="ArrowRight" onClick={continueNow}>Continuar a {nextLabel[afterClose]} ahora</Button>
+              <Button full variant="secondary" icon="ArrowLeft" onClick={leave}>Terminar por hoy</Button>
+            </div>
+          </Card>
+        </Shell>
+      );
+    }
     return (
       <Shell onExit={exit} mood={teamMood}>
         <Card pad={28} style={{ textAlign: "center", maxWidth: 440 }}>
@@ -373,7 +405,7 @@ export default function SalaPage() {
         {isFacil && !timer && (
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Timer" size={14} /> Timer:</span>
-            {[5, 10, 15, 30].map((m) => <button key={m} onClick={() => launchTimer(m)} style={{ padding: "4px 10px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, background: "var(--card)", border: "1px solid var(--line-2)", color: "var(--ink-1)" }}>{m}′</button>)}
+            {[2, 5, 10, 15].map((m) => <button key={m} onClick={() => launchTimer(m)} style={{ padding: "4px 10px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, background: "var(--card)", border: "1px solid var(--line-2)", color: "var(--ink-1)" }}>{m}′</button>)}
           </div>
         )}
       </div>
@@ -534,7 +566,7 @@ export default function SalaPage() {
         pulseAvg: avg, summaryText: `Causa elegida: ${chosen?.text ?? "—"}`,
         dataKey: "focus", dataValue: { cause: chosen?.text ?? "", rootCause: chosen?.text ?? "", causes: exploreCauses },
       });
-      setBusy(false); leave();
+      setBusy(false); setAfterClose("proof");
     };
 
     // Paleta por causa (para el mapa y las etiquetas).
@@ -786,7 +818,7 @@ export default function SalaPage() {
       const betsOut = betSlots.map((g, i) => { const b = getBet(i); const mit = riskCards.map((rk) => ({ risk: rk.text, plan: (b.mitig ?? {})[rk.id] ?? "" })).filter((m) => m.plan.trim()); return { name: g?.name ?? "", betIf: b.betIf ?? "", betThen: b.betThen ?? "", signalMetric: b.signalMetric ?? "", signalTarget: b.signalTarget ?? "", signalHow: b.signalHow ?? "", deadline: b.deadline ?? "", actions: (b.actions ?? []).filter((a) => (a.text ?? "").trim()), mitigations: mit }; });
       const b0 = betsOut[0] ?? { name: "", betIf: "", betThen: "", signalMetric: "", signalTarget: "", signalHow: "", deadline: "", actions: [] as { text: string; who: string }[], mitigations: [] as { risk: string; plan: string }[] };
       await finalizeSession(session, { pulseAvg: avg, cardCount: ideaCards.length, summaryText: `Apuesta: ${b0.betThen || "—"}`, dataKey: "proof", dataValue: { idea: b0.name, bets: betsOut, betIf: b0.betIf, betThen: b0.betThen, signal: b0.signalMetric ? `${b0.signalMetric}${b0.signalTarget ? ` → ${b0.signalTarget}` : ""}` : "", signalMetric: b0.signalMetric, signalTarget: b0.signalTarget, signalHow: b0.signalHow, responsible: b0.actions[0]?.who || "", actions: b0.actions, deadline: b0.deadline, risks: riskCards.map((c) => c.text), mitigations: b0.mitigations, committed: confirmCount, secondaryIdeas: secondary } });
-      setBusy(false); leave();
+      setBusy(false); setAfterClose("learn");
     };
     const proofReminder = (rootNote || tensionNote) ? (
       <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-focus) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1296,7 +1328,7 @@ export default function SalaPage() {
         : undefined,
       pausedNames: hasClusters ? ranked.slice(1).map((c) => c.name) : undefined,
     });
-    setBusy(false); leave();
+    setBusy(false); setAfterClose("focus");
   };
   const submitMyPulse = async () => { setBusy(true); const res = await submitPulse(sessionId, draft); setBusy(false); if (!res.error) setSubmitted(true); };
   const addExploreCard = async (colKey: string) => { const text = (cardDraft[colKey] ?? "").trim(); if (!text) return; await addCard(sessionId, colKey, text, anon); setCardDraft((d) => ({ ...d, [colKey]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
@@ -1441,7 +1473,7 @@ export default function SalaPage() {
     wide = true; sub = "¿Para qué existe este equipo? Tres preguntas. Las respuestas son públicas (con tu nombre).";
     content = MultiWrite(PURPOSE_COLS, "var(--st-explore)", !isFacil, false);
     controls = isFacil
-      ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button><button onClick={() => setStep(sessionId, "flow", STEPS.indexOf("flow"))} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>Saltar Propósito →</button></div>
+      ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button><Button full variant="secondary" icon="SkipForward" disabled={busy} onClick={() => setStep(sessionId, "flow", STEPS.indexOf("flow"))}>Saltar el módulo Propósito</Button></div>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres. El facilitador revela cuando todos terminen.</p>;
   } else if (step === "purpose_reveal") {
     wide = true; sub = "¿Hay acuerdo o dispersión? Esa lectura es el dato.";
@@ -1457,7 +1489,7 @@ export default function SalaPage() {
     wide = true; sub = "Mapeamos el flujo de trabajo del equipo, etapa por etapa.";
     content = MultiWrite(FLOW_COLS, "var(--st-explore)", !isFacil);
     controls = isFacil
-      ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button><button onClick={() => setStep(sessionId, "close", STEPS.indexOf("close"))} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>Saltar Flujo → ir al cierre</button></div>
+      ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button><Button full variant="secondary" icon="SkipForward" disabled={busy} onClick={() => setStep(sessionId, "causes", STEPS.indexOf("causes"))}>Saltar el módulo Flujo → ir a causas</Button></div>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá lo que veas en cada etapa del flujo.</p>;
   } else if (step === "flow_reveal") {
     wide = true; sub = "El flujo completo. Ahora votamos la etapa más crítica.";
