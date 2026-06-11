@@ -1030,14 +1030,18 @@ export default function SalaPage() {
     const setArr = (which: "results" | "decisions", i: number, val: string) => { const arr = (which === "results" ? results : decisions).slice(); while (arr.length <= i) arr.push(""); arr[i] = val; setResult(sessionId, { [which]: arr }); };
     const achieved = (R.achieved as string[]) ?? [];
     const setAchieved = (i: number, val: string) => { const arr = achieved.slice(); while (arr.length <= i) arr.push(""); arr[i] = val; setResult(sessionId, { achieved: arr }); };
+    // "Dial" de veredicto: la opción elegida brilla y crece; las demás se apagan.
     const PickRow = (opts: { k: string; l: string; c: string; i: string; d?: string }[], value: string, onPick: (k: string) => void, editable = true) => (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
-        {opts.map((o) => { const on = value === o.k; const inner = (
+        {opts.map((o) => { const on = value === o.k; const dim = !!value && !on; const inner = (
           <>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: o.c }}><Icon name={o.i} size={18} /></span><span style={{ fontWeight: 700 }}>{o.l}</span>{on && <span style={{ marginLeft: "auto", color: o.c }}><Icon name="CheckCircle2" size={16} /></span>}</div>
-            {o.d && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 4 }}>{o.d}</p>}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, textAlign: "center" }}>
+              <span style={{ color: o.c, transform: on ? "scale(1.25)" : "scale(1)", transition: "transform .25s var(--spring)", display: "inline-flex" }}><Icon name={o.i} size={26} /></span>
+              <span style={{ fontWeight: 800, fontSize: "var(--t-sm)" }}>{o.l}</span>
+              {o.d && <p className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.35 }}>{o.d}</p>}
+            </div>
           </>
-        ); const st: React.CSSProperties = { textAlign: "left", padding: 14, borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: editable || on ? 1 : 0.5 };
+        ); const st: React.CSSProperties = { textAlign: "center", padding: "16px 12px", borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.c} 14%, var(--card))` : "var(--card)", border: `1px solid ${on ? o.c : "var(--line-2)"}`, opacity: dim ? 0.45 : editable || on ? 1 : 0.6, boxShadow: on ? `0 0 0 1px ${o.c}, 0 0 18px color-mix(in srgb, ${o.c} 35%, transparent)` : "none", transition: "all .25s var(--ease)", animation: on ? "pop-in .3s var(--spring)" : undefined };
           return editable
             ? <button key={o.k} onClick={() => onPick(o.k)} style={st}>{inner}</button>
             : <div key={o.k} style={st}>{inner}</div>;
@@ -1064,11 +1068,21 @@ export default function SalaPage() {
           {PickPerBet(RESULTS, "results")}
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             {learnBets.map((b, i) => (
-              <Card key={i} pad={12}>
-                <div className="eyebrow" style={{ marginBottom: 6 }}>{learnBets.length > 1 ? `Apuesta ${i + 1} · ` : ""}¿Qué dato vimos?{b.signalMetric ? ` (${b.signalMetric}${b.signalTarget ? `, meta ${b.signalTarget}` : ""})` : ""}</div>
-                {isFacil
-                  ? <input defaultValue={achieved[i] ?? ""} onBlur={(e) => setAchieved(i, e.target.value.trim())} placeholder="Valor logrado / qué pasó (opcional)" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} />
-                  : <p className="muted" style={{ fontSize: "var(--t-sm)" }}>{achieved[i] || "—"}</p>}
+              <Card key={i} pad={14}>
+                <div className="eyebrow" style={{ marginBottom: 10 }}>{learnBets.length > 1 ? `Apuesta ${i + 1} · ` : ""}El dato{b.signalMetric ? ` · ${b.signalMetric}` : ""}</div>
+                {/* antes → después */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: isFacil ? 12 : 0, flexWrap: "wrap" }}>
+                  <div style={{ textAlign: "center", padding: "10px 18px", borderRadius: "var(--r-md)", background: "var(--card-2)", border: "1px solid var(--line)" }}>
+                    <div className="muted" style={{ fontSize: 10 }}>la meta</div>
+                    <div className="num" style={{ fontSize: "var(--t-lg)", fontWeight: 800, color: "var(--ink-1)" }}>{b.signalTarget || "—"}</div>
+                  </div>
+                  <Icon name="ArrowRight" size={20} style={{ color: "var(--st-learn)" }} />
+                  <div style={{ textAlign: "center", padding: "10px 18px", borderRadius: "var(--r-md)", background: achieved[i] ? "color-mix(in srgb, var(--st-learn) 12%, var(--card))" : "var(--card-2)", border: `1px solid ${achieved[i] ? "var(--st-learn)" : "var(--line)"}`, transition: "all .3s var(--ease)" }}>
+                    <div className="muted" style={{ fontSize: 10 }}>lo logrado</div>
+                    <div className="num" style={{ fontSize: "var(--t-lg)", fontWeight: 800, color: achieved[i] ? "var(--st-learn)" : "var(--ink-3)" }}>{achieved[i] || "?"}</div>
+                  </div>
+                </div>
+                {isFacil && <input defaultValue={achieved[i] ?? ""} onBlur={(e) => setAchieved(i, e.target.value.trim())} placeholder="¿Qué valor lograron / qué pasó?" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} />}
               </Card>
             ))}
           </div>
@@ -1180,13 +1194,37 @@ export default function SalaPage() {
         ? (lShown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Siguiente: decisión</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { lvoteShown: true })}>Mostrar votación ({lVoters}/{totalInRoom})</Button>)
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado.</p>;
     } else if (step === "decision") {
-      sub = learnBets.length > 1 ? "¿Cómo sigue cada apuesta? Cada una puede consolidar, iterar o soltar." : "¿Cómo sigue esta iniciativa?";
-      content = PickPerBet(DECISIONS, "decisions");
+      sub = learnBets.length > 1 ? "¿Cómo sigue cada apuesta? Cada una puede implementarse, iterar o soltarse." : "¿Cómo sigue esta iniciativa?";
+      content = (
+        <>
+          {/* la bifurcación: tres caminos posibles */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 14 }}>
+            <span style={{ width: 14, height: 14, borderRadius: 99, background: "var(--st-learn)", boxShadow: "0 0 10px var(--st-learn)" }} />
+            <svg width="220" height="34" viewBox="0 0 220 34" style={{ display: "block" }} aria-hidden>
+              <path d="M110 0 v8 M110 8 C 110 22, 20 14, 20 34 M110 8 v26 M110 8 C 110 22, 200 14, 200 34" stroke="color-mix(in srgb, var(--st-learn) 50%, transparent)" strokeWidth="2" fill="none" />
+            </svg>
+          </div>
+          {PickPerBet(DECISIONS, "decisions")}
+        </>
+      );
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || decisions.filter(Boolean).length < learnBets.length} onClick={fNext}>Revisar y cerrar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define la decisión con el equipo.</p>;
     } else {
-      sub = decisions.includes("iterate") ? "Al cerrar, la iniciativa vuelve a Prueba." : "Al cerrar, la iniciativa queda cerrada.";
+      sub = decisions.includes("iterate") ? "Al cerrar, la iniciativa vuelve a Ideación." : "Al cerrar, la iniciativa queda cerrada.";
+      // Celebración + racha: cuántas mejoras seguidas del equipo funcionaron.
+      const won = results.length > 0 && results.every((r) => r === "yes");
+      const partial = !won && results.some((r) => r === "yes" || r === "partial");
+      const doneOk = (team?.initiatives ?? []).filter((i2) => i2.status === "done" && i2.data?.learn?.result).sort((a, b2) => (b2.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+      let streak = 0; for (const i2 of doneOk) { if (i2.data?.learn?.result === "yes") streak++; else break; }
+      if (won) streak += 1;
       content = (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {(won || partial) && (
+            <div style={{ textAlign: "center", padding: "18px 16px", borderRadius: "var(--r-lg)", background: won ? "linear-gradient(180deg, rgba(0,232,122,0.12), var(--card))" : "var(--card)", border: `1px solid ${won ? "color-mix(in srgb, var(--green) 45%, transparent)" : "var(--line)"}`, animation: "pop-in .45s var(--spring)", boxShadow: won ? "var(--glow-soft)" : "none" }}>
+              <div style={{ fontSize: 34, lineHeight: 1, marginBottom: 6 }}>{won ? "🎉" : "💪"}</div>
+              <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>{won ? "¡La apuesta funcionó!" : "Hubo avance — y mucho aprendizaje"}</div>
+              {streak >= 2 && <div style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--warning)" }}>🔥 {streak} mejoras seguidas que funcionaron</div>}
+            </div>
+          )}
           {learnBets.map((b, i) => { const r = RESULTS.find((x) => x.k === results[i]); const d = DECISIONS.find((x) => x.k === decisions[i]); return (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
               {learnBets.length > 1 && <span style={{ fontSize: "var(--t-sm)", fontWeight: 700, flex: 1, minWidth: 100 }}>{betLabel(i)}</span>}
@@ -1195,7 +1233,7 @@ export default function SalaPage() {
             </div>
           ); })}
           <div className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>{learnCount} {learnCount === 1 ? "aprendizaje" : "aprendizajes"} registrados</div>
-          {decisions.includes("consolidate") && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="CalendarClock" size={14} style={{ color: "var(--st-learn)" }} /> Consolidación: se revisa en ~30 días para confirmar que se volvió hábito.</p>}
+          {decisions.includes("consolidate") && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="Anchor" size={14} style={{ color: "var(--st-learn)" }} /> Implementar: el cambio queda adoptado como forma de trabajo del equipo.</p>}
         </div>
       );
       controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar el ciclo"}</Button> : null;
