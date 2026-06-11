@@ -12,12 +12,20 @@ function LoginInner() {
   const router = useRouter();
   const search = useSearchParams();
   const next = search.get("next");
-  const { login } = useAuth();
+  const { login, requestPasswordReset } = useAuth();
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
+
+  const forgot = async () => {
+    if (!/\S+@\S+\.\S+/.test(email)) { setResetMsg("Escribí tu email arriba y volvé a tocar acá."); return; }
+    setResetMsg("Enviando…");
+    const res = await requestPasswordReset(email);
+    setResetMsg(res.error ? `No se pudo enviar: ${res.error}` : `Listo: te enviamos un link a ${email} para crear una contraseña nueva.`);
+  };
 
   const submit = async () => {
     if (busy) return;
@@ -74,9 +82,10 @@ function LoginInner() {
 
           <Button full size="lg" onClick={submit} disabled={busy} style={{ marginTop: 4 }}>{busy ? "Ingresando…" : "Ingresar"}</Button>
 
-          <button onClick={() => {}} className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", marginTop: 2 }}>
+          <button onClick={forgot} className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center", marginTop: 2 }}>
             ¿Olvidaste tu contraseña?
           </button>
+          {resetMsg && <p style={{ fontSize: "var(--t-xs)", textAlign: "center", color: resetMsg.startsWith("Listo") ? "var(--green)" : "var(--warning)", lineHeight: 1.5 }}>{resetMsg}</p>}
         </div>
       </div>
 

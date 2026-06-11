@@ -6,7 +6,7 @@ import { Icon } from "@/components/icon";
 import { AvatarStack, Button, Card, CopyLink, EmptyState, Pill, Sparkline, StageBadge } from "@/components/ui";
 import {
   assignFacilitatorToOrg, assignOrgAdmin, createOrg, getAdmins, getCoordinatorsForOrg, getFacilitators,
-  getOrgs, getTeams, inviteCoordinator, removeFacilitatorFromOrg, updateOrg,
+  getOrgs, getTeams, inviteCoordinator, removeFacilitatorFromOrg, revokeInvitation, updateOrg,
 } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
@@ -299,6 +299,10 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
                 {c.status === "accepted"
                   ? <Pill color="var(--success)" bg="var(--success-bg)" icon="Check">Activo</Pill>
                   : <Pill color="var(--warning)" bg="var(--warning-bg)" icon="Clock">Pendiente</Pill>}
+                {c.status !== "accepted" && (
+                  <button title="Revocar invitación" onClick={async () => { if (!window.confirm(`¿Revocar la invitación de ${c.email}?`)) return; const r = await revokeInvitation(c.token); if (r.error) { show(r.error, "TriangleAlert"); return; } setCoords(await getCoordinatorsForOrg(org.id)); show("Invitación revocada."); }}
+                    style={{ color: "var(--ink-3)", display: "inline-flex", padding: 4 }}><Icon name="Trash2" size={14} /></button>
+                )}
               </div>
               {c.status !== "accepted" && <CopyLink path={`/invite/${c.token}`} />}
             </div>

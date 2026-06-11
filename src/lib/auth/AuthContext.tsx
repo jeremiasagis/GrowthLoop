@@ -46,6 +46,9 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   setRole: (role: RoleKey) => void;
   acceptInvite: (params: InviteParams) => Promise<{ user?: AuthUser; error?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ error?: string }>;
+  updatePassword: (newPassword: string) => Promise<{ error?: string }>;
+  updateName: (name: string) => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -162,6 +165,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { user: u ?? undefined };
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string): Promise<{ error?: string }> => {
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset`,
+    });
+    return { error: error?.message };
+  }, []);
+
+  const updatePassword = useCallback(async (newPassword: string): Promise<{ error?: string }> => {
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return { error: error?.message };
+  }, []);
+
+  const updateName = useCallback(async (name: string): Promise<{ error?: string }> => {
+    const supabase = getSupabaseBrowserClient();
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return { error: "No hay sesión." };
+    const clean = name.trim();
+    const initials = initialsFrom(clean);
+    const { error } = await supabase.from("profiles").update({ name: clean, initials }).eq("id", auth.user.id);
+    if (error) return { error: error.message };
+    // Reflejar también en el directorio (facilitadores/admins se matchean por email).
+    const email = (auth.user.email ?? "").toLowerCase();
+    if (email) {
+      await supabase.from("facilitators").update({ name: clean, initials }).eq("email", email);
+      await supabase.from("admins").update({ name: clean, initials }).eq("email", email);
+    }
+    setBaseUser((prev) => (prev ? { ...prev, name: clean, initials } : prev));
+    return {};
+  }, []);
+
   // Rol efectivo: si la cuenta de prueba está previsualizando otro rol, usamos ese.
   const effectiveUser: AuthUser | null = baseUser
     ? { ...baseUser, role: previewRole ?? baseUser.role }
@@ -176,6 +211,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     setRole,
     acceptInvite,
+    requestPasswordReset,
+    updatePassword,
+    updateName,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

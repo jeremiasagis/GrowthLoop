@@ -37,7 +37,7 @@ const PREFIXES: Record<RoleKey, string[]> = {
 };
 
 // Rutas públicas (no requieren login).
-export const PUBLIC_PREFIXES = ["/login", "/invite", "/registro"];
+export const PUBLIC_PREFIXES = ["/login", "/invite", "/registro", "/reset"];
 
 function matches(prefixes: string[], pathname: string): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));

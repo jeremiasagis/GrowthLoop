@@ -351,9 +351,10 @@ export async function deleteAdmin(id: string): Promise<{ error?: string }> {
   const { error } = await supabase.from("admins").delete().eq("id", id);
   if (error) return { error: error.message };
   if (email) {
-    // Desasignar las organizaciones que tenía a cargo y revocarle el rol.
+    // Desasignar las organizaciones que tenía a cargo, revocarle el rol y sus invitaciones pendientes.
     await supabase.from("organizations").update({ owner_email: null }).eq("owner_email", email);
     await supabase.from("profiles").update({ role: "member" }).eq("email", email).eq("role", "admin");
+    await supabase.from("invitations").delete().eq("email", email).eq("status", "pending");
   }
   await reloadData();
   return {};
@@ -369,8 +370,28 @@ export async function deleteFacilitator(id: string): Promise<{ error?: string }>
   if (email) await supabase.from("facilitator_orgs").delete().eq("email", email);
   const { error } = await supabase.from("facilitators").delete().eq("id", id);
   if (error) return { error: error.message };
-  if (email) await supabase.from("profiles").update({ role: "member" }).eq("email", email).eq("role", "facilitator");
+  if (email) {
+    await supabase.from("profiles").update({ role: "member" }).eq("email", email).eq("role", "facilitator");
+    await supabase.from("invitations").delete().eq("email", email).eq("status", "pending");
+  }
   await reloadData();
+  return {};
+}
+
+/** Quita un integrante del equipo (su ficha; la cuenta de la persona no se toca). */
+export async function removeTeamMember(memberId: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("team_members").delete().eq("id", memberId);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
+/** Revoca (elimina) una invitación pendiente por token. */
+export async function revokeInvitation(token: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("invitations").delete().eq("token", token);
+  if (error) return { error: error.message };
   return {};
 }
 

@@ -50,11 +50,30 @@ const TABS = [
 
 export default function AjustesPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, updateName, updatePassword } = useAuth();
   const { show } = useToast();
   const [tab, setTab] = useState("perfil");
   const [notif, setNotif] = useState({ checkin: true, safety: true, weekly: false, mentions: true });
   const profile = user ?? CURRENT_USER;
+  const [nameDraft, setNameDraft] = useState(profile.name);
+  const [passDraft, setPassDraft] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const saveProfile = async () => {
+    if (savingProfile) return;
+    setSavingProfile(true);
+    if (nameDraft.trim().length >= 2 && nameDraft.trim() !== profile.name) {
+      const res = await updateName(nameDraft);
+      if (res.error) { setSavingProfile(false); show(res.error, "TriangleAlert"); return; }
+    }
+    if (passDraft) {
+      if (passDraft.length < 6) { setSavingProfile(false); show("La contraseña debe tener al menos 6 caracteres.", "TriangleAlert"); return; }
+      const res = await updatePassword(passDraft);
+      if (res.error) { setSavingProfile(false); show(res.error, "TriangleAlert"); return; }
+      setPassDraft("");
+    }
+    setSavingProfile(false);
+    show("Perfil actualizado.");
+  };
   const role = ROLES[user?.role ?? "admin"];
   const doLogout = () => { logout(); router.replace("/login"); };
   const myOrg = user?.orgId ? getOrg(user.orgId) : undefined;
@@ -102,11 +121,24 @@ export default function AjustesPage() {
                 <Button size="sm" variant="secondary" icon="Camera" style={{ marginLeft: "auto" }} onClick={() => show("Subí tu foto de perfil (demo).", "Camera")}>Cambiar foto</Button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="modesel-grid">
-                <Field label="Nombre y apellido" value={profile.name} />
-                <Field label="Correo" value={profile.email || "—"} type="email" />
+                <div>
+                  <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Nombre y apellido</label>
+                  <input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)}
+                    style={{ width: "100%", background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
+                </div>
+                <div>
+                  <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Correo <span className="faint" style={{ textTransform: "none", letterSpacing: 0 }}>(no se puede cambiar)</span></label>
+                  <input value={profile.email || "—"} readOnly
+                    style={{ width: "100%", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", color: "var(--ink-2)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
+                </div>
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Nueva contraseña <span className="faint" style={{ textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
+                <input type="password" value={passDraft} onChange={(e) => setPassDraft(e.target.value)} placeholder="Dejala vacía para no cambiarla"
+                  style={{ width: "100%", maxWidth: 360, background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
-                <Button icon="Check" onClick={() => show("Cambios guardados.")}>Guardar cambios</Button>
+                <Button icon="Check" disabled={savingProfile} onClick={saveProfile}>{savingProfile ? "Guardando…" : "Guardar cambios"}</Button>
                 <Button variant="ghost" icon="LogOut" onClick={doLogout}>Cerrar sesión</Button>
               </div>
             </Card>

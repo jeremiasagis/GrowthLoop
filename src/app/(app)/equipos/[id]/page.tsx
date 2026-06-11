@@ -4,12 +4,12 @@ import { useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
-  AlertBanner, AvatarStack, Bar, Button, Card, CopyLink, EmptyState, Pill,
+  AlertBanner, Avatar, AvatarStack, Bar, Button, Card, CopyLink, EmptyState, Pill,
   PulseChart, SectionTitle, StageBadge, Trend,
 } from "@/components/ui";
 import {
   createInitiative, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
-  setInitiativeStage, setInitiativeStatus, setTeamCadence, setTeamObjective, updateInitiative,
+  removeTeamMember, setInitiativeStage, setInitiativeStatus, setTeamCadence, setTeamObjective, updateInitiative,
 } from "@/lib/repository";
 import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, teamLiveStage, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -580,11 +580,14 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
 }
 
 function InviteMemberModal({ team, onClose }: { team: Team; onClose: () => void }) {
+  const { show } = useToast();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
   const valid = /\S+@\S+\.\S+/.test(email);
+  const members = team.members.filter((m) => !m.id || !removed.has(m.id));
 
   const invite = async () => {
     if (!valid || busy) return;
@@ -592,6 +595,15 @@ function InviteMemberModal({ team, onClose }: { team: Team; onClose: () => void 
     const res = await inviteMember({ teamId: team.id, orgId: team.orgId, email });
     setBusy(false);
     if (res.error) setError(res.error); else if (res.token) setToken(res.token);
+  };
+
+  const remove = async (m: { id?: string; name: string }) => {
+    if (!m.id) return;
+    if (!window.confirm(`¿Quitar a ${m.name} del equipo?`)) return;
+    const res = await removeTeamMember(m.id);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setRemoved((s) => new Set([...s, m.id!]));
+    show(`${m.name} quitado del equipo.`);
   };
 
   return (
@@ -602,6 +614,20 @@ function InviteMemberModal({ team, onClose }: { team: Team; onClose: () => void 
           <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>Invitar integrante</h3>
         </div>
         <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 18 }}>A <b style={{ color: "var(--ink-1)" }}>{team.name}</b>. Se genera un link para que la persona se registre y participe de las sesiones.</p>
+        {members.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Integrantes actuales</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {members.map((m, i) => (
+                <div key={m.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}>
+                  <Avatar name={m.name} initials={m.initials} size={26} idx={i} />
+                  <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{m.name}</span>
+                  {m.id && <button onClick={() => remove(m)} title="Quitar del equipo" style={{ color: "var(--ink-3)", display: "inline-flex", padding: 4 }}><Icon name="X" size={14} /></button>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {token ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="Check" size={16} /> Invitación lista. Pasale este link:</div>

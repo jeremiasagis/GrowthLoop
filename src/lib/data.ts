@@ -71,6 +71,7 @@ export const PULSE_DIMS: PulseDim[] = [
 
 // ── People ──
 export interface Person {
+  id?: string;     // id de la ficha team_members (para gestionarla)
   name: string;
   initials: string;
 }
