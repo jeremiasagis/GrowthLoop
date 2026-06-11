@@ -206,23 +206,31 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
         </div>
         <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 18 }}>{editing ? "Actualizá el objetivo o el detalle de la iniciativa." : <>Definí qué va a trabajar el equipo. Arranca en <b style={{ color: "var(--st-explore)" }}>Exploración</b> y después avanza por las etapas del ciclo.</>}</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {objectives.length > 0 && (
+            <div>
+              <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>¿Dónde nace esta iniciativa?</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {objectives.map((o) => { const on = objectiveId === o.id; return (
+                  <button key={o.id} onClick={() => setObjectiveId(o.id)} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 9, padding: "9px 12px", borderRadius: "var(--r-md)", background: on ? "var(--green-soft)" : "var(--card)", border: `1px solid ${on ? "var(--green)" : "var(--line-2)"}`, fontSize: "var(--t-sm)", fontWeight: 600 }}>
+                    <Icon name={on ? "CircleCheck" : "Compass"} size={15} style={{ color: on ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>{o.text}</span>
+                  </button>
+                ); })}
+                <button onClick={() => setObjectiveId("")} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 9, padding: "9px 12px", borderRadius: "var(--r-md)", background: objectiveId === "" ? "var(--green-soft)" : "var(--card)", border: `1px solid ${objectiveId === "" ? "var(--green)" : "var(--line-2)"}`, fontSize: "var(--t-sm)", fontWeight: 600 }}>
+                  <Icon name={objectiveId === "" ? "CircleCheck" : "CircleDashed"} size={15} style={{ color: objectiveId === "" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
+                  <span className="muted">Suelta · sin objetivo</span>
+                </button>
+              </div>
+            </div>
+          )}
           <div>
-            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Objetivo / qué van a mejorar</label>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Nombre de la iniciativa · qué van a mejorar</label>
             <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Reducir el retrabajo en reportes" style={fieldStyle} onKeyDown={(e) => e.key === "Enter" && save()} />
           </div>
           <div>
             <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Detalle <span className="faint">(opcional)</span></label>
             <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Contexto, por qué es importante, qué señal quieren mover…" rows={3} style={{ ...fieldStyle, resize: "vertical", fontFamily: "inherit" }} />
           </div>
-          {objectives.length > 0 && (
-            <div>
-              <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Objetivo del equipo al que aporta <span className="faint">(opcional)</span></label>
-              <select value={objectiveId} onChange={(e) => setObjectiveId(e.target.value)} style={{ ...fieldStyle, fontSize: "var(--t-sm)" }}>
-                <option value="">Sin objetivo (suelta)</option>
-                {objectives.map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
-              </select>
-            </div>
-          )}
         </div>
         {error && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#ff8b8b", fontSize: "var(--t-sm)", fontWeight: 600, marginTop: 14 }}>
@@ -562,8 +570,6 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
           {isFacil && <Button icon="Plus" onClick={newInitiative}>Nueva iniciativa</Button>}
         </div>
 
-        <ObjetivosSection team={live} isFacil={isFacil} onChanged={refresh} />
-
         {isFacil && (() => {
           const membersDone = team.members.length > 0;
           const objectiveDone = !!objective || (live.objectives ?? []).some((o) => o.status === "active");
@@ -761,7 +767,8 @@ export default function TeamPage() {
   const { show } = useToast();
   const isFacil = user?.role === "facilitator";
   const team = getTeam(params.id ?? "");
-  const [tab, setTab] = useState("seguimiento");
+  const [tab, setTab] = useState("objetivos");
+  const [, setTeamNonce] = useState(0);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delBusy, setDelBusy] = useState(false);
@@ -772,6 +779,7 @@ export default function TeamPage() {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
 
   const TABS = [
+    { key: "objetivos", label: "Objetivos", icon: "Compass" },
     { key: "seguimiento", label: "Iniciativas", icon: "Target" },
     { key: "pulso", label: "Pulso", icon: "Activity" },
     { key: "sesiones", label: "Sesiones", icon: "History" },
@@ -825,6 +833,14 @@ export default function TeamPage() {
 
       <div style={{ marginBottom: 20 }}><Tabs tabs={TABS} active={tab} onChange={setTab} /></div>
 
+      {tab === "objetivos" && (
+        <div style={{ maxWidth: 820 }}>
+          <ObjetivosSection team={getTeam(team.id) ?? team} isFacil={isFacil} onChanged={() => setTeamNonce((n) => n + 1)} />
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 14 }}>
+            Las iniciativas de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Iniciativas</button>.
+          </p>
+        </div>
+      )}
       {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onInvite={() => setInviteOpen(true)} />}
 
       {tab === "pulso" && <PulseDetail team={team} />}
