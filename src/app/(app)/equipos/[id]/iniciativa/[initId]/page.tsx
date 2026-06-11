@@ -60,6 +60,21 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
           </div>
         )}
         {!!d?.pausedCount && <p className="muted" style={{ fontSize: "var(--t-xs)" }}>{d.pausedCount} {d.pausedCount === 1 ? "tensión guardada" : "tensiones guardadas"} como iniciativas pausadas del equipo.</p>}
+        {d?.purpose && (
+          <div style={{ padding: "10px 12px", background: "color-mix(in srgb, var(--st-explore) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-explore) 26%, transparent)", borderRadius: "var(--r-md)" }}>
+            <div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 4 }}>Propósito del equipo</div>
+            <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5 }}>{d.purpose}</p>
+          </div>
+        )}
+        {d?.criticalStage && <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name="Cog" size={14} style={{ color: "var(--st-explore)" }} /><span className="muted">Etapa más crítica del flujo:</span> <b>{d.criticalStage}</b></div>}
+        {!!d?.causes?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8, color: "var(--st-focus)" }}>Causas posibles ({d.causes.length}) · pasan a Foco</div>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {d.causes.map((c, i) => <span key={i} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>{c}</span>)}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -80,31 +95,6 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
             <div className="eyebrow" style={{ marginBottom: 8 }}>Causas exploradas</div>
             <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
               {d.causes.map((c, i) => <span key={i} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>{c}</span>)}
-            </div>
-          </div>
-        )}
-        {!!d?.whys?.length && (
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>Los 5 porqués</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {d.whys.map((w, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, fontSize: "var(--t-sm)" }}>
-                  <Icon name="CornerDownRight" size={14} style={{ color: "var(--ink-3)", marginTop: 2, marginLeft: i * 14 }} />{w}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {!!d?.secondaryCauses?.length && (
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Archive" size={13} /> Causas secundarias (para retomar)</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {d.secondaryCauses.map((c, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}>
-                  <span>{c.name}</span>
-                  <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{c.votes} {c.votes === 1 ? "voto" : "votos"}</span>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -151,6 +141,7 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
             )}
           </div>
         ))}
+        {!!d?.committed && <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name="Handshake" size={14} style={{ color: "var(--st-proof)" }} /><span className="muted">Compromiso:</span> <b>{d.committed} {d.committed === 1 ? "integrante se comprometió" : "integrantes se comprometieron"}</b></div>}
         {!!d?.secondaryIdeas?.length && (
           <div>
             <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Archive" size={13} /> Ideas para probar después</div>
@@ -170,20 +161,22 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
     yes: { label: "Funcionó", color: "var(--success)" }, partial: { label: "A medias", color: "var(--warning)" }, no: { label: "No funcionó", color: "var(--risk)" },
   };
   const decisionMap: Record<string, { label: string; color: string }> = {
-    consolidate: { label: "Consolidar", color: "var(--success)" }, iterate: { label: "Iterar", color: "var(--st-proof)" }, drop: { label: "Soltar", color: "var(--ink-2)" },
+    consolidate: { label: "Implementada", color: "var(--success)" }, iterate: { label: "Iterar", color: "var(--st-proof)" }, drop: { label: "Soltada", color: "var(--ink-2)" },
   };
   const resArr = d?.results?.length ? d.results : (d?.result ? [d.result] : []);
   const decArr = d?.decisions?.length ? d.decisions : (d?.decision ? [d.decision] : []);
+  const proofBets = data.proof?.bets ?? [];
   const rows = Math.max(resArr.length, decArr.length, 1);
   const multi = rows > 1;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {Array.from({ length: rows }).map((_, i) => { const r = resArr[i] ? resultMap[resArr[i]] : undefined; const dec = decArr[i] ? decisionMap[decArr[i]] : undefined; return (
+        {Array.from({ length: rows }).map((_, i) => { const r = resArr[i] ? resultMap[resArr[i]] : undefined; const dec = decArr[i] ? decisionMap[decArr[i]] : undefined; const meta = proofBets[i]?.signalTarget; const got = d?.achieved?.[i]; return (
           <div key={i} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             {multi && <span style={{ fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--ink-2)", minWidth: 64 }}>Apuesta {i + 1}</span>}
             {r && <Pill color={r.color} bg={`color-mix(in srgb, ${r.color} 14%, transparent)`} icon="Flag">{r.label}</Pill>}
             {dec && <Pill color={dec.color} bg={`color-mix(in srgb, ${dec.color} 14%, transparent)`} icon="GitFork">{dec.label}</Pill>}
+            {(meta || got) && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>meta <b style={{ color: "var(--ink-1)" }}>{meta || "—"}</b> → logrado <b style={{ color: got ? "var(--st-learn)" : "var(--ink-3)" }}>{got || "—"}</b></span>}
           </div>
         ); })}
       </div>

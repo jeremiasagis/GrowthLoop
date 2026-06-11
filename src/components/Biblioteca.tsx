@@ -12,7 +12,7 @@ const RESULT_META: Record<string, { l: string; c: string; i: string }> = {
   no: { l: "No funcionó", c: "var(--risk)", i: "CircleX" },
 };
 const DECISION_META: Record<string, { l: string; c: string; i: string }> = {
-  consolidate: { l: "Consolidada", c: "var(--success)", i: "Anchor" },
+  consolidate: { l: "Implementada", c: "var(--success)", i: "Anchor" },
   iterate: { l: "Iterada", c: "var(--st-proof)", i: "RefreshCw" },
   drop: { l: "Soltada", c: "var(--ink-2)", i: "Archive" },
 };
@@ -47,8 +47,8 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
       const d = i.data ?? {};
       (d.learn?.learnings ?? []).forEach((t) => learnings.push({ text: t, init: i, result: d.learn?.result, decision: d.learn?.decision }));
       (d.learn?.highlights ?? []).forEach((h) => highlights.push({ name: h.name, votes: h.votes, init: i }));
-      const pbets = d.proof?.bets?.length ? d.proof.bets : (d.proof?.betThen ? [{ betThen: d.proof.betThen, signalMetric: d.proof?.signalMetric }] : []);
-      pbets.forEach((b) => { if (b.betThen) bets.push({ init: i, betThen: b.betThen, signal: b.signalMetric || d.proof?.signal, result: d.learn?.result }); });
+      const pbets = d.proof?.bets?.length ? d.proof.bets : (d.proof?.betThen ? [{ betThen: d.proof.betThen, signalMetric: d.proof?.signalMetric, signalTarget: d.proof?.signalTarget }] : []);
+      pbets.forEach((b, bi) => { if (b.betThen) bets.push({ init: i, betThen: b.betThen, signal: b.signalMetric ? `${b.signalMetric}${b.signalTarget ? ` (meta ${b.signalTarget})` : ""}${d.learn?.achieved?.[bi] ? ` → logrado ${d.learn.achieved[bi]}` : ""}` : d.proof?.signal, result: d.learn?.results?.[bi] ?? d.learn?.result }); });
       if (d.focus?.rootCause) rootCauses.push({ init: i, cause: d.focus.rootCause });
     }
     highlights.sort((a, b) => b.votes - a.votes);

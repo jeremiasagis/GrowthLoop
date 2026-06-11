@@ -103,6 +103,21 @@ export default function ReportePage() {
           {pulseDelta !== null && <span style={{ fontSize: 13, fontWeight: 700, color: pulseDelta >= 0 ? C.green : "#dc2626", marginLeft: 10 }}>{pulseDelta >= 0 ? "+" : ""}{pulseDelta} pts desde el inicio</span>}
         </h2>
         <div style={{ ...box, marginBottom: 28 }}>
+          {pulse.length > 1 && (() => {
+            // Evolución del pulso general a lo largo de las sesiones (print-friendly).
+            const ov = pulse.map((p) => Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5));
+            const w = 700, h = 70;
+            const pts = ov.map((v, i) => `${((i / (ov.length - 1)) * w).toFixed(1)},${(h - (v / 100) * h).toFixed(1)}`).join(" ");
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: C.soft, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Evolución · {ov[0]} → {ov[ov.length - 1]}</div>
+                <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 70, display: "block" }} aria-hidden>
+                  <polyline points={pts} fill="none" stroke={C.green} strokeWidth="2.5" />
+                  {ov.map((v, i) => <circle key={i} cx={(i / (ov.length - 1)) * w} cy={h - (v / 100) * h} r="3" fill={C.green} />)}
+                </svg>
+              </div>
+            );
+          })()}
           {last ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {PULSE_DIMS.map((d) => {
@@ -151,6 +166,49 @@ export default function ReportePage() {
             </table>
           )}
         </div>
+
+        {/* el ciclo: causa → apuesta → resultado → aprendizajes */}
+        {(() => {
+          const rich = inits.filter((i) => i.data?.focus?.cause || i.data?.proof?.bets?.length || i.data?.proof?.betThen || i.data?.learn?.learnings?.length);
+          if (!rich.length) return null;
+          const decisionLbl: Record<string, string> = { consolidate: "Implementada", iterate: "En iteración", drop: "Soltada" };
+          return (
+            <>
+              <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 12 }}>El trabajo de mejora, en detalle</h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
+                {rich.map((i) => {
+                  const d = i.data ?? {};
+                  const pbets = d.proof?.bets?.length ? d.proof.bets : (d.proof?.betThen ? [{ betThen: d.proof.betThen, betIf: d.proof?.betIf, signalMetric: d.proof?.signalMetric, signalTarget: d.proof?.signalTarget }] : []);
+                  return (
+                    <div key={i.id} style={box}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 800, fontSize: 15 }}>{i.title}</span>
+                        {d.learn?.decision && <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>{decisionLbl[d.learn.decision] ?? d.learn.decision}</span>}
+                      </div>
+                      {d.focus?.cause && <div style={{ fontSize: 13, marginBottom: 8 }}><span style={{ color: C.soft }}>Causa elegida: </span><b>{d.focus.cause}</b></div>}
+                      {pbets.map((b, bi) => (
+                        <div key={bi} style={{ fontSize: 13, padding: "8px 12px", background: C.chip, borderRadius: 8, marginBottom: 6 }}>
+                          {b.betThen && <div>Apuesta: <b>{b.betIf ? `si ${b.betIf} → ` : ""}{b.betThen}</b></div>}
+                          {(b.signalTarget || d.learn?.achieved?.[bi]) && (
+                            <div style={{ marginTop: 3, color: C.soft }}>
+                              Señal: {b.signalMetric || "—"} · meta <b style={{ color: C.ink }}>{b.signalTarget || "—"}</b> → logrado <b style={{ color: C.green }}>{d.learn?.achieved?.[bi] || "—"}</b>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {!!d.learn?.learnings?.length && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: C.soft, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Aprendizajes</div>
+                          {d.learn.learnings.slice(0, 5).map((l, li) => <div key={li} style={{ fontSize: 13, marginBottom: 3 }}>· {l}</div>)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
 
         {/* sesiones */}
         <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 12 }}>Sesiones recientes</h2>
