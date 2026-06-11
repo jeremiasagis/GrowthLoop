@@ -690,13 +690,17 @@ export default function SalaPage() {
     const betThen = getBet(0).betThen ?? "";
     const setBet = (i: number, patch: Bet) => { const next = bets.map((b) => ({ ...b })); while (next.length <= i) next.push({}); next[i] = { ...next[i], ...patch }; setResult(sessionId, { bets: next }); };
     const toggleBetGroup = (id: string) => { const next = chosenIds.includes(id) ? chosenIds.filter((x) => x !== id) : (chosenIds.length < 2 ? [...chosenIds, id] : chosenIds); setResult(sessionId, { ideaClusterIds: next, ideaClusterId: next[0] ?? "", idea: next[0] ? (clusters.find((c) => c.id === next[0])?.name ?? "") : "" }); };
+    // Hueco punteado: el espacio en blanco de la frase que se va completando en vivo.
+    const Gap = ({ w = 110 }: { w?: number }) => <span style={{ display: "inline-block", width: w, borderBottom: "2px dashed color-mix(in srgb, var(--st-proof) 55%, transparent)", verticalAlign: "baseline" }}>&nbsp;</span>;
     const BetCardFor = (i: number) => { const b = getBet(i); const grp = chosenGroups[i]; const acts = (b.actions ?? []).filter((a) => (a.text ?? "").trim()); return (
-      <div key={i} style={{ padding: "14px 16px", background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 30%, transparent)", borderRadius: "var(--r-md)" }}>
-        <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>{betSlots.length > 1 ? `Apuesta ${i + 1}` : "La apuesta"}{grp ? ` · ${grp.name}` : ""}</div>
-        <p style={{ fontSize: "var(--t-md)", lineHeight: 1.55 }}>Creemos que si <b style={{ color: "var(--green)" }}>{b.betIf || "…"}</b>, lograremos que <b style={{ color: "var(--st-proof)" }}>{b.betThen || "…"}</b>.</p>
+      <div key={i} style={{ padding: "16px 18px", background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 30%, transparent)", borderRadius: "var(--r-md)" }}>
+        <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 8 }}>{betSlots.length > 1 ? `Apuesta ${i + 1}` : "La apuesta"}{grp ? ` · ${grp.name}` : ""}</div>
+        <p style={{ fontSize: "var(--t-md)", lineHeight: 1.8 }}>
+          Creemos que si {b.betIf ? <b style={{ color: "var(--green)" }}>{b.betIf}</b> : <Gap w={150} />}, lograremos que {b.betThen ? <b style={{ color: "var(--st-proof)" }}>{b.betThen}</b> : <Gap w={150} />},
+          y lo vamos a ver en {b.signalMetric ? <b style={{ color: "var(--info)" }}>{b.signalMetric}</b> : <Gap w={110} />}{b.signalTarget ? <span> (meta <b style={{ color: "var(--info)" }}>{b.signalTarget}</b>)</span> : null}.
+        </p>
         {acts.length > 0 && <div style={{ marginTop: 10 }}><div className="eyebrow" style={{ marginBottom: 6 }}>Acciones · responsables</div><div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{acts.map((a, k) => <div key={k} style={{ fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 8 }}><Icon name="CheckSquare" size={14} style={{ color: "var(--st-proof)" }} /><span style={{ flex: 1 }}>{a.text}</span>{a.who && <span className="num" style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>{a.who}</span>}</div>)}</div></div>}
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10, fontSize: "var(--t-sm)" }}>
-          <span className="muted">Señal: <b style={{ color: "var(--ink-0)" }}>{b.signalMetric ? `${b.signalMetric}${b.signalTarget ? ` → ${b.signalTarget}` : ""}` : "—"}</b></span>
           {b.signalHow && <span className="muted">Cómo se mide: <b style={{ color: "var(--ink-0)" }}>{b.signalHow}</b></span>}
           <span className="muted">Plazo: <b style={{ color: "var(--ink-0)" }}>{b.deadline || "—"}</b></span>
         </div>
@@ -707,8 +711,24 @@ export default function SalaPage() {
     const BetEditorFor = (i: number) => { const b = getBet(i); const acts = b.actions ?? []; const grp = chosenGroups[i]; return (
       <div key={i} style={{ display: "flex", flexDirection: "column", gap: 12, border: betSlots.length > 1 ? "1px solid var(--line)" : undefined, borderRadius: "var(--r-lg)", padding: betSlots.length > 1 ? 14 : 0 }}>
         {betSlots.length > 1 && <div className="eyebrow" style={{ color: "var(--st-proof)" }}>Apuesta {i + 1}{grp ? ` · ${grp.name}` : ""}</div>}
-        <div><label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Creemos que si… <span className="faint">(acción)</span></label><textarea defaultValue={b.betIf || grp?.name || ""} onBlur={(e) => setBet(i, { betIf: e.target.value })} rows={2} placeholder="cerramos cada reunión con decisiones por escrito" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} /></div>
-        <div><label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>…lograremos que <span className="faint">(resultado)</span></label><textarea defaultValue={b.betThen} onBlur={(e) => setBet(i, { betThen: e.target.value })} rows={2} placeholder="el equipo avance sin volver a discutir lo mismo" style={{ ...field, resize: "vertical", fontFamily: "inherit" }} /></div>
+        {/* Mad-Libs: la frase se completa en los blancos, delante de todos. */}
+        {(() => {
+          const blank = (color: string): React.CSSProperties => ({ display: "inline-block", verticalAlign: "baseline", background: "transparent", border: "none", borderBottom: `2px dashed color-mix(in srgb, ${color} 60%, transparent)`, color, fontWeight: 700, fontSize: "inherit", fontFamily: "inherit", outline: "none", padding: "0 4px", maxWidth: "100%" });
+          return (
+            <div style={{ padding: "16px 18px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 26%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-md)", lineHeight: 2 }}>
+              <span>Creemos que si</span>
+              <input defaultValue={b.betIf || grp?.name || ""} onBlur={(e) => setBet(i, { betIf: e.target.value })} placeholder="hacemos este cambio concreto…" style={{ ...blank("var(--green)"), width: "auto", minWidth: 220, flex: 1 }} />
+              <span>, lograremos que</span>
+              <input defaultValue={b.betThen} onBlur={(e) => setBet(i, { betThen: e.target.value })} placeholder="pase este resultado…" style={{ ...blank("var(--st-proof)"), width: "auto", minWidth: 220 }} />
+              <span>, y lo vamos a ver en</span>
+              <input defaultValue={b.signalMetric} onBlur={(e) => setBet(i, { signalMetric: e.target.value })} placeholder="qué métrica…" style={{ ...blank("var(--info)"), width: "auto", minWidth: 140 }} />
+              <span> (meta</span>
+              <input defaultValue={b.signalTarget} onBlur={(e) => setBet(i, { signalTarget: e.target.value })} placeholder="de 30% a 80%" style={{ ...blank("var(--info)"), width: "auto", minWidth: 110 }} />
+              <span>).</span>
+            </div>
+          );
+        })()}
+        <input defaultValue={b.signalHow} onBlur={(e) => setBet(i, { signalHow: e.target.value })} placeholder="¿Cómo se mide? ¿Quién lo registra?" style={field} />
         <div>
           <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Acciones concretas · responsable</label>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -723,14 +743,6 @@ export default function SalaPage() {
               </div>
             ))}
             <Button size="sm" variant="secondary" icon="Plus" onClick={() => setBet(i, { actions: [...acts, { text: "", who: "" }] })}>Agregar acción</Button>
-          </div>
-        </div>
-        <div>
-          <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Señal medible</label>
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            <input defaultValue={b.signalMetric} onBlur={(e) => setBet(i, { signalMetric: e.target.value })} placeholder="Qué medimos (métrica)" style={field} />
-            <input defaultValue={b.signalTarget} onBlur={(e) => setBet(i, { signalTarget: e.target.value })} placeholder="Valor objetivo: de 30% a 80%" style={field} />
-            <input defaultValue={b.signalHow} onBlur={(e) => setBet(i, { signalHow: e.target.value })} placeholder="Cómo se mide / quién lo registra" style={field} />
           </div>
         </div>
         {riskCards.length > 0 && (
