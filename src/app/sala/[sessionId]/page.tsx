@@ -7,6 +7,7 @@ import { Logo } from "@/components/AppShell";
 import { Avatar, Bar, Button, Card, Pill } from "@/components/ui";
 import { SessionTimer } from "@/components/session/Timer";
 import { JoinModal } from "@/components/session/JoinModal";
+import { HiddenDots, Cascade, RevealHeader, RevealPop } from "@/components/session/RevealFx";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getInitiatives, getTeam } from "@/lib/repository";
 import { retroByKey } from "@/lib/retros";
@@ -726,7 +727,7 @@ export default function SalaPage() {
       sub = `¿Qué podríamos probar para mover "${subject}"? Tirá ideas a ciegas. Cantidad primero.`;
       content = (
         <Card pad={20}>
-          <div style={{ textAlign: "center", marginBottom: 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-proof)" }}>{ideaCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="Lock" size={12} /> ideas propuestas · ocultas</div></div>
+          <HiddenDots n={ideaCount} label="ideas en el aire · ocultas" color="var(--st-proof)" />
           {!isFacil && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input value={cardDraft.idea ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, idea: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addIdea()} placeholder="Una idea para probar…" style={field} />
             <Button icon="Plus" onClick={addIdea}>Sumar</Button>
@@ -737,7 +738,7 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || ideaCount === 0} onClick={fNext}>Revelar ideas ({ideaCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tus ideas. Se revelan todas juntas.</p>;
     } else if (step === "ideas_reveal") {
       sub = "Las ideas, a la vista. Después las agrupamos por tema.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron ideas.</p>}</div>;
+      content = <><RevealHeader n={ideaCards.length} label="ideas sobre la mesa" color="var(--st-proof)" /><Cascade>{ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</Cascade>{!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron ideas.</p>}</>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Agrupar ideas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa las ideas parecidas.</p>;
     } else if (step === "group") {
       wide = true; sub = isFacil ? "Juntá las ideas parecidas en grupos para puntuarlas mejor." : "El facilitador agrupa las ideas parecidas.";
@@ -821,7 +822,7 @@ export default function SalaPage() {
       sub = "Pre-mortem: imaginá que en 15 días la prueba fracasó. ¿Qué salió mal? (anónimo)";
       content = (
         <Card pad={20}>
-          <div style={{ textAlign: "center", marginBottom: 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--risk)" }}>{riskCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="Lock" size={12} /> riesgos anticipados · ocultos</div></div>
+          <HiddenDots n={riskCount} label="riesgos anticipados · ocultos" color="var(--risk)" />
           {!isFacil && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input value={cardDraft.risk ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, risk: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addRisk()} placeholder="Un riesgo o motivo de fracaso…" style={field} />
             <Button icon="Plus" onClick={addRisk}>Sumar</Button>
@@ -832,7 +833,7 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={fNext}>Revelar riesgos ({riskCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Anticipá qué podría salir mal. Se revelan juntos.</p>;
     } else if (step === "premortem_reveal") {
       sub = "Los riesgos anticipados. El facilitador los tiene en cuenta al diseñar la apuesta.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{riskCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!riskCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin riesgos señalados.</p>}</div>;
+      content = <><RevealHeader n={riskCards.length} label="riesgos sobre la mesa" color="var(--risk)" /><Cascade>{riskCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</Cascade>{!riskCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin riesgos señalados.</p>}</>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Diseñar la apuesta</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador diseña la apuesta con el equipo.</p>;
     } else if (step === "bet") {
       wide = betSlots.length > 1; sub = betSlots.length > 1 ? "Las apuestas del equipo. El facilitador las escribe; todos las ven." : "La apuesta del equipo. El facilitador la escribe; todos la ven en vivo.";
@@ -1018,7 +1019,7 @@ export default function SalaPage() {
       sub = "¿Qué aprendimos? Lo que nos llevamos, sirva o no la prueba. Se escriben a ciegas.";
       content = (
         <Card pad={20}>
-          <div style={{ textAlign: "center", marginBottom: 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-learn)" }}>{learnCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="Lock" size={12} /> aprendizajes · ocultos</div></div>
+          <HiddenDots n={learnCount} label="aprendizajes · ocultos" color="var(--st-learn)" />
           {!isFacil && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input value={cardDraft.learning ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, learning: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addLearning()} placeholder="Un aprendizaje…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
             <Button icon="Plus" onClick={addLearning}>Sumar</Button>
@@ -1029,7 +1030,7 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || learnCount === 0} onClick={fNext}>Revelar aprendizajes ({learnCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tu aprendizaje. Se revelan todos juntos.</p>;
     } else if (step === "learnings_reveal") {
       sub = "Lo que se lleva el equipo. Después agrupamos y votamos los más importantes.";
-      content = <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{learnCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}{!learnCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin aprendizajes.</p>}</div>;
+      content = <><RevealHeader n={learnCards.length} label="aprendizajes del equipo" color="var(--st-learn)" /><Cascade>{learnCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</Cascade>{!learnCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin aprendizajes.</p>}</>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Agrupar aprendizajes</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa los aprendizajes.</p>;
     } else if (step === "group") {
       wide = true; sub = isFacil ? "Agrupá los aprendizajes parecidos. Después se votan los más importantes." : "El facilitador agrupa los aprendizajes.";
@@ -1184,6 +1185,7 @@ export default function SalaPage() {
             <button onClick={() => setAnon((a) => !a)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--card)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name={anon ? "Lock" : "Globe"} size={15} style={{ color: anon ? "var(--ink-2)" : "var(--green)" }} />Tus tarjetas: <b style={{ color: anon ? "var(--ink-1)" : "var(--green)" }}>{anon ? "Anónimas" : "Públicas"}</b><span className="faint" style={{ fontSize: "var(--t-xs)" }}>(tocá para cambiar)</span></button>
           </div>
         )}
+        <HiddenDots n={totalCards} label="cosas dichas · ocultas hasta revelar" color="var(--st-explore)" />
         <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>{COLS.map((col) => { const mine = myCards.filter((c) => c.columnKey === col.key); const n = counts[col.key] ?? 0; return (
           <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 14, display: "flex", flexDirection: "column", minHeight: 240 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><span style={{ color: col.color }}><Icon name={col.icon} size={16} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{col.label}</span><span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "2px 8px" }} title="escritas · ocultas">🔒 {n}</span></div>
@@ -1199,7 +1201,7 @@ export default function SalaPage() {
     controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || totalCards === 0} onClick={goNext}>Revelar tarjetas ({totalCards})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tus tarjetas. El facilitador las revela cuando todos terminen.</p>;
   } else if (step === "cards_reveal") {
     wide = true; sub = "Todas las tarjetas a la vista. Las anónimas no muestran autor.";
-    content = RevealedCards;
+    content = <><RevealHeader n={totalCards} label="cosas que estaban en el aire" color="var(--st-explore)" /><RevealPop>{RevealedCards}</RevealPop></>;
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: agrupar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa las tarjetas en tensiones.</p>;
   } else if (step === "cluster") {
     wide = true; sub = isFacil ? "Juntá las tarjetas que hablan de lo mismo. Seleccioná varias y armá una tensión." : "El facilitador agrupa las tarjetas en tensiones. Mirá cómo se arman.";
@@ -1344,14 +1346,14 @@ export default function SalaPage() {
     wide = true;
     const n = counts["cause"] ?? 0;
     sub = "¿Por qué pasa? Cada uno suma causas posibles (anónimas, ocultas hasta revelar). Van a Foco para elegir cuál atacar.";
-    content = MultiWrite(CAUSE_COLS, "var(--st-focus)", !isFacil);
+    content = <><HiddenDots n={counts["cause"] ?? 0} label="causas posibles · ocultas" color="var(--st-focus)" />{MultiWrite(CAUSE_COLS, "var(--st-focus)", !isFacil)}</>;
     controls = isFacil
       ? <Button full size="lg" icon="Eye" disabled={busy || n === 0} onClick={goNext}>Revelar causas ({n})</Button>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá las causas que veas. El facilitador las revela cuando todos terminen.</p>;
   } else if (step === "causes_reveal") {
     wide = true;
     sub = "Todas las causas a la vista. En Foco van a priorizarlas por impacto y esfuerzo.";
-    content = MultiReveal(CAUSE_COLS);
+    content = <><RevealHeader n={allCards.filter((c) => c.columnKey === "cause").length} label="causas posibles" color="var(--st-focus)" /><RevealPop>{MultiReveal(CAUSE_COLS)}</RevealPop></>;
     controls = isFacil
       ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: cerrar</Button>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Quedan registradas para la etapa de Foco.</p>;
