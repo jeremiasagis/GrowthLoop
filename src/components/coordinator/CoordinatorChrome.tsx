@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Logo } from "@/components/AppShell";
 import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 export function CoordinatorChrome({ children }: { children: ReactNode }) {
@@ -25,6 +26,7 @@ export function CoordinatorChrome({ children }: { children: ReactNode }) {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <ThemeToggle compact />
           <RoleSwitcher compact />
           <button onClick={doLogout} title="Cerrar sesión"
             style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "var(--ink-2)", padding: "7px 10px", borderRadius: "var(--r-md)", border: "1px solid var(--line)", fontSize: "var(--t-sm)", fontWeight: 600 }}

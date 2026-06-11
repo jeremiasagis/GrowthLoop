@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Avatar } from "@/components/ui";
 import { Logo } from "@/components/AppShell";
 import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
@@ -32,6 +33,7 @@ function MemberFooter() {
         <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name ?? "Miembro"}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--warning)", flex: "none" }} /><span className="muted" style={{ fontSize: "var(--t-xs)" }}>Miembro</span></div>
       </div>
+      <ThemeToggle compact />
       <button onClick={doLogout} title="Cerrar sesión" style={{ color: "var(--ink-2)", padding: 8, borderRadius: "var(--r-md)", display: "inline-flex", flex: "none" }}
         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.color = "var(--risk)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-2)"; }}>

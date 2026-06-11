@@ -7,6 +7,7 @@ import { homeFor } from "@/lib/auth/access";
 import { GrowthMark, Logo } from "@/components/AppShell";
 import { Button, Card } from "@/components/ui";
 import { Icon } from "@/components/icon";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { STAGES, type StageKey } from "@/lib/data";
 
 // ⚠️ Reemplazar por el número real (formato internacional sin +, ej: 5491122334455)
@@ -75,6 +76,7 @@ export default function Home() {
         <Section style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px" }}>
           <Logo />
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <ThemeToggle compact />
             <a href={waLink} target="_blank" rel="noreferrer" className="hide-sm">
               <Button variant="secondary" icon="MessageCircle">Hablar con nosotros</Button>
             </a>

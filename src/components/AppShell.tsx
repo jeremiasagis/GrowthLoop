@@ -8,6 +8,7 @@ import { Avatar, Button } from "./ui";
 import { ROLES, type RoleKey } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { RoleSwitcher } from "./auth/RoleSwitcher";
+import { ThemeToggle } from "./ThemeToggle";
 
 /* ── Brand mark: a continuous loop with a moving node ─────── */
 export function GrowthMark({ size = 26 }: { size?: number }) {
@@ -95,6 +96,7 @@ function UserFooter() {
           </div>
         </div>
       </button>
+      <ThemeToggle compact />
       <button onClick={doLogout} title="Cerrar sesión"
         style={{ color: "var(--ink-2)", padding: 8, borderRadius: "var(--r-md)", display: "inline-flex", flex: "none" }}
         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.color = "var(--risk)"; }}

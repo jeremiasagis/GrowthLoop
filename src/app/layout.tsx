@@ -29,6 +29,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <head>
+        {/* Tema día/noche: aplica la preferencia guardada antes de pintar (default = día). */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('gl-theme')==='dark')document.documentElement.dataset.theme='dark';}catch(e){}` }} />
+      </head>
       <body>
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
