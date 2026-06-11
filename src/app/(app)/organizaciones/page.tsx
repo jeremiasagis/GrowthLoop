@@ -10,7 +10,7 @@ import {
 } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
-import { type Facilitator, type Org, type Team } from "@/lib/data";
+import { teamLiveStage, type Facilitator, type Org, type Team } from "@/lib/data";
 
 /* ── Tarjeta rica de equipo (vista del facilitador) ───────── */
 function TeamRichCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
@@ -26,7 +26,7 @@ function TeamRichCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
           <div style={{ fontWeight: 700, fontSize: "var(--t-md)", letterSpacing: "-0.01em" }}>{team.name}</div>
           <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{team.area || "—"}</div>
         </button>
-        <StageBadge stage={team.stage} size="sm" />
+        <StageBadge stage={teamLiveStage(team) ?? "queue"} size="sm" />
       </div>
 
       {/* iniciativa activa */}
@@ -244,7 +244,7 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
             <button key={t.id} onClick={() => onOpenTeam(t.id)}
               style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderRadius: "var(--r-sm)", textAlign: "left", background: "var(--card)", border: "1px solid var(--line)" }}>
               <span style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{t.name}</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}><StageBadge stage={t.stage} size="sm" /><span className="faint"><Icon name="ChevronRight" size={14} /></span></span>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}><StageBadge stage={teamLiveStage(t) ?? "queue"} size="sm" /><span className="faint"><Icon name="ChevronRight" size={14} /></span></span>
             </button>
           ))}
         </div>
@@ -493,7 +493,7 @@ export default function OrganizacionesPage() {
                     >
                       <span style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{t.name}</span>
                       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <StageBadge stage={t.stage} size="sm" />
+                        <StageBadge stage={teamLiveStage(t) ?? "queue"} size="sm" />
                         <span className="faint"><Icon name="ChevronRight" size={15} /></span>
                       </span>
                     </button>

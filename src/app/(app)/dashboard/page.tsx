@@ -5,13 +5,13 @@ import { Icon } from "@/components/icon";
 import {
   Avatar, AvatarStack, Button, Card, EmptyState, SectionTitle, Sparkline, StageBadge, Stat,
 } from "@/components/ui";
-import { STAGES, type Team } from "@/lib/data";
+import { STAGES, teamLiveStage, type Team } from "@/lib/data";
 import { getFacilitators, getTeams } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ── Team card ────────────────────────────────────────────── */
 function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
-  const st = STAGES[team.stage];
+  const st = STAGES[teamLiveStage(team) ?? "queue"];
   const pulseSeries = team.pulse.map((p) =>
     Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5)
   );
@@ -27,7 +27,7 @@ function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
           </div>
           <div style={{ fontWeight: 700, fontSize: "var(--t-md)", letterSpacing: "-0.01em" }}>{team.name}</div>
         </div>
-        <StageBadge stage={team.stage} size="sm" />
+        <StageBadge stage={teamLiveStage(team) ?? "queue"} size="sm" />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
@@ -146,8 +146,10 @@ export default function DashboardPage() {
     }
   }
   // Actividad reciente real (últimas sesiones registradas de todos los equipos).
+  // Los ids llevan timestamp en base36 ("s" + Date.now().toString(36) + …): ordenan cross-equipo.
   const recent = teams
     .flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, teamName: t.name, teamId: t.id })))
+    .sort((a, b) => b.id.localeCompare(a.id))
     .slice(0, 6);
 
   return (
@@ -155,7 +157,7 @@ export default function DashboardPage() {
       {/* header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
         <div>
-          <div className="eyebrow" style={{ marginBottom: 6 }}>Viernes · 5 de junio, 2026</div>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>{new Date().toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
           <h1 style={{ fontSize: "var(--t-3xl)", fontWeight: 800, letterSpacing: "-0.03em" }}>Buen día, {firstName}</h1>
           <p className="muted" style={{ marginTop: 4 }}>{subtitle}</p>
         </div>

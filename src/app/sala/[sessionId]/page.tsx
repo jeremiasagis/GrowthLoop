@@ -98,10 +98,23 @@ export default function SalaPage() {
   const [now, setNow] = useState(() => Date.now());
   const [voteBusy, setVoteBusy] = useState(false);
   const sessionId = params.sessionId;
+  // Resultado "más fresco que el poll": evita que dos ediciones seguidas (< 2s) se pisen
+  // entre sí — cada patch local se acumula acá y los setters leen de este ref, no del estado.
+  const resultRef = useRef<Record<string, unknown>>({});
+  const patchResult = (partial: Record<string, unknown>) => {
+    resultRef.current = { ...resultRef.current, ...partial };
+    setResult(sessionId, partial);
+  };
+  // Input con feedback inmediato: escribe y recarga al toque (sin esperar el poll de 2s).
+  const tapInput = async (key: string, value: Record<string, unknown>, isPrivate = false) => {
+    await setMyInput(sessionId, key, value, isPrivate);
+    load();
+  };
 
   const load = async () => {
     const s = await getSession(sessionId);
     setSession(s);
+    if (s) resultRef.current = { ...s.result, ...resultRef.current };
     if (s) {
       const [r, p, c, cl, v] = await Promise.all([
         getPulseResponses(sessionId), getParticipants(sessionId), getCardCounts(sessionId),
@@ -110,7 +123,9 @@ export default function SalaPage() {
       setResponses(r); setParticipants(p); setCounts(c); setClusters(cl); setVotes(v);
       setInputs(await getInputs(sessionId));
       if (user) { touchPresence(sessionId); setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "group", "matrix", "deepen", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "blockers_reveal", "learnings_reveal", "ice", "problems_reveal", "rate", "funnel_reveal", "funnel_vote", "risks_reveal", "mitigate", "plan", "process_reveal", "adjust", "answers_reveal", "decide", "perceptions_reveal", "gap", "relations_reveal"].includes(s.stepKey ?? "");
+      // Pasos que necesitan TODAS las tarjetas reveladas ("bet"/"commit" incluidos: el editor
+      // de la apuesta usa los riesgos del pre-mortem para las mitigaciones).
+      const needsAll = ["cards_reveal", "cluster", "vote", "close", "group", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "learnings_reveal", "ice", "bet", "commit"].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -181,14 +196,21 @@ export default function SalaPage() {
   const flowVotes: Record<string, number> = {};
   inputs.forEach((i) => { if (i.key === "critical") { const s = (i.value as { stage?: string })?.stage; if (s) flowVotes[s] = (flowVotes[s] ?? 0) + 1; } });
   const flowRanked = [...FLOW_COLS].sort((a, b) => (flowVotes[b.key] ?? 0) - (flowVotes[a.key] ?? 0));
-  const criticalStage = (session.result.critical as string) || flowRanked[0]?.key;
+  const flowHasVotes = Object.values(flowVotes).some((n) => n > 0);
+  // Sin votos no se inventa una "etapa crítica" (p.ej. si el facilitador saltó la fase Flujo).
+  const criticalStage = (session.result.critical as string) || (flowHasVotes ? flowRanked[0]?.key : undefined);
   const criticalMeta = FLOW_COLS.find((f) => f.key === criticalStage);
   const myCritical = (inputs.find((i) => i.userId === user.id && i.key === "critical")?.value as { stage?: string })?.stage;
   // Si el facilitador sale de una sesión en vivo (sin haberla cerrado), la cerramos:
   // no hay nadie conduciendo, así que deja de estar "iniciada" para los miembros.
+  const leave = () => router.push(isFacil ? `/equipos/${session.teamId}` : "/member");
   const exit = () => {
-    if (isFacil && session.status === "live") { closeSession(sessionId); }
-    router.push(isFacil ? `/equipos/${session.teamId}` : "/member");
+    if (isFacil && session.status === "live") {
+      // Un click accidental en la X no debería matar la sesión de todo el equipo.
+      if (!window.confirm("¿Cerrar la sesión para todo el equipo? Lo que no se guardó en la iniciativa se pierde.")) return;
+      closeSession(sessionId);
+    }
+    leave();
   };
 
   if (closed) {
@@ -262,26 +284,6 @@ export default function SalaPage() {
           </div>
         );
       })}
-    </div>
-  );
-
-  const ClustersView = (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px,1fr))", gap: 12 }}>
-      {clusters.map((cl) => (
-        <Card key={cl.id} pad={14}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <span style={{ color: "var(--green)" }}><Icon name="Layers" size={16} /></span>
-            <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>
-            <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>{cardsOf(cl.id).length}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {cardsOf(cl.id).map((c) => { const cm = colMeta(c.columnKey); return (
-              <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "6px 8px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: `2px solid ${cm.color}` }}>{c.text}</div>
-            ); })}
-          </div>
-        </Card>
-      ))}
-      {!clusters.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>El facilitador está agrupando las tarjetas en tensiones…</p>}
     </div>
   );
 
@@ -428,7 +430,7 @@ export default function SalaPage() {
       setBusy(true);
       const contract = { answers, signedBy: [...signerIds], signedNames: signerNames, date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) };
       await finalizeSession(session, { summaryText: `Contrato firmado por ${signerIds.size}`, teamData: { contract } });
-      setBusy(false); exit();
+      setBusy(false); leave();
     };
     const QuestionCards = (editable: boolean) => (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -440,7 +442,7 @@ export default function SalaPage() {
                 <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{q.q}</div>
                 <div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 8 }}>{q.hint}</div>
                 {editable
-                  ? <textarea defaultValue={answers[q.key] ?? ""} onBlur={(e) => setResult(sessionId, { answers: { ...answers, [q.key]: e.target.value.trim() } })} rows={2} placeholder="El acuerdo del equipo…" style={taF} />
+                  ? <textarea defaultValue={answers[q.key] ?? ""} onBlur={(e) => patchResult({ answers: { ...((resultRef.current.answers as Record<string, string>) ?? {}), [q.key]: e.target.value.trim() } })} rows={2} placeholder="El acuerdo del equipo…" style={taF} />
                   : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, color: answers[q.key] ? "var(--ink-0)" : "var(--ink-3)" }}>{answers[q.key] || "Definiendo en equipo…"}</p>}
               </div>
             </div>
@@ -479,7 +481,7 @@ export default function SalaPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {iSigned
             ? <div style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="CircleCheck" size={20} /> Firmaste el contrato</div>
-            : <Button full size="lg" icon="PenLine" disabled={busy} onClick={() => setMyInput(sessionId, "sign", { ok: true })}>Firmo este contrato</Button>}
+            : <Button full size="lg" icon="PenLine" disabled={busy} onClick={() => tapInput("sign", { ok: true })}>Firmo este contrato</Button>}
           {isFacil && <Button full size="lg" variant={iSigned ? "primary" : "secondary"} icon="Check" disabled={busy || signerIds.size === 0} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar el contrato"}</Button>}
           {!isFacil && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}>El facilitador cierra cuando estén las firmas.</p>}
         </div>
@@ -513,7 +515,7 @@ export default function SalaPage() {
     const ieFor = (id: string) => inputs.filter((i) => i.key === `ie:${id}`).map((i) => i.value as { impact?: number; effort?: number });
     const avgIE = (id: string): { impact: number; effort: number; n: number } | null => { const xs = ieFor(id); if (!xs.length) return null; const im = xs.reduce((a, v) => a + (v.impact ?? 0), 0) / xs.length; const ef = xs.reduce((a, v) => a + (v.effort ?? 0), 0) / xs.length; return { impact: im, effort: ef, n: xs.length }; };
     const myIE = (id: string) => inputs.find((i) => i.userId === user.id && i.key === `ie:${id}`)?.value as { impact?: number; effort?: number } | undefined;
-    const setMyIE = (id: string, patch: Record<string, number>) => { const cur = myIE(id) ?? {}; setMyInput(sessionId, `ie:${id}`, { ...cur, ...patch }); };
+    const setMyIE = (id: string, patch: Record<string, number>) => { const cur = myIE(id) ?? {}; tapInput(`ie:${id}`, { ...cur, ...patch }); };
     const raters = new Set(inputs.filter((i) => i.key.startsWith("ie:")).map((i) => i.voterKey)).size;
     const scored = causes.map((c) => { const a = avgIE(c.id); return { ...c, ie: a, score: a ? a.impact - a.effort : -99 }; }).sort((x, y) => y.score - x.score);
     const chosen = chosenIdx != null ? causes[chosenIdx] : undefined;
@@ -524,7 +526,7 @@ export default function SalaPage() {
         pulseAvg: avg, summaryText: `Causa elegida: ${chosen?.text ?? "—"}`,
         dataKey: "focus", dataValue: { cause: chosen?.text ?? "", rootCause: chosen?.text ?? "", causes: exploreCauses },
       });
-      setBusy(false); exit();
+      setBusy(false); leave();
     };
 
     // Paleta por causa (para el mapa y las etiquetas).
@@ -691,14 +693,13 @@ export default function SalaPage() {
     // ── Apuestas (1 o 2 en paralelo) ──
     type Bet = { betIf?: string; betThen?: string; signalMetric?: string; signalTarget?: string; signalHow?: string; deadline?: string; actions?: { text: string; who: string }[]; mitig?: Record<string, string> };
     const chosenIds = (((R.ideaClusterIds as string[]) ?? ((R.ideaClusterId as string) ? [R.ideaClusterId as string] : [])) as string[]).slice(0, 2);
-    const chosenId = chosenIds[0] ?? "";
     const chosenGroups = chosenIds.map((id) => clusters.find((c) => c.id === id)).filter(Boolean) as SessionCluster[];
     const betSlots = chosenGroups.length ? chosenGroups : ([null] as (SessionCluster | null)[]);
     const bets = (R.bets as Bet[]) ?? [];
     const getBet = (i: number): Bet => bets[i] ?? {};
-    const betThen = getBet(0).betThen ?? "";
-    const setBet = (i: number, patch: Bet) => { const next = bets.map((b) => ({ ...b })); while (next.length <= i) next.push({}); next[i] = { ...next[i], ...patch }; setResult(sessionId, { bets: next }); };
-    const toggleBetGroup = (id: string) => { const next = chosenIds.includes(id) ? chosenIds.filter((x) => x !== id) : (chosenIds.length < 2 ? [...chosenIds, id] : chosenIds); setResult(sessionId, { ideaClusterIds: next, ideaClusterId: next[0] ?? "", idea: next[0] ? (clusters.find((c) => c.id === next[0])?.name ?? "") : "" }); };
+    // Los setters leen del ref (lo más fresco) para que dos ediciones seguidas no se pisen.
+    const setBet = (i: number, patch: Bet) => { const cur = ((resultRef.current.bets as Bet[]) ?? []).map((b) => ({ ...b })); while (cur.length <= i) cur.push({}); cur[i] = { ...cur[i], ...patch }; patchResult({ bets: cur }); };
+    const toggleBetGroup = (id: string) => { const curIds = (((resultRef.current.ideaClusterIds as string[]) ?? chosenIds) as string[]).slice(0, 2); const next = curIds.includes(id) ? curIds.filter((x) => x !== id) : (curIds.length < 2 ? [...curIds, id] : curIds); patchResult({ ideaClusterIds: next, ideaClusterId: next[0] ?? "", idea: next[0] ? (clusters.find((c) => c.id === next[0])?.name ?? "") : "" }); };
     // Hueco punteado: el espacio en blanco de la frase que se va completando en vivo.
     const Gap = ({ w = 110 }: { w?: number }) => <span style={{ display: "inline-block", width: w, borderBottom: "2px dashed color-mix(in srgb, var(--st-proof) 55%, transparent)", verticalAlign: "baseline" }}>&nbsp;</span>;
     const BetCardFor = (i: number) => { const b = getBet(i); const grp = chosenGroups[i]; const acts = (b.actions ?? []).filter((a) => (a.text ?? "").trim()); return (
@@ -777,7 +778,7 @@ export default function SalaPage() {
       const betsOut = betSlots.map((g, i) => { const b = getBet(i); const mit = riskCards.map((rk) => ({ risk: rk.text, plan: (b.mitig ?? {})[rk.id] ?? "" })).filter((m) => m.plan.trim()); return { name: g?.name ?? "", betIf: b.betIf ?? "", betThen: b.betThen ?? "", signalMetric: b.signalMetric ?? "", signalTarget: b.signalTarget ?? "", signalHow: b.signalHow ?? "", deadline: b.deadline ?? "", actions: (b.actions ?? []).filter((a) => (a.text ?? "").trim()), mitigations: mit }; });
       const b0 = betsOut[0] ?? { name: "", betIf: "", betThen: "", signalMetric: "", signalTarget: "", signalHow: "", deadline: "", actions: [] as { text: string; who: string }[], mitigations: [] as { risk: string; plan: string }[] };
       await finalizeSession(session, { pulseAvg: avg, cardCount: ideaCards.length, summaryText: `Apuesta: ${b0.betThen || "—"}`, dataKey: "proof", dataValue: { idea: b0.name, bets: betsOut, betIf: b0.betIf, betThen: b0.betThen, signal: b0.signalMetric ? `${b0.signalMetric}${b0.signalTarget ? ` → ${b0.signalTarget}` : ""}` : "", signalMetric: b0.signalMetric, signalTarget: b0.signalTarget, signalHow: b0.signalHow, responsible: b0.actions[0]?.who || "", actions: b0.actions, deadline: b0.deadline, risks: riskCards.map((c) => c.text), mitigations: b0.mitigations, committed: confirmCount, secondaryIdeas: secondary } });
-      setBusy(false); exit();
+      setBusy(false); leave();
     };
     const proofReminder = (rootNote || tensionNote) ? (
       <div style={{ padding: "9px 12px", background: "color-mix(in srgb, var(--st-focus) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -941,7 +942,7 @@ export default function SalaPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {iConfirmed
             ? <div style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="CircleCheck" size={20} /> Te comprometiste con la prueba</div>
-            : <Button full size="lg" icon="Check" disabled={busy} onClick={() => setMyInput(sessionId, "confirm", { ok: true })}>Me comprometo a llevar adelante estas acciones</Button>}
+            : <Button full size="lg" icon="Check" disabled={busy} onClick={() => tapInput("confirm", { ok: true })}>Me comprometo a llevar adelante estas acciones</Button>}
           {isFacil && <Button full size="lg" variant={iConfirmed ? "primary" : "secondary"} icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button>}
         </div>
       );
@@ -1032,13 +1033,13 @@ export default function SalaPage() {
         dataKey: "learn", dataValue: { result: overallResult, results, decision: overallDecision, decisions, achieved, learnings: learnCards.map((c) => c.text), highlights: ranked.map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })).filter((h) => h.votes > 0) },
         noAdvance: true, status: anyIterate ? "active" : "done", stageOverride: anyIterate ? "proof" : undefined,
       });
-      setBusy(false); exit();
+      setBusy(false); leave();
     };
     const results = (R.results as string[]) ?? (resultKey ? [resultKey] : []);
     const decisions = (R.decisions as string[]) ?? (decision ? [decision] : []);
-    const setArr = (which: "results" | "decisions", i: number, val: string) => { const arr = (which === "results" ? results : decisions).slice(); while (arr.length <= i) arr.push(""); arr[i] = val; setResult(sessionId, { [which]: arr }); };
+    const setArr = (which: "results" | "decisions", i: number, val: string) => { const arr = (((resultRef.current[which] as string[]) ?? (which === "results" ? results : decisions))).slice(); while (arr.length <= i) arr.push(""); arr[i] = val; patchResult({ [which]: arr }); };
     const achieved = (R.achieved as string[]) ?? [];
-    const setAchieved = (i: number, val: string) => { const arr = achieved.slice(); while (arr.length <= i) arr.push(""); arr[i] = val; setResult(sessionId, { achieved: arr }); };
+    const setAchieved = (i: number, val: string) => { const arr = (((resultRef.current.achieved as string[]) ?? achieved)).slice(); while (arr.length <= i) arr.push(""); arr[i] = val; patchResult({ achieved: arr }); };
     // "Dial" de veredicto: la opción elegida brilla y crece; las demás se apagan.
     const PickRow = (opts: { k: string; l: string; c: string; i: string; d?: string }[], value: string, onPick: (k: string) => void, editable = true) => (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
@@ -1111,7 +1112,7 @@ export default function SalaPage() {
         <Card pad={24}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: "var(--st-learn)" }}><Icon name="Lock" size={16} /><span className="eyebrow" style={{ color: "var(--st-learn)" }}>Tu reflexión privada</span></div>
           <textarea defaultValue={myRef} onBlur={(e) => setMyInput(sessionId, "reflection", { text: e.target.value }, true)} rows={5} placeholder="¿Qué aprendí sobre cómo trabajo? ¿Qué quiero hacer distinto la próxima? ¿Cómo me siento con el equipo?" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-base)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
-          <Button full icon={reflected ? "Check" : "Lock"} variant={reflected ? "secondary" : "primary"} onClick={() => setMyInput(sessionId, "reflected", { ok: true })} style={{ marginTop: 12 }}>{reflected ? "Guardado en privado" : "Guardar mi reflexión"}</Button>
+          <Button full icon={reflected ? "Check" : "Lock"} variant={reflected ? "secondary" : "primary"} onClick={() => tapInput("reflected", { ok: true })} style={{ marginTop: 12 }}>{reflected ? "Guardado en privado" : "Guardar mi reflexión"}</Button>
           <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>Nadie más —ni el facilitador— puede leer esto.</p>
         </Card>
       );
@@ -1287,7 +1288,7 @@ export default function SalaPage() {
         : undefined,
       pausedNames: hasClusters ? ranked.slice(1).map((c) => c.name) : undefined,
     });
-    setBusy(false); exit();
+    setBusy(false); leave();
   };
   const submitMyPulse = async () => { setBusy(true); const res = await submitPulse(sessionId, draft); setBusy(false); if (!res.error) setSubmitted(true); };
   const addExploreCard = async (colKey: string) => { const text = (cardDraft[colKey] ?? "").trim(); if (!text) return; await addCard(sessionId, colKey, text, anon); setCardDraft((d) => ({ ...d, [colKey]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
@@ -1473,7 +1474,7 @@ export default function SalaPage() {
       <>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {FLOW_COLS.map((f) => { const on = !isFacil && myCritical === f.key; return (
-            <button key={f.key} onClick={() => { if (!isFacil) setMyInput(sessionId, "critical", { stage: f.key }); }} disabled={isFacil} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}`, cursor: isFacil ? "default" : "pointer" }}>
+            <button key={f.key} onClick={() => { if (!isFacil) tapInput("critical", { stage: f.key }); }} disabled={isFacil} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: "var(--r-md)", background: on ? "color-mix(in srgb, var(--st-explore) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-explore)" : "var(--line)"}`, cursor: isFacil ? "default" : "pointer" }}>
               <span style={{ color: on ? "var(--st-explore)" : f.color }}><Icon name={on ? "CircleCheck" : f.icon} size={17} /></span>
               <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{f.label}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>{f.sub}</div></div>
             </button>

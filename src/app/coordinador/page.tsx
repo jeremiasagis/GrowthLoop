@@ -4,7 +4,7 @@ import { Icon } from "@/components/icon";
 import { AvatarStack, Card, EmptyState, Pill, Sparkline, StageBadge, Stat } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getOrg, getTeams } from "@/lib/repository";
-import type { Team } from "@/lib/data";
+import { teamLiveStage, type Team } from "@/lib/data";
 
 function avgPulse(t: Team): number | null {
   if (!t.pulse.length) return null;
@@ -23,7 +23,7 @@ function ReadTeamCard({ team }: { team: Team }) {
           <div style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>{team.name}</div>
           <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{team.area || "—"}</div>
         </div>
-        <StageBadge stage={team.stage} size="sm" />
+        <StageBadge stage={teamLiveStage(team) ?? "queue"} size="sm" />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
         <span style={{ color: focusInit ? "var(--st-proof)" : "var(--ink-3)", display: "inline-flex" }}><Icon name="Target" size={16} /></span>

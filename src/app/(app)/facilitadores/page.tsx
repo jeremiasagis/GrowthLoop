@@ -6,7 +6,7 @@ import { Icon } from "@/components/icon";
 import { Avatar, Button, Card, CopyLink, EmptyState, Pill, StageBadge } from "@/components/ui";
 import { createInvitation, deleteFacilitator, getFacilitators, getOrg, getOrgs, getTeams, inviteFacilitator } from "@/lib/repository";
 import { useToast } from "@/components/Toast";
-import type { Facilitator } from "@/lib/data";
+import { teamLiveStage, type Facilitator } from "@/lib/data";
 
 function MiniStat({ value, label, color, border }: { value: React.ReactNode; label: string; color?: string; border?: boolean }) {
   return (
@@ -217,7 +217,7 @@ export default function FacilitadoresPage() {
                         onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--line-2)")}
                         onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--line)")}>
                         <span style={{ fontSize: "var(--t-sm)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</span>
-                        <span style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}><StageBadge stage={t.stage} size="sm" /><span className="faint"><Icon name="ChevronRight" size={15} /></span></span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}><StageBadge stage={teamLiveStage(t) ?? "queue"} size="sm" /><span className="faint"><Icon name="ChevronRight" size={15} /></span></span>
                       </button>
                     ))}
                   </div>

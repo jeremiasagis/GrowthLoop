@@ -11,7 +11,7 @@ import {
   createInitiative, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
   setInitiativeStage, setInitiativeStatus, setTeamCadence, setTeamObjective, updateInitiative,
 } from "@/lib/repository";
-import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
+import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, teamLiveStage, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { createLiveSession } from "@/lib/session";
@@ -475,7 +475,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
           {isFacil && <Button icon="Plus" onClick={newInitiative}>Nueva iniciativa</Button>}
         </div>
 
-        {isFacil && <ObjetivoCard teamId={team.id} objective={objective} isFacil={isFacil} onSaved={refresh} />}
+        <ObjetivoCard teamId={team.id} objective={objective} isFacil={isFacil} onSaved={refresh} />
 
         {isFacil && (() => {
           const membersDone = team.members.length > 0;
@@ -662,7 +662,7 @@ export default function TeamPage() {
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>{team.name}</h1>
-            <StageBadge stage={team.stage} />
+            <StageBadge stage={teamLiveStage(team) ?? "queue"} />
           </div>
           <p className="muted" style={{ marginTop: 6, maxWidth: 560, display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="Quote" size={15} /> {team.purpose}

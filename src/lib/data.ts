@@ -37,6 +37,14 @@ export const STAGE_ORDER: StageKey[] = [
 // Las etapas que recorre una iniciativa (el ciclo de mejora, en orden).
 export const CYCLE_STAGES: StageKey[] = ["explore", "focus", "proof", "learn"];
 
+/** Etapa "viva" del equipo: la más avanzada entre sus iniciativas activas.
+ *  (teams.stage quedó del modelo viejo y nunca se actualiza — no usarla para mostrar.) */
+export function teamLiveStage(t: { initiatives?: { stage: StageKey; status: string }[] }): StageKey | undefined {
+  const act = (t.initiatives ?? []).filter((i) => i.status === "active");
+  if (!act.length) return undefined;
+  return act.reduce((best, i) => (CYCLE_STAGES.indexOf(i.stage) > CYCLE_STAGES.indexOf(best.stage) ? i : best)).stage;
+}
+
 // The 5-stage guided process used by the session stepper
 export const PROCESS = [
   { id: 0, key: "contract", label: "Contratación", sub: "Facilitador + líder" },

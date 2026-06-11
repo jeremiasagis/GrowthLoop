@@ -194,6 +194,9 @@ export async function submitPulse(sessionId: string, r: PulseResponse): Promise<
 export async function setStep(sessionId: string, stepKey: string, stepIndex: number): Promise<void> {
   const supabase = getSupabaseBrowserClient();
   await supabase.from("sessions").update({ step_key: stepKey, step_index: stepIndex }).eq("id", sessionId);
+  // El timer es por paso: al avanzar/retroceder se apaga (evita timers huérfanos
+  // que siguen tickeando y re-renderizando la sala para siempre).
+  await supabase.rpc("merge_session_result", { p_session_id: sessionId, p_patch: { timer: null } });
 }
 
 /** Mergea valores en el resultado vivo de la sesión (atómico en el servidor; lo ven todos por Realtime). */

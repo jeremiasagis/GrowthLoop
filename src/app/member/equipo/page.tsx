@@ -4,7 +4,7 @@ import { Icon } from "@/components/icon";
 import { Avatar, Bar, Card, Pill, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getTeam } from "@/lib/repository";
-import { PULSE_DIMS } from "@/lib/data";
+import { PULSE_DIMS, teamLiveStage } from "@/lib/data";
 
 export default function MemberEquipo() {
   const { user } = useAuth();
@@ -21,7 +21,7 @@ export default function MemberEquipo() {
       <div className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{team.org}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
         <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>{team.name}</h1>
-        <StageBadge stage={team.stage} />
+        <StageBadge stage={teamLiveStage(team) ?? "queue"} />
       </div>
       {team.purpose && <p className="muted" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}><Icon name="Quote" size={15} /> {team.purpose}</p>}
 

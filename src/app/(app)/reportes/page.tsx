@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Button, Card, EmptyState, StageBadge } from "@/components/ui";
 import { getTeams } from "@/lib/repository";
+import { teamLiveStage } from "@/lib/data";
 
 export default function ReportesPage() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function ReportesPage() {
                   <div style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>{t.name}</div>
                   <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{t.org} · {t.area || "—"}</div>
                 </div>
-                <StageBadge stage={t.stage} size="sm" />
+                <StageBadge stage={teamLiveStage(t) ?? "queue"} size="sm" />
               </div>
               <div style={{ display: "flex", gap: 14, fontSize: "var(--t-xs)" }} className="muted">
                 <span>{(t.initiatives ?? []).length} iniciativas</span>

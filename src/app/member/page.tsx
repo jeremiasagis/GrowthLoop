@@ -7,6 +7,7 @@ import { AvatarStack, Button, Card, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getInitiatives, getTeam } from "@/lib/repository";
 import { getOpenSessionForTeam, subscribeTeamSessions, type LiveSession } from "@/lib/session";
+import { teamLiveStage } from "@/lib/data";
 
 export default function MemberHome() {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function MemberHome() {
           <div className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>{team.org}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{team.name}</span>
-            <StageBadge stage={team.stage} size="sm" />
+            <StageBadge stage={teamLiveStage(team) ?? "queue"} size="sm" />
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
