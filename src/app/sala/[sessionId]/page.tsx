@@ -303,15 +303,12 @@ export default function SalaPage() {
         const add = async () => { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, anonymous); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
         return (
           <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12, display: "flex", flexDirection: "column", minHeight: 200 }}>
-            <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label} <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{n}</span></div>
-            {editable ? (
-              <>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>{mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}</div>
-                <div style={{ marginTop: 8, display: "flex", gap: 5 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "6px 8px", fontSize: "var(--t-xs)", outline: "none" }} /><button onClick={add} style={{ background: color, color: "#08120c", borderRadius: "var(--r-sm)", padding: "0 9px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button></div>
-              </>
-            ) : (
-              <div style={{ flex: 1, display: "grid", placeItems: "center", color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", gap: 6, minHeight: 120 }}><Icon name="Lock" size={16} /><span className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, color: "var(--ink-1)" }}>{n}</span>{n === 1 ? "respuesta · oculta" : "respuestas · ocultas"}</div>
-            )}
+            <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{col.label} <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>🔒 {n}</span></div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+              {mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}
+              {!mine.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 12 }}>{editable ? "Sumá lo tuyo · queda oculto" : "Ocultas hasta revelar"}</div>}
+            </div>
+            {editable && <div style={{ marginTop: 8, display: "flex", gap: 5 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "6px 8px", fontSize: "var(--t-xs)", outline: "none" }} /><button onClick={add} style={{ background: color, color: "#08120c", borderRadius: "var(--r-sm)", padding: "0 9px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button></div>}
           </div>
         );
       })}
@@ -377,10 +374,12 @@ export default function SalaPage() {
     if (step === "pulse") {
       sub = "Pulso semanal del equipo. Cinco señales, anónimas — una vez por semana.";
       // Tablero compartido: todos ven los mismos sliders + el contador. El miembro arrastra y envía; el facilitador los ve y revela.
-      content = (
+      content = isFacil ? (
+        <Card pad={24}><div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{responses.length}/{totalInRoom || team?.members.length || 0}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respondieron el pulso</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10 }}>El equipo responde en anónimo. Vos revelás el promedio.</p></div></Card>
+      ) : (
         <Card pad={24}>
-          {submitted && !isFacil && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 14 }}><Icon name="Check" size={16} /> Tu pulso quedó guardado (anónimo).</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, opacity: isFacil || submitted ? 0.85 : 1 }}>{PULSE_DIMS.map((d) => (<div key={d.key}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span><span className="num" style={{ fontWeight: 700, color: d.color }}>{draft[d.key]}</span></div><input type="range" min={0} max={100} value={draft[d.key]} disabled={isFacil || submitted} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: Number(e.target.value) }))} style={{ width: "100%", accentColor: d.color }} /></div>))}</div>
+          {submitted && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 14 }}><Icon name="Check" size={16} /> Tu pulso quedó guardado (anónimo).</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, opacity: submitted ? 0.85 : 1 }}>{PULSE_DIMS.map((d) => (<div key={d.key}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span><span className="num" style={{ fontWeight: 700, color: d.color }}>{draft[d.key]}</span></div><input type="range" min={0} max={100} value={draft[d.key]} disabled={submitted} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: Number(e.target.value) }))} style={{ width: "100%", accentColor: d.color }} /></div>))}</div>
           <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="Lock" size={13} /> Anónimo · {responses.length} de {totalInRoom} respondieron</p>
         </Card>
       );
@@ -554,8 +553,8 @@ export default function SalaPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {causes.map((c) => { const mine = (myIE(c.id) ?? {}) as Record<string, number>; return (
               <Card key={c.id} pad={14}>
-                <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 10 }}>{c.text}</div>
-                {[{ k: "impact", l: "Impacto", hint: "si lo resolvemos, ¿cuánto mejora?" }, { k: "effort", l: "Esfuerzo", hint: "¿cuánto cuesta resolverlo?" }].map((row) => (
+                <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: isFacil ? 0 : 10 }}>{c.text}</div>
+                {!isFacil && [{ k: "impact", l: "Impacto", hint: "si lo resolvemos, ¿cuánto mejora?" }, { k: "effort", l: "Esfuerzo", hint: "¿cuánto cuesta resolverlo?" }].map((row) => (
                   <div key={row.k} style={{ marginBottom: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><span style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>{row.l}</span><span className="faint" style={{ fontSize: 10 }}>{row.hint}</span></div>
                     <div style={{ display: "flex", gap: 6 }}>{[1, 2, 3, 4, 5].map((v) => { const on = mine[row.k] === v; return <button key={v} onClick={() => setMyIE(c.id, { [row.k]: v })} style={{ flex: 1, padding: "7px 0", borderRadius: "var(--r-sm)", fontWeight: 700, fontSize: "var(--t-sm)", background: on ? "var(--st-focus)" : "var(--card-2)", color: on ? "#06121f" : "var(--ink-2)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line-2)"}` }}>{v}</button>; })}</div>
@@ -729,11 +728,11 @@ export default function SalaPage() {
       content = (
         <Card pad={20}>
           <div style={{ textAlign: "center", marginBottom: 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-proof)" }}>{ideaCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="Lock" size={12} /> ideas propuestas · ocultas</div></div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          {!isFacil && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input value={cardDraft.idea ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, idea: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addIdea()} placeholder="Una idea para probar…" style={field} />
             <Button icon="Plus" onClick={addIdea}>Sumar</Button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myIdeas.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>
+          </div>}
+          {!isFacil && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myIdeas.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>}
         </Card>
       );
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || ideaCount === 0} onClick={fNext}>Revelar ideas ({ideaCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tus ideas. Se revelan todas juntas.</p>;
@@ -800,15 +799,15 @@ export default function SalaPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {clusters.map((cl) => { const d = iceDraft[cl.id] ?? { i: 5, c: 5, e: 5 }; return (
                 <Card key={cl.id} pad={16}>
-                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 10 }}>{cl.name}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: isFacil ? 0 : 10 }}>{cl.name}</div>
+                  {!isFacil && <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                     {ICE_D.map(([k, label]) => (
                       <div key={k}>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-xs)", marginBottom: 3 }}><span className="muted">{label}</span><span className="num" style={{ fontWeight: 700 }}>{d[k]}</span></div>
                         <input type="range" min={1} max={10} value={d[k]} onChange={(e) => setIceDraft((p) => ({ ...p, [cl.id]: { ...d, [k]: Number(e.target.value) } }))} style={{ width: "100%", accentColor: "var(--st-proof)" }} />
                       </div>
                     ))}
-                  </div>
+                  </div>}
                 </Card>
               ); })}
             </div>
@@ -824,11 +823,11 @@ export default function SalaPage() {
       content = (
         <Card pad={20}>
           <div style={{ textAlign: "center", marginBottom: 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--risk)" }}>{riskCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="Lock" size={12} /> riesgos anticipados · ocultos</div></div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          {!isFacil && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input value={cardDraft.risk ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, risk: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addRisk()} placeholder="Un riesgo o motivo de fracaso…" style={field} />
             <Button icon="Plus" onClick={addRisk}>Sumar</Button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myRisks.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>
+          </div>}
+          {!isFacil && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myRisks.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>}
         </Card>
       );
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy} onClick={fNext}>Revelar riesgos ({riskCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Anticipá qué podría salir mal. Se revelan juntos.</p>;
@@ -1021,11 +1020,11 @@ export default function SalaPage() {
       content = (
         <Card pad={20}>
           <div style={{ textAlign: "center", marginBottom: 14 }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-learn)" }}>{learnCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="Lock" size={12} /> aprendizajes · ocultos</div></div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          {!isFacil && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input value={cardDraft.learning ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, learning: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addLearning()} placeholder="Un aprendizaje…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none" }} />
             <Button icon="Plus" onClick={addLearning}>Sumar</Button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myLearn.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>
+          </div>}
+          {!isFacil && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{myLearn.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>· tuya</span></div>)}</div>}
         </Card>
       );
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || learnCount === 0} onClick={fNext}>Revelar aprendizajes ({learnCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tu aprendizaje. Se revelan todos juntos.</p>;
@@ -1083,16 +1082,16 @@ export default function SalaPage() {
         </div>
       ) : (
         <>
-          <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--st-learn)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>
+          {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--st-learn)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
               <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
                 <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {!isFacil && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button onClick={() => voteLearn(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
                   <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
                   <button onClick={() => voteLearn(cl.id, 1)} disabled={remaining === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--st-learn)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#08120c" }}><Icon name="Plus" size={15} /></button>
-                </div>
+                </div>}
               </div>
             ); })}
           </div>
@@ -1181,17 +1180,19 @@ export default function SalaPage() {
     wide = true; sub = "Escriban en silencio. Las tarjetas quedan ocultas hasta que el facilitador revele.";
     content = (
       <>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-          <button onClick={() => setAnon((a) => !a)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--card)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name={anon ? "Lock" : "Globe"} size={15} style={{ color: anon ? "var(--ink-2)" : "var(--green)" }} />Tus tarjetas: <b style={{ color: anon ? "var(--ink-1)" : "var(--green)" }}>{anon ? "Anónimas" : "Públicas"}</b><span className="faint" style={{ fontSize: "var(--t-xs)" }}>(tocá para cambiar)</span></button>
-        </div>
+        {!isFacil && (
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+            <button onClick={() => setAnon((a) => !a)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--card)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name={anon ? "Lock" : "Globe"} size={15} style={{ color: anon ? "var(--ink-2)" : "var(--green)" }} />Tus tarjetas: <b style={{ color: anon ? "var(--ink-1)" : "var(--green)" }}>{anon ? "Anónimas" : "Públicas"}</b><span className="faint" style={{ fontSize: "var(--t-xs)" }}>(tocá para cambiar)</span></button>
+          </div>
+        )}
         <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>{COLS.map((col) => { const mine = myCards.filter((c) => c.columnKey === col.key); const n = counts[col.key] ?? 0; return (
           <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 14, display: "flex", flexDirection: "column", minHeight: 240 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><span style={{ color: col.color }}><Icon name={col.icon} size={16} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{col.label}</span><span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "2px 8px" }} title="escritas · ocultas">🔒 {n}</span></div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
               {mine.map((c) => (<div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 6 }}>{c.anonymous ? "· anónima" : "· pública"} · tuya</span></div>))}
-              {!mine.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 12 }}>Las tarjetas quedan ocultas hasta revelar. Sumá lo tuyo…</div>}
+              {!mine.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 12 }}>{isFacil ? "Ocultas hasta revelar." : "Las tarjetas quedan ocultas hasta revelar. Sumá lo tuyo…"}</div>}
             </div>
-            <div style={{ marginTop: 10, display: "flex", gap: 6 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addExploreCard(col.key)} placeholder="Sumar tarjeta…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} /><button onClick={() => addExploreCard(col.key)} style={{ background: col.color, color: "#06121f", borderRadius: "var(--r-sm)", padding: "0 11px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={16} /></button></div>
+            {!isFacil && <div style={{ marginTop: 10, display: "flex", gap: 6 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addExploreCard(col.key)} placeholder="Sumar tarjeta…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} /><button onClick={() => addExploreCard(col.key)} style={{ background: col.color, color: "#06121f", borderRadius: "var(--r-sm)", padding: "0 11px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={16} /></button></div>}
           </div>
         ); })}</div>
       </>
@@ -1264,16 +1265,16 @@ export default function SalaPage() {
       </div>
     ) : (
       <>
-        <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--green)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>
+        {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--green)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
             <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
               <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {!isFacil && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <button onClick={() => voteCluster(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
                 <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
                 <button onClick={() => voteCluster(cl.id, 1)} disabled={remaining === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--green)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#06121f" }}><Icon name="Plus" size={15} /></button>
-              </div>
+              </div>}
             </div>
           ); })}
         </div>
@@ -1285,7 +1286,7 @@ export default function SalaPage() {
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado cuando todos terminen.</p>;
   } else if (step === "purpose") {
     wide = true; sub = "¿Para qué existe este equipo? Tres preguntas. Las respuestas son públicas (con tu nombre).";
-    content = MultiWrite(PURPOSE_COLS, "var(--st-explore)", true, false);
+    content = MultiWrite(PURPOSE_COLS, "var(--st-explore)", !isFacil, false);
     controls = isFacil
       ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar respuestas</Button><button onClick={() => setStep(sessionId, "flow", STEPS.indexOf("flow"))} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>Saltar Propósito →</button></div>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres. El facilitador revela cuando todos terminen.</p>;
@@ -1301,7 +1302,7 @@ export default function SalaPage() {
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: flujo de trabajo</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador escribe el propósito con el equipo.</p>;
   } else if (step === "flow") {
     wide = true; sub = "Mapeamos el flujo de trabajo del equipo, etapa por etapa.";
-    content = MultiWrite(FLOW_COLS, "var(--st-explore)", true);
+    content = MultiWrite(FLOW_COLS, "var(--st-explore)", !isFacil);
     controls = isFacil
       ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button><button onClick={() => setStep(sessionId, "close", STEPS.indexOf("close"))} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>Saltar Flujo → ir al cierre</button></div>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá lo que veas en cada etapa del flujo.</p>;
@@ -1344,7 +1345,7 @@ export default function SalaPage() {
     wide = true;
     const n = counts["cause"] ?? 0;
     sub = "¿Por qué pasa? Cada uno suma causas posibles (anónimas, ocultas hasta revelar). Van a Foco para elegir cuál atacar.";
-    content = MultiWrite(CAUSE_COLS, "var(--st-focus)", true);
+    content = MultiWrite(CAUSE_COLS, "var(--st-focus)", !isFacil);
     controls = isFacil
       ? <Button full size="lg" icon="Eye" disabled={busy || n === 0} onClick={goNext}>Revelar causas ({n})</Button>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá las causas que veas. El facilitador las revela cuando todos terminen.</p>;
