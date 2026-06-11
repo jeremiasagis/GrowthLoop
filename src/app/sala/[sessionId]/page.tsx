@@ -14,7 +14,7 @@ import { retroByKey } from "@/lib/retros";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS } from "@/lib/data";
 import {
-  addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCluster,
+  addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster,
   finalizeSession, getCardCounts, getCards, getClusters, getInputs, getMyCards, getParticipants,
   getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
   renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession, touchPresence,
@@ -316,6 +316,7 @@ export default function SalaPage() {
                   <div style={{ marginTop: 5, display: "flex", gap: 6, alignItems: "center" }}>
                     {!c.anonymous && c.authorId ? <span className="muted" style={{ fontSize: 10 }}>· {participants.find((p) => p.userId === c.authorId)?.name ?? "miembro"}</span> : <span className="faint" style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="Lock" size={10} /> anónima</span>}
                     {myIds.has(c.id) && <span style={{ fontSize: 10, color: "var(--ink-3)" }}>· tuya</span>}
+                    {isFacil && <span role="button" tabIndex={0} title="Borrar tarjeta (duplicada / typo)" onClick={async () => { if (window.confirm("¿Borrar esta tarjeta?")) { await deleteCard(c.id); load(); } }} style={{ marginLeft: "auto", color: "var(--ink-3)", display: "inline-flex", cursor: "pointer", padding: 2 }}><Icon name="Trash2" size={12} /></span>}
                   </div>
                 </div>
               ))}
@@ -765,7 +766,7 @@ export default function SalaPage() {
         {(() => {
           const blank = (color: string): React.CSSProperties => ({ display: "inline-block", verticalAlign: "baseline", background: "transparent", border: "none", borderBottom: `2px dashed color-mix(in srgb, ${color} 60%, transparent)`, color, fontWeight: 700, fontSize: "inherit", fontFamily: "inherit", outline: "none", padding: "0 4px", maxWidth: "100%" });
           return (
-            <div style={{ padding: "16px 18px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 26%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-md)", lineHeight: 2 }}>
+            <div className="betml" style={{ padding: "16px 18px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 26%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-md)", lineHeight: 2 }}>
               <span>Creemos que si</span>
               <input defaultValue={b.betIf || grp?.name || ""} onBlur={(e) => setBet(i, { betIf: e.target.value })} placeholder="hacemos este cambio concreto…" style={{ ...blank("var(--green)"), width: "auto", minWidth: 220, flex: 1 }} />
               <span>, lograremos que</span>
@@ -844,7 +845,7 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || ideaCount === 0} onClick={fNext}>Revelar ideas ({ideaCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tus ideas. Se revelan todas juntas.</p>;
     } else if (step === "ideas_reveal") {
       sub = "Las ideas, a la vista. Después las agrupamos por tema.";
-      content = <><RevealHeader n={ideaCards.length} label="ideas sobre la mesa" color="var(--st-proof)" /><Cascade>{ideaCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</Cascade>{!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron ideas.</p>}</>;
+      content = <><RevealHeader n={ideaCards.length} label="ideas sobre la mesa" color="var(--st-proof)" /><Cascade>{ideaCards.map((c) => <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}><span style={{ flex: 1 }}>{c.text}</span>{isFacil && <span role="button" tabIndex={0} title="Borrar" onClick={async () => { if (window.confirm("¿Borrar esta idea?")) { await deleteCard(c.id); load(); } }} style={{ color: "var(--ink-3)", display: "inline-flex", cursor: "pointer" }}><Icon name="Trash2" size={13} /></span>}</div>)}</Cascade>{!ideaCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>No se cargaron ideas.</p>}</>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Agrupar ideas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa las ideas parecidas.</p>;
     } else if (step === "group") {
       wide = true; sub = isFacil ? "Juntá las ideas parecidas en grupos para puntuarlas mejor." : "El facilitador agrupa las ideas parecidas.";
@@ -1172,7 +1173,7 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || learnCount === 0} onClick={fNext}>Revelar aprendizajes ({learnCount})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tu aprendizaje. Se revelan todos juntos.</p>;
     } else if (step === "learnings_reveal") {
       sub = "Lo que se lleva el equipo. Después agrupamos y votamos los más importantes.";
-      content = <><RevealHeader n={learnCards.length} label="aprendizajes del equipo" color="var(--st-learn)" /><Cascade>{learnCards.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}>{c.text}</div>)}</Cascade>{!learnCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin aprendizajes.</p>}</>;
+      content = <><RevealHeader n={learnCards.length} label="aprendizajes del equipo" color="var(--st-learn)" /><Cascade>{learnCards.map((c) => <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)" }}><span style={{ flex: 1 }}>{c.text}</span>{isFacil && <span role="button" tabIndex={0} title="Borrar" onClick={async () => { if (window.confirm("¿Borrar este aprendizaje?")) { await deleteCard(c.id); load(); } }} style={{ color: "var(--ink-3)", display: "inline-flex", cursor: "pointer" }}><Icon name="Trash2" size={13} /></span>}</div>)}</Cascade>{!learnCards.length && <p className="muted" style={{ fontSize: "var(--t-sm)", textAlign: "center" }}>Sin aprendizajes.</p>}</>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Agrupar aprendizajes</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa los aprendizajes.</p>;
     } else if (step === "group") {
       wide = true; sub = isFacil ? "Agrupá los aprendizajes parecidos. Después se votan los más importantes." : "El facilitador agrupa los aprendizajes.";

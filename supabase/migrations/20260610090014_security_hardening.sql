@@ -116,3 +116,15 @@ from public.session_pulse_responses
 where session_id in (select public.visible_session_ids());
 
 grant select on public.session_votes_view, public.session_inputs_view, public.session_pulse_view to authenticated;
+
+-- ── C) EL FACILITADOR GESTIONA LAS TARJETAS ─────────────────
+-- La policy original solo permitía tocar las tarjetas PROPIAS (author_id):
+-- el facilitador no podía agrupar/borrar tarjetas ajenas. Ahora puede
+-- (mover de cluster, borrar duplicadas/typos) dentro de sus sesiones.
+drop policy if exists scards_facil_upd on public.session_cards;
+create policy scards_facil_upd on public.session_cards for update
+  using (session_id in (select public.visible_session_ids()) and public.my_role() in ('facilitator','admin','superadmin'))
+  with check (session_id in (select public.visible_session_ids()));
+drop policy if exists scards_facil_del on public.session_cards;
+create policy scards_facil_del on public.session_cards for delete
+  using (session_id in (select public.visible_session_ids()) and public.my_role() in ('facilitator','admin','superadmin'));

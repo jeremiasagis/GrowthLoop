@@ -280,21 +280,6 @@ export function Stat({
   );
 }
 
-/* ── State dot (variable initial state) ───────────────────── */
-export function StateDot({ state }: { state: "critical" | "developing" | "acceptable" }) {
-  const map: Record<string, [string, string]> = {
-    critical: ["var(--risk)", "Crítico"],
-    developing: ["var(--warning)", "En desarrollo"],
-    acceptable: ["var(--success)", "Aceptable"],
-  };
-  const [c, label] = map[state] || map.developing;
-  return (
-    <span
-      title={label}
-      style={{ display: "inline-block", width: 8, height: 8, borderRadius: 99, background: c, boxShadow: `0 0 6px ${c}`, flex: "none" }}
-    />
-  );
-}
 
 /* ── Progress ring (days remaining) ───────────────────────── */
 export function ProgressRing({
@@ -436,13 +421,3 @@ export function CopyLink({ path }: { path: string }) {
 }
 
 /* ── Coming soon placeholder ──────────────────────────────── */
-export function ComingSoon({ title, icon, children }: { title: string; icon: string; children?: ReactNode }) {
-  return (
-    <div className="screen-pad">
-      <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 24 }}>{title}</h1>
-      <Card pad={0}>
-        <EmptyState icon={icon} title="En preparación">{children}</EmptyState>
-      </Card>
-    </div>
-  );
-}

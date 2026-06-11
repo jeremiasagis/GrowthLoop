@@ -287,6 +287,12 @@ export async function setMyInput(sessionId: string, key: string, value: Record<s
 }
 
 // ── Votar (un punto por fila) ──
+/** Borra una tarjeta (facilitador: duplicadas, typos, inapropiadas). */
+export async function deleteCard(cardId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  await supabase.from("session_cards").delete().eq("id", cardId);
+}
+
 export async function getVotes(sessionId: string): Promise<SessionVote[]> {
   const supabase = getSupabaseBrowserClient();
   const { data } = await supabase.from("session_votes_view").select("id,cluster_id,user_id,voter_key").eq("session_id", sessionId);

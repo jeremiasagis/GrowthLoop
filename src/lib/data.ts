@@ -45,16 +45,6 @@ export function teamLiveStage(t: { initiatives?: { stage: StageKey; status: stri
   return act.reduce((best, i) => (CYCLE_STAGES.indexOf(i.stage) > CYCLE_STAGES.indexOf(best.stage) ? i : best)).stage;
 }
 
-// The 5-stage guided process used by the session stepper
-export const PROCESS = [
-  { id: 0, key: "contract", label: "Contratación", sub: "Facilitador + líder" },
-  { id: 1, key: "explore",  label: "Exploración",  sub: "Sacar las variables" },
-  { id: 2, key: "focus",    label: "Foco",         sub: "Profundizar" },
-  { id: 3, key: "proof",    label: "Prueba",       sub: "Diseñar una apuesta" },
-  { id: 4, key: "follow",   label: "Seguimiento",  sub: "Acompañar 15 días" },
-  { id: 5, key: "learn",    label: "Aprendizaje",  sub: "Cerrar el ciclo" },
-] as const;
-
 // 5 health-pulse dimensions
 export interface PulseDim {
   key: "confianza" | "comunic" | "claridad" | "foco" | "seguridad";
@@ -226,29 +216,6 @@ export const ORGS: Org[] = [
   { id: "o3", name: "Clínica Vida", sector: "Salud", teams: 1, leader: "Dr. Iván Soler", leaderRole: "Director Médico", contract: "4 meses", since: "mar 2026", status: "Piloto" },
 ];
 
-// ── Dashboard alerts ──
-export interface Alert {
-  type: "risk" | "warning" | "info";
-  icon: string;
-  text: string;
-  team: string;
-  sub: string;
-}
-export const ALERTS: Alert[] = [];
-
-// ── Upcoming sessions ──
-export interface Upcoming {
-  id: string;
-  team: string;
-  org: string;
-  date: string;
-  time: string;
-  stage: StageKey;
-  retro: string;
-  mode: "Remoto" | "Presencial";
-}
-export const UPCOMING: Upcoming[] = [];
-
 // ── User model & roles ──
 export type RoleKey = "superadmin" | "admin" | "facilitator" | "coordinator" | "member";
 export interface Role {
@@ -273,15 +240,6 @@ export const CURRENT_USER = {
   initials: "DR",
   flavor: "consultant",
   email: "daniela@growthloop.io",
-};
-
-// Admin's organization workspace summary
-export const MY_ORG = {
-  name: "Growthloop",
-  plan: "Consultora",
-  facilitatorsActive: 0,
-  teamsTotal: 0,
-  sessionsMonth: 0,
 };
 
 // Facilitators / leaders within the admin's scope
@@ -332,21 +290,6 @@ export interface Reflection {
   text: string;
 }
 export const REFLECTIONS: Reflection[] = [];
-
-// Sesión activa/pendiente por equipo (en vivo o asincrónica)
-export interface ActiveSession {
-  id: string;
-  teamId: string;
-  retro: string;
-  stage: StageKey;
-  live: boolean;            // está sucediendo ahora mismo
-  mode: "live" | "async";
-  dueHours?: number;        // para asincrónicas: horas restantes
-  date?: string;
-  time?: string;
-  roomCode?: string;
-}
-export const ACTIVE_SESSIONS: ActiveSession[] = [];
 
 // Invitaciones pendientes (token → datos de la invitación)
 export interface Invite {
