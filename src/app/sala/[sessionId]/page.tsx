@@ -1183,17 +1183,26 @@ export default function SalaPage() {
         </div>
       ) : (
         <>
-          {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--st-learn)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
+          {!isFacil && (
+            <div style={{ textAlign: "center", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Tus puntos:</span>
+              {Array.from({ length: DOTS_PER }).map((_, i) => <span key={i} style={{ width: 16, height: 16, borderRadius: 99, background: i < remaining ? "var(--st-learn)" : "var(--card-2)", border: `1px solid ${i < remaining ? "var(--st-learn)" : "var(--line-2)"}`, transition: "all .25s var(--ease)" }} />)}
+              <span className="faint" style={{ fontSize: "var(--t-xs)" }}>tocá un aprendizaje para soltarlos</span>
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
-              <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+              <button key={cl.id} disabled={isFacil} onClick={() => { if (!isFacil && remaining > 0) voteLearn(cl.id, 1); }}
+                style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: mine > 0 ? "color-mix(in srgb, var(--st-learn) 8%, var(--card))" : "var(--card)", border: `1px solid ${mine > 0 ? "color-mix(in srgb, var(--st-learn) 45%, var(--line))" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "default" : remaining > 0 ? "pointer" : "default", transition: "all .2s var(--ease)" }}>
                 <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
-                {!isFacil && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <button onClick={() => voteLearn(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
-                  <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
-                  <button onClick={() => voteLearn(cl.id, 1)} disabled={remaining === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--st-learn)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#08120c" }}><Icon name="Plus" size={15} /></button>
-                </div>}
-              </div>
+                {!isFacil && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    {Array.from({ length: mine }).map((_, k) => <span key={k} style={{ width: 14, height: 14, borderRadius: 99, background: "var(--st-learn)", animation: "pop-in .3s var(--spring)" }} />)}
+                    {mine > 0 && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); voteLearn(cl.id, -1); }} title="Quitar un punto" style={{ display: "inline-flex", color: "var(--ink-3)", padding: 3 }}><Icon name="X" size={13} /></span>}
+                    {mine === 0 && remaining > 0 && <span className="faint" style={{ fontSize: "var(--t-xs)" }}>tocar para votar</span>}
+                  </span>
+                )}
+              </button>
             ); })}
           </div>
           <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {lVoters} de {totalInRoom} votaron</p>
@@ -1391,17 +1400,26 @@ export default function SalaPage() {
       </div>
     ) : (
       <>
-        {!isFacil && <div style={{ textAlign: "center", marginBottom: 14 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Te quedan </span><span className="num" style={{ fontWeight: 800, color: "var(--green)", fontSize: "var(--t-lg)" }}>{remaining}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}> puntos</span></div>}
+        {!isFacil && (
+          <div style={{ textAlign: "center", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Tus puntos:</span>
+            {Array.from({ length: DOTS_PER }).map((_, i) => <span key={i} style={{ width: 16, height: 16, borderRadius: 99, background: i < remaining ? "var(--green)" : "var(--card-2)", border: `1px solid ${i < remaining ? "var(--green)" : "var(--line-2)"}`, boxShadow: i < remaining ? "0 0 8px rgba(0,232,122,0.5)" : "none", transition: "all .25s var(--ease)" }} />)}
+            <span className="faint" style={{ fontSize: "var(--t-xs)" }}>tocá una tensión para soltarlos</span>
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
-            <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+            <button key={cl.id} disabled={isFacil} onClick={() => { if (!isFacil && remaining > 0) voteCluster(cl.id, 1); }}
+              style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: mine > 0 ? "color-mix(in srgb, var(--green) 8%, var(--card))" : "var(--card)", border: `1px solid ${mine > 0 ? "color-mix(in srgb, var(--green) 45%, var(--line))" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "default" : remaining > 0 ? "pointer" : "default", transition: "all .2s var(--ease)" }}>
               <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
-              {!isFacil && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <button onClick={() => voteCluster(cl.id, -1)} disabled={mine === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: "var(--card-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", opacity: mine === 0 ? 0.4 : 1 }}><Icon name="Minus" size={15} /></button>
-                <span className="num" style={{ width: 18, textAlign: "center", fontWeight: 700 }}>{mine}</span>
-                <button onClick={() => voteCluster(cl.id, 1)} disabled={remaining === 0} style={{ width: 30, height: 30, borderRadius: "var(--r-sm)", background: remaining === 0 ? "var(--card-2)" : "var(--green)", border: "1px solid var(--line-2)", color: remaining === 0 ? "var(--ink-3)" : "#06121f" }}><Icon name="Plus" size={15} /></button>
-              </div>}
-            </div>
+              {!isFacil && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  {Array.from({ length: mine }).map((_, k) => <span key={k} style={{ width: 14, height: 14, borderRadius: 99, background: "var(--green)", boxShadow: "0 0 7px rgba(0,232,122,0.6)", animation: "pop-in .3s var(--spring)" }} />)}
+                  {mine > 0 && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); voteCluster(cl.id, -1); }} title="Quitar un punto" style={{ display: "inline-flex", color: "var(--ink-3)", padding: 3 }}><Icon name="X" size={13} /></span>}
+                  {mine === 0 && remaining > 0 && <span className="faint" style={{ fontSize: "var(--t-xs)" }}>tocar para votar</span>}
+                </span>
+              )}
+            </button>
           ); })}
         </div>
         <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {voters} de {totalInRoom} votaron</p>
