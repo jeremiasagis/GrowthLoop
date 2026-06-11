@@ -8,8 +8,8 @@ import {
   PulseChart, SectionTitle, StageBadge, Trend,
 } from "@/components/ui";
 import {
-  createInitiative, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
-  removeTeamMember, setInitiativeStage, setInitiativeStatus, setTeamCadence, setTeamObjective, updateInitiative,
+  createInitiative, createObjective, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
+  removeTeamMember, setInitiativeObjective, setInitiativeStage, setInitiativeStatus, setObjectiveStatus, setTeamCadence, setTeamObjective, updateInitiative,
 } from "@/lib/repository";
 import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, teamLiveStage, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -179,16 +179,19 @@ function FoundingGateModal({ launching, onClose, onStart }: { launching: boolean
 function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string; editing?: Initiative; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(editing?.title ?? "");
   const [desc, setDesc] = useState(editing?.description ?? "");
+  const [objectiveId, setObjectiveId] = useState(editing?.objectiveId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valid = title.trim().length > 2;
+  const objectives = (getTeam(teamId)?.objectives ?? []).filter((o) => o.status === "active");
 
   const save = async () => {
     if (!valid || busy) return;
     setBusy(true);
     const res = editing
       ? await updateInitiative(editing.id, { title, description: desc })
-      : await createInitiative({ teamId, title, description: desc });
+      : await createInitiative({ teamId, title, description: desc, objectiveId: objectiveId || null });
+    if (editing && (editing.objectiveId ?? "") !== objectiveId) await setInitiativeObjective(editing.id, objectiveId || null);
     setBusy(false);
     if (res.error) setError(res.error);
     else { onSaved(); onClose(); }
@@ -211,6 +214,15 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
             <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Detalle <span className="faint">(opcional)</span></label>
             <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Contexto, por qué es importante, qué señal quieren mover…" rows={3} style={{ ...fieldStyle, resize: "vertical", fontFamily: "inherit" }} />
           </div>
+          {objectives.length > 0 && (
+            <div>
+              <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Objetivo del equipo al que aporta <span className="faint">(opcional)</span></label>
+              <select value={objectiveId} onChange={(e) => setObjectiveId(e.target.value)} style={{ ...fieldStyle, fontSize: "var(--t-sm)" }}>
+                <option value="">Sin objetivo (suelta)</option>
+                {objectives.map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
+              </select>
+            </div>
+          )}
         </div>
         {error && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#ff8b8b", fontSize: "var(--t-sm)", fontWeight: 600, marginTop: 14 }}>
@@ -427,6 +439,81 @@ function RitmoCard({ teamId, everyDays, lastSessionAt, isFacil, onSaved }: { tea
   );
 }
 
+/** Objetivos del equipo (varios): cada uno agrupa iniciativas. */
+function ObjetivosSection({ team, isFacil, onChanged }: { team: Team; isFacil: boolean; onChanged: () => void }) {
+  const { show } = useToast();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(""); const [metric, setMetric] = useState(""); const [target, setTarget] = useState(""); const [horizon, setHorizon] = useState("este trimestre");
+  const [busy, setBusy] = useState(false);
+  const objectives = team.objectives ?? [];
+  const actives = objectives.filter((o) => o.status === "active");
+  const pastCount = objectives.length - actives.length;
+  const inits = team.initiatives ?? [];
+  const inputS: React.CSSProperties = { width: "100%", background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" };
+  const create = async () => {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    const res = await createObjective({ teamId: team.id, text, metric, target, horizon });
+    setBusy(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setText(""); setMetric(""); setTarget(""); setOpen(false); onChanged(); show("Objetivo creado.");
+  };
+  const mark = async (id: string, status: "achieved" | "archived", label: string) => {
+    if (!window.confirm(`¿Marcar este objetivo como ${label}?`)) return;
+    const res = await setObjectiveStatus(id, status);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    onChanged(); show(status === "achieved" ? "🎯 ¡Objetivo logrado!" : "Objetivo archivado.");
+  };
+  return (
+    <Card pad={18} style={{ borderColor: "color-mix(in srgb, var(--green) 35%, var(--line))" }}>
+      <SectionTitle icon="Compass" sub="Los Nortes del equipo · cada uno agrupa sus iniciativas"
+        right={isFacil ? <Button size="sm" variant="secondary" icon="Plus" onClick={() => setOpen((o) => !o)}>Nuevo objetivo</Button> : undefined}>
+        Objetivos
+      </SectionTitle>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "8px 0 14px", padding: 12, background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>
+          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="¿Qué quiere lograr el equipo? Ej: reducir a la mitad el tiempo de respuesta." style={{ ...inputS, minHeight: 52, resize: "vertical" }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }} className="modesel-grid">
+            <input value={metric} onChange={(e) => setMetric(e.target.value)} placeholder="Señal (opcional)" style={inputS} />
+            <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Meta (opcional)" style={inputS} />
+            <input value={horizon} onChange={(e) => setHorizon(e.target.value)} placeholder="Horizonte" style={inputS} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}><Button size="sm" icon="Check" disabled={!text.trim() || busy} onClick={create}>{busy ? "Creando…" : "Crear objetivo"}</Button></div>
+        </div>
+      )}
+      {actives.length === 0 && !open && <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>{isFacil ? "Cargá el primer objetivo: el Norte al que van a apuntar las iniciativas." : "El facilitador todavía no cargó objetivos."}</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: actives.length ? 8 : 0 }}>
+        {actives.map((o) => { const n = inits.filter((i) => i.objectiveId === o.id).length; return (
+          <div key={o.id} style={{ padding: "10px 12px", background: "linear-gradient(180deg, rgba(0,232,122,0.05), var(--card-2))", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <Icon name="Compass" size={15} style={{ color: "var(--green)", marginTop: 3, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", lineHeight: 1.4 }}>{o.text}</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{o.metric ? `Señal: ${o.metric}${o.target ? ` · meta ${o.target}` : ""} · ` : ""}{o.horizon ?? ""} · <b>{n}</b> {n === 1 ? "iniciativa" : "iniciativas"}</div>
+              </div>
+              {isFacil && (
+                <span style={{ display: "inline-flex", gap: 6, flexShrink: 0 }}>
+                  <button title="Marcar logrado 🎯" onClick={() => mark(o.id, "achieved", "LOGRADO 🎯")} style={{ color: "var(--green)", display: "inline-flex", padding: 3 }}><Icon name="Trophy" size={15} /></button>
+                  <button title="Archivar" onClick={() => mark(o.id, "archived", "archivado")} style={{ color: "var(--ink-3)", display: "inline-flex", padding: 3 }}><Icon name="Archive" size={15} /></button>
+                </span>
+              )}
+            </div>
+          </div>
+        ); })}
+      </div>
+      {pastCount > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+          {objectives.filter((o) => o.status !== "active").map((o) => (
+            <span key={o.id} title={o.text} style={{ fontSize: "var(--t-xs)", padding: "3px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)", color: o.status === "achieved" ? "var(--green)" : "var(--ink-3)", display: "inline-flex", alignItems: "center", gap: 5, maxWidth: 260 }}>
+              <Icon name={o.status === "achieved" ? "Trophy" : "Archive"} size={11} /><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.text}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onInvite: () => void }) {
   const router = useRouter();
   const { show } = useToast();
@@ -475,11 +562,11 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
           {isFacil && <Button icon="Plus" onClick={newInitiative}>Nueva iniciativa</Button>}
         </div>
 
-        <ObjetivoCard teamId={team.id} objective={objective} isFacil={isFacil} onSaved={refresh} />
+        <ObjetivosSection team={live} isFacil={isFacil} onChanged={refresh} />
 
         {isFacil && (() => {
           const membersDone = team.members.length > 0;
-          const objectiveDone = !!objective;
+          const objectiveDone = !!objective || (live.objectives ?? []).some((o) => o.status === "active");
           const contractDone = hasContract;
           const initDone = inits.length > 0;
           if (membersDone && objectiveDone && contractDone && initDone) return null;
@@ -540,8 +627,24 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
             </EmptyState>
           </Card>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {shown.map((i) => <InitiativeCard key={i.id} team={team} init={i} isFacil={isFacil} onChanged={refresh} onEdit={() => setEditing(i)} />)}
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {(() => {
+              const objs = (live.objectives ?? []).filter((o) => o.status === "active");
+              const groups: { key: string; label: string | null; items: typeof shown }[] = [
+                ...objs.map((o) => ({ key: o.id, label: o.text, items: shown.filter((i) => i.objectiveId === o.id) })),
+                { key: "none", label: null, items: shown.filter((i) => !i.objectiveId || !objs.some((o) => o.id === i.objectiveId)) },
+              ].filter((g) => g.items.length > 0);
+              return groups.map((g) => (
+                <div key={g.key}>
+                  <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: g.label ? "var(--green)" : "var(--ink-3)" }}>
+                    <Icon name={g.label ? "Compass" : "CircleDashed"} size={13} /> {g.label ?? "Sin objetivo"}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {g.items.map((i) => <InitiativeCard key={i.id} team={team} init={i} isFacil={isFacil} onChanged={refresh} onEdit={() => setEditing(i)} />)}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
       </div>

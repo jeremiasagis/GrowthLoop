@@ -116,10 +116,22 @@ export interface InitiativeData {
   consolidate?: { outcome?: string; note?: string; date?: string };
 }
 
+/** Objetivo del equipo (puede haber varios; cada uno agrupa iniciativas). */
+export interface Objective {
+  id: string;
+  teamId: string;
+  text: string;
+  metric?: string;
+  target?: string;
+  horizon?: string;
+  status: "active" | "achieved" | "archived";
+}
+
 export interface Initiative {
   id: string;
   teamId: string;
   title: string;
+  objectiveId?: string;
   description?: string;
   stage: StageKey;
   status: "active" | "done" | "paused";
@@ -143,6 +155,7 @@ export interface Team {
   pulse: PulsePoint[];
   sessions: SessionLog[];
   initiatives?: Initiative[];
+  objectives?: Objective[];
   blocked?: boolean;
   facilitatorId?: string;
   data?: TeamData;

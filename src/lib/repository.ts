@@ -141,6 +141,36 @@ async function mergeTeamData(teamId: string, patch: Record<string, unknown>): Pr
   return {};
 }
 
+// ── Objetivos del equipo (varios; agrupan iniciativas) ──
+export async function createObjective(p: { teamId: string; text: string; metric?: string; target?: string; horizon?: string }): Promise<{ error?: string; id?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const id = newId("ob");
+  const { error } = await supabase.from("objectives").insert({
+    id, team_id: p.teamId, text: p.text.trim(), metric: p.metric?.trim() || null,
+    target: p.target?.trim() || null, horizon: p.horizon?.trim() || null, status: "active",
+  });
+  if (error) return { error: error.message };
+  await reloadData();
+  return { id };
+}
+
+export async function setObjectiveStatus(id: string, status: "active" | "achieved" | "archived"): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("objectives").update({ status }).eq("id", id);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
+/** Asocia (o desasocia con null) una iniciativa a un objetivo. */
+export async function setInitiativeObjective(initId: string, objectiveId: string | null): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("initiatives").update({ objective_id: objectiveId }).eq("id", initId);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
 /** Define / actualiza el "Norte" (objetivo) del equipo. */
 export async function setTeamObjective(teamId: string, objective: TeamObjective | null): Promise<{ error?: string }> {
   return mergeTeamData(teamId, { objective: objective ? { ...objective, setAt: objective.setAt ?? new Date().toISOString() } : null });
@@ -282,13 +312,14 @@ export async function createTeam(input: {
 }
 
 /** Crea una iniciativa (línea de trabajo) para un equipo. Arranca en exploración. */
-export async function createInitiative(input: { teamId: string; title: string; description?: string; stage?: StageKey; status?: Initiative["status"] }): Promise<{ error?: string; id?: string }> {
+export async function createInitiative(input: { teamId: string; title: string; description?: string; stage?: StageKey; status?: Initiative["status"]; objectiveId?: string | null }): Promise<{ error?: string; id?: string }> {
   const supabase = getSupabaseBrowserClient();
   const id = newId("i");
   const { error } = await supabase.from("initiatives").insert({
     id, team_id: input.teamId, title: input.title.trim(),
     description: input.description?.trim() || null,
     stage: input.stage ?? "explore", status: input.status ?? "active",
+    objective_id: input.objectiveId ?? null,
   });
   if (error) return { error: error.message };
   await reloadData();

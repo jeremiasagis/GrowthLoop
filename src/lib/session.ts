@@ -345,7 +345,7 @@ export async function finalizeSession(session: LiveSession, opts: {
 
   // Iniciativa: guardar resultados de la etapa, avanzar etapa, y (si hay) crear pausadas.
   if (session.initiativeId) {
-    const { data: initRow } = await supabase.from("initiatives").select("stage,data").eq("id", session.initiativeId).maybeSingle();
+    const { data: initRow } = await supabase.from("initiatives").select("stage,data,objective_id").eq("id", session.initiativeId).maybeSingle();
     const patch: Record<string, unknown> = {};
     if (opts.dataKey) {
       const prev = (initRow?.data as Record<string, unknown>) ?? {};
@@ -361,6 +361,7 @@ export async function finalizeSession(session: LiveSession, opts: {
     if (opts.pausedNames?.length) {
       const rows = opts.pausedNames.map((n) => ({
         id: newId("i"), team_id: session.teamId, title: n, stage: "explore", status: "paused", data: {},
+        objective_id: (initRow as { objective_id?: string } | null)?.objective_id ?? null, // heredan el objetivo
       }));
       await supabase.from("initiatives").insert(rows);
     }

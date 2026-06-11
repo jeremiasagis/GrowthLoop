@@ -69,6 +69,7 @@ function mapInitiative(i: any, sessionCount: number): Initiative {
   return {
     id: i.id, teamId: i.team_id, title: i.title, description: i.description ?? undefined,
     stage: i.stage as StageKey, status: (i.status ?? "active") as Initiative["status"],
+    objectiveId: i.objective_id ?? undefined,
     createdAt: i.created_at ?? undefined, sessionsCount: sessionCount,
     data: i.data ?? undefined,
   };
@@ -154,6 +155,20 @@ async function fetchAll() {
     for (const o of membByEmail.get((f.email ?? "").toLowerCase()) ?? []) set.add(o);
     for (const t of teams) if (t.facilitatorId && t.facilitatorId === f.id) set.add(t.orgId);
     f.orgIds = [...set];
+  }
+  // Objetivos por equipo (tabla opcional: si falta la migración, sigue sin objetivos).
+  const objRes = await supabase.from("objectives").select("*").order("created_at", { ascending: true });
+  if (!objRes.error) {
+    const byTeam = new Map<string, any[]>();
+    for (const o of (objRes.data ?? []) as any[]) {
+      const list = byTeam.get(o.team_id) ?? []; list.push(o); byTeam.set(o.team_id, list);
+    }
+    for (const t of teams) {
+      t.objectives = (byTeam.get(t.id) ?? []).map((o: any) => ({
+        id: o.id, teamId: o.team_id, text: o.text, metric: o.metric ?? undefined,
+        target: o.target ?? undefined, horizon: o.horizon ?? undefined, status: o.status ?? "active",
+      }));
+    }
   }
   // Facilitador real por equipo (mapTeam dejó un placeholder; lo resolvemos con el directorio ya cargado).
   const facById = new Map(facilitators.map((f) => [f.id, f]));

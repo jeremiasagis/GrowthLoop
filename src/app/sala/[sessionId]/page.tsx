@@ -286,14 +286,18 @@ export default function SalaPage() {
         <span className="eyebrow" style={{ color: "var(--green)" }}>{retroLabel ?? "Sesión en vivo"}</span>
       </div>
       <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>{team?.name ?? "Equipo"}</h1>
-      {team?.data?.objective?.text && (
-        <div style={{ marginTop: 6 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: "var(--r-full)", background: "var(--green-soft)", border: "1px solid color-mix(in srgb, var(--green) 30%, transparent)", fontSize: "var(--t-xs)", fontWeight: 600, color: "var(--ink-1)", maxWidth: 520 }}>
-            <Icon name="Compass" size={12} style={{ color: "var(--green)", flexShrink: 0 }} />
-            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{team.data.objective.text}</span>
-          </span>
-        </div>
-      )}
+      {(() => {
+        // El Norte de ESTA sesión: el objetivo de la iniciativa (o el legacy del equipo).
+        const objText = (initiative?.objectiveId ? team?.objectives?.find((o) => o.id === initiative.objectiveId)?.text : undefined) ?? team?.data?.objective?.text;
+        return objText ? (
+          <div style={{ marginTop: 6 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: "var(--r-full)", background: "var(--green-soft)", border: "1px solid color-mix(in srgb, var(--green) 30%, transparent)", fontSize: "var(--t-xs)", fontWeight: 600, color: "var(--ink-1)", maxWidth: 520 }}>
+              <Icon name="Compass" size={12} style={{ color: "var(--green)", flexShrink: 0 }} />
+              <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{objText}</span>
+            </span>
+          </div>
+        ) : null;
+      })()}
       <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 4 }}>{sub}</p>
       {isFacil && (
         <button onClick={() => setShowJoin(true)} style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 13px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--card)", color: "var(--ink-1)", fontSize: "var(--t-sm)", fontWeight: 600 }}>
