@@ -44,9 +44,14 @@ export default function MemberHome() {
 
   return (
     <div className="screen-pad">
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Hola, {firstName} 👋</h1>
-        <p className="muted" style={{ marginTop: 4 }}>Tu espacio del equipo: avances, iniciativas y sesiones.</p>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Hola, {firstName} 👋</h1>
+          <p className="muted" style={{ marginTop: 4 }}>Tu espacio del equipo: avances, iniciativas y sesiones.</p>
+        </div>
+        <button onClick={() => router.push("/join")} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: "var(--r-md)", border: "1px solid var(--line-2)", background: "var(--card)", color: "var(--ink-1)", fontSize: "var(--t-sm)", fontWeight: 600 }}>
+          <Icon name="QrCode" size={15} /> Unirse con un código
+        </button>
       </div>
 
       {!live && team.sessions.length === 0 && (

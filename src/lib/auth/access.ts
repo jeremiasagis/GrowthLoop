@@ -52,6 +52,8 @@ export function homeFor(role: RoleKey): string {
 
 /** ¿Este rol puede acceder a esta ruta? */
 export function canAccess(role: RoleKey, pathname: string): boolean {
+  // Unirse a una sesión por código: cualquier usuario logueado.
+  if (pathname === "/join" || pathname.startsWith("/join/")) return true;
   // Crear equipo es exclusivo del facilitador (es quien arma los equipos).
   if (pathname === "/equipos/nuevo" || pathname.startsWith("/equipos/nuevo/")) {
     return role === "facilitator";

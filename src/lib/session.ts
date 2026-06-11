@@ -20,6 +20,7 @@ export interface LiveSession {
   stepIndex: number;
   createdBy?: string;
   retro?: string;     // qué retrospectiva eligió el facilitador (catálogo)
+  joinCode?: string;  // código corto para unirse (QR / tipeo)
   result: Record<string, unknown>;  // resultado vivo del paso (causa raíz, etc.)
 }
 
@@ -55,8 +56,21 @@ function mapSession(r: any): LiveSession {
     id: r.id, teamId: r.team_id, initiativeId: r.initiative_id ?? undefined,
     type: r.type, mode: r.mode, status: r.status,
     stepKey: r.step_key ?? undefined, stepIndex: r.step_index ?? 0, createdBy: r.created_by ?? undefined,
-    retro: r.retro ?? undefined, result: (r.result as Record<string, unknown>) ?? {},
+    retro: r.retro ?? undefined, joinCode: r.join_code ?? undefined, result: (r.result as Record<string, unknown>) ?? {},
   };
+}
+
+// Código de sala: 5 caracteres, sin ambiguos (O/0/I/1).
+const JOIN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const newJoinCode = () => Array.from({ length: 5 }, () => JOIN_CHARS[Math.floor(Math.random() * JOIN_CHARS.length)]).join("");
+
+/** Busca una sesión EN VIVO por su código de sala (respeta RLS: solo equipos visibles). */
+export async function getSessionByCode(code: string): Promise<LiveSession | null> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.from("sessions").select("*")
+    .eq("join_code", code.trim().toUpperCase()).eq("status", "live")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data ? mapSession(data) : null;
 }
 
 // ── Lectura ──
@@ -147,7 +161,7 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   const { data, error } = await supabase.from("sessions").insert({
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,
     mode: "live", status: "live", step_key: firstStep, step_index: 0,
-    created_by: auth.user?.id ?? null, retro: p.retro ?? null,
+    created_by: auth.user?.id ?? null, retro: p.retro ?? null, join_code: newJoinCode(),
   }).select().single();
   if (error) return { error: error.message };
   return { session: mapSession(data) };
