@@ -51,9 +51,15 @@ const STEP_SEQ: Record<string, string[]> = {
   learn: ["result", "reflect", "learnings", "learnings_reveal", "group", "vote", "decision", "close"],
 };
 
-function Shell({ onExit, children }: { onExit?: () => void; children: React.ReactNode }) {
+function Shell({ onExit, mood, children }: { onExit?: () => void; mood?: number | null; children: React.ReactNode }) {
+  // Atmósfera: el "clima" de la sala refleja sutilmente la salud del equipo (su pulso).
+  const glow = mood == null ? "rgba(0,232,122,0.10)"
+    : mood >= 75 ? "rgba(0,232,122,0.17)"
+    : mood >= 60 ? "rgba(0,232,122,0.10)"
+    : mood >= 45 ? "rgba(59,130,246,0.10)"
+    : "rgba(245,158,11,0.10)";
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "radial-gradient(1100px 520px at 50% -160px, rgba(0,232,122,0.10), transparent), var(--bg-1)" }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: `radial-gradient(1100px 520px at 50% -160px, ${glow}, transparent), var(--bg-1)`, transition: "background .8s var(--ease)" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid var(--line)" }}>
         {onExit ? <button onClick={onExit} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="X" size={18} /> Salir</button> : <span style={{ width: 60 }} />}
         <Logo />
@@ -137,6 +143,9 @@ export default function SalaPage() {
   if (!session) return <Shell onExit={() => router.back()}><Card pad={24}><p className="muted">La sesión no existe.</p></Card></Shell>;
 
   const team = getTeam(session.teamId);
+  // Atmósfera de la sala: el último pulso del equipo tiñe sutilmente el fondo.
+  const lastPulsePt = team?.pulse?.length ? team.pulse[team.pulse.length - 1] : undefined;
+  const teamMood = lastPulsePt ? Math.round((lastPulsePt.confianza + lastPulsePt.comunic + lastPulsePt.claridad + lastPulsePt.foco + lastPulsePt.seguridad) / 5) : null;
   const initiative = session.initiativeId ? getInitiatives(session.teamId).find((i) => i.id === session.initiativeId) : undefined;
   const focusPriority = (initiative?.data?.focus as { priority?: string } | undefined)?.priority;
   const subject = focusPriority || (initiative?.data?.explore?.priority as string) || initiative?.title || "la tensión priorizada";
@@ -184,7 +193,7 @@ export default function SalaPage() {
 
   if (closed) {
     return (
-      <Shell onExit={exit}>
+      <Shell onExit={exit} mood={teamMood}>
         <Card pad={28} style={{ textAlign: "center", maxWidth: 440 }}>
           <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name={user?.role === "member" ? "PartyPopper" : "Check"} size={28} /></div>
           <h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{user?.role === "member" ? "¡Gracias por participar!" : "La sesión terminó"}</h2>
@@ -394,7 +403,7 @@ export default function SalaPage() {
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goAfterPulse}>Continuar con la sesión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador continúa con la sesión.</p>;
     }
     return (
-      <Shell onExit={exit}>
+      <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 560 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
@@ -482,7 +491,7 @@ export default function SalaPage() {
     }
 
     return (
-      <Shell onExit={exit}>
+      <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 720 : 560 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
@@ -642,7 +651,7 @@ export default function SalaPage() {
     }
 
     return (
-      <Shell onExit={exit}>
+      <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 760 : 560 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
@@ -949,7 +958,7 @@ export default function SalaPage() {
     }
 
     return (
-      <Shell onExit={exit}>
+      <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
@@ -1240,7 +1249,7 @@ export default function SalaPage() {
     }
 
     return (
-      <Shell onExit={exit}>
+      <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
@@ -1497,7 +1506,7 @@ export default function SalaPage() {
   }
 
   return (
-    <Shell onExit={exit}>
+    <Shell onExit={exit} mood={teamMood}>
       <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
         {Header(sub)}
         <div style={{ marginBottom: 16 }}>{facBar}</div>

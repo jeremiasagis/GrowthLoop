@@ -561,6 +561,11 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
             <Row label="Iniciativas en curso" value={counts.active} />
             <Row label="Ideación en curso" value={(team.initiatives ?? []).filter((i) => i.stage === "proof").length} />
             <Row label="Sesiones realizadas" value={team.sessions.length} />
+            {(() => {
+              const doneOk = inits.filter((i) => i.status === "done" && i.data?.learn?.result).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+              let streak = 0; for (const i of doneOk) { if (i.data?.learn?.result === "yes") streak++; else break; }
+              return streak >= 2 ? <Row label="Racha de mejoras" value={`🔥 ${streak} seguidas`} color="var(--warning)" /> : null;
+            })()}
           </div>
         </Card>
         <RitmoCard teamId={team.id} everyDays={cadence} lastSessionAt={live.data?.lastSessionAt} isFacil={isFacil} onSaved={refresh} />
