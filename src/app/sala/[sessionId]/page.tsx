@@ -15,7 +15,7 @@ import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS } from "@/lib/data";
 import {
   addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster,
-  finalizeSession, getCardCounts, getCards, getClusters, getInputs, getMyCards, getParticipants,
+  finalizeSession, getCardCounts, getCards, getClusters, getInitiativeSessions, getInputs, getMyCards, getParticipants, getSessionContent,
   getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
   renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession, touchPresence,
   type LiveSession, type Participant, type PulseResponse, type SessionCard, type SessionCluster, type SessionInput, type SessionVote,
@@ -151,6 +151,26 @@ export default function SalaPage() {
     if (user && !joinedRef.current) { joinedRef.current = true; joinSession(sessionId, user.name, user.initials); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Foco a prueba de fallos: si el resumen de Exploración no guardó las causas,
+  // las leemos directamente de las tarjetas de la última sesión de Exploración.
+  const [fallbackCauses, setFallbackCauses] = useState<string[]>([]);
+  useEffect(() => {
+    if (session?.type !== "focus" || !session.initiativeId) return;
+    const saved = ((getInitiatives(session.teamId).find((i) => i.id === session.initiativeId)?.data?.explore?.causes as string[] | undefined) ?? []).filter((c) => (c ?? "").trim());
+    if (saved.length) return;
+    let active = true;
+    (async () => {
+      const ss = await getInitiativeSessions(session.initiativeId!);
+      const lastExp = [...ss].reverse().find((s) => s.type === "explore");
+      if (!lastExp) return;
+      const content = await getSessionContent(lastExp.id);
+      const causes = content.cards.filter((c) => c.columnKey === "cause").map((c) => c.text);
+      if (active && causes.length) setFallbackCauses(causes);
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.type, session?.initiativeId]);
 
   // Tick de 1s SOLO mientras hay un timer corriendo (evita re-render de toda la sala cada segundo).
   const liveEndsAt = (session?.result as Record<string, unknown> | undefined)?.["timer"] as { endsAt?: number } | undefined;
@@ -548,8 +568,9 @@ export default function SalaPage() {
   // ════════ FOCO (¿Por qué pasa esto?) ════════
   if (session.type === "focus") {
     const R = session.result;
-    // Causas que dejó Exploración (el insumo de Foco).
-    const exploreCauses = ((initiative?.data?.explore?.causes as string[] | undefined) ?? []).filter((c) => (c ?? "").trim());
+    // Causas que dejó Exploración (el insumo de Foco) — del resumen guardado, o directo de las tarjetas.
+    const savedCauses = ((initiative?.data?.explore?.causes as string[] | undefined) ?? []).filter((c) => (c ?? "").trim());
+    const exploreCauses = savedCauses.length ? savedCauses : fallbackCauses;
     const causes = exploreCauses.map((text, i) => ({ id: `c${i}`, text }));
     const matrixShown = !!R.matrixShown;
     const chosenIdx = R.causeIdx as number | undefined;
@@ -869,7 +890,7 @@ export default function SalaPage() {
               <Card key={cl.id} pad={12}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <span style={{ color: "var(--st-proof)" }}><Icon name="Layers" size={15} /></span>
-                  {isFacil ? <input defaultValue={cl.name} onBlur={(e) => renameCluster(cl.id, e.target.value)} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed var(--line-2)" }} /> : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
+                  {isFacil ? <input defaultValue={cl.name} onBlur={(e) => { if (e.target.value.trim()) renameCluster(cl.id, e.target.value.trim()); }} title="Tocá para ponerle un nombre que el equipo recuerde" placeholder="Nombre del grupo…" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed color-mix(in srgb, var(--green) 55%, transparent)" }} /> : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
                   {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "5px 7px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-proof)" }}>{c.text}</div>)}</div>
@@ -1197,7 +1218,7 @@ export default function SalaPage() {
               <Card key={cl.id} pad={12}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <span style={{ color: "var(--st-learn)" }}><Icon name="Layers" size={15} /></span>
-                  {isFacil ? <input defaultValue={cl.name} onBlur={(e) => renameCluster(cl.id, e.target.value)} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed var(--line-2)" }} /> : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
+                  {isFacil ? <input defaultValue={cl.name} onBlur={(e) => { if (e.target.value.trim()) renameCluster(cl.id, e.target.value.trim()); }} title="Tocá para ponerle un nombre que el equipo recuerde" placeholder="Nombre del grupo…" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed color-mix(in srgb, var(--green) 55%, transparent)" }} /> : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
                   {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "5px 7px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-learn)" }}>{c.text}</div>)}</div>
@@ -1408,7 +1429,7 @@ export default function SalaPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                 <span style={{ color: "var(--green)" }}><Icon name="Layers" size={15} /></span>
                 {isFacil
-                  ? <input defaultValue={cl.name} onBlur={(e) => renameCluster(cl.id, e.target.value)} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed var(--line-2)" }} />
+                  ? <input defaultValue={cl.name} onBlur={(e) => { if (e.target.value.trim()) renameCluster(cl.id, e.target.value.trim()); }} title="Tocá para ponerle un nombre que el equipo recuerde" placeholder="Nombre del grupo…" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed color-mix(in srgb, var(--green) 55%, transparent)" }} />
                   : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
                 {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
               </div>
@@ -1451,9 +1472,11 @@ export default function SalaPage() {
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
-            <button key={cl.id} disabled={isFacil} onClick={() => { if (!isFacil && remaining > 0) voteCluster(cl.id, 1); }}
+            <button key={cl.id} onClick={() => { if (!isFacil && remaining > 0) voteCluster(cl.id, 1); }}
               style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: mine > 0 ? "color-mix(in srgb, var(--green) 8%, var(--card))" : "var(--card)", border: `1px solid ${mine > 0 ? "color-mix(in srgb, var(--green) 45%, var(--line))" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "default" : remaining > 0 ? "pointer" : "default", transition: "all .2s var(--ease)" }}>
-              <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
+              {isFacil
+                ? <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6 }} onClick={(e) => e.stopPropagation()}><Icon name="Pencil" size={12} style={{ color: "var(--ink-3)", flexShrink: 0 }} /><input defaultValue={cl.name} onBlur={(e) => { if (e.target.value.trim()) renameCluster(cl.id, e.target.value.trim()); }} title="Editá el nombre de la tensión" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 600, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed var(--line-2)" }} /></span>
+                : <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>}
               {!isFacil && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                   {Array.from({ length: mine }).map((_, k) => <span key={k} style={{ width: 14, height: 14, borderRadius: 99, background: "var(--green)", boxShadow: "0 0 7px rgba(0,232,122,0.6)", animation: "pop-in .3s var(--spring)" }} />)}
