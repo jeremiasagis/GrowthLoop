@@ -518,24 +518,75 @@ export default function SalaPage() {
       setBusy(false); exit();
     };
 
-    // Matriz 2×2 impacto (alto arriba) × esfuerzo (bajo izquierda).
-    const QUAD = (impHigh: boolean, effLow: boolean) => scored.filter((c) => c.ie && (c.ie.impact >= 3) === impHigh && (c.ie.effort < 3) === effLow);
-    const QuadBox = (title: string, color: string, items: typeof scored) => (
-      <div style={{ background: `color-mix(in srgb, ${color} 7%, var(--card))`, border: `1px solid color-mix(in srgb, ${color} 30%, var(--line))`, borderRadius: "var(--r-md)", padding: 12, minHeight: 96 }}>
-        <div style={{ fontSize: "var(--t-xs)", fontWeight: 800, color, marginBottom: 8 }}>{title}</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{items.length ? items.map((c) => <span key={c.id} style={{ fontSize: "var(--t-xs)", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "4px 8px" }}>{c.text}</span>) : <span className="faint" style={{ fontSize: 10 }}>—</span>}</div>
-      </div>
+    // Paleta por causa (para el mapa y las etiquetas).
+    const CPAL = ["var(--st-explore)", "var(--st-proof)", "var(--warning)", "var(--st-learn)", "var(--violet)", "var(--risk)", "var(--info)", "var(--success)"];
+    const cColor = (id: string) => CPAL[causes.findIndex((x) => x.id === id) % CPAL.length];
+    // Etiquetas de cuadrante (esquinas), compartidas por pad y mapa.
+    const QuadLabels = (
+      <>
+        <span style={{ position: "absolute", top: 6, left: 8, fontSize: 9, fontWeight: 800, color: "var(--success)", opacity: 0.75 }}>QUICK WIN</span>
+        <span style={{ position: "absolute", top: 6, right: 8, fontSize: 9, fontWeight: 800, color: "var(--violet)", opacity: 0.75 }}>APUESTA GRANDE</span>
+        <span style={{ position: "absolute", bottom: 6, left: 8, fontSize: 9, fontWeight: 800, color: "var(--ink-3)", opacity: 0.75 }}>RELLENO</span>
+        <span style={{ position: "absolute", bottom: 6, right: 8, fontSize: 9, fontWeight: 800, color: "var(--risk)", opacity: 0.75 }}>EVITAR</span>
+      </>
     );
+    const padBase: React.CSSProperties = { position: "relative", width: "100%", borderRadius: "var(--r-md)", border: "1px solid var(--line-2)", background: "linear-gradient(135deg, color-mix(in srgb, var(--success) 6%, var(--card-2)) 0%, var(--card-2) 50%, color-mix(in srgb, var(--risk) 5%, var(--card-2)) 100%)", overflow: "hidden" };
+    const CrossLines = (
+      <>
+        <span style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "var(--line-2)" }} />
+        <span style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: "var(--line-2)" }} />
+      </>
+    );
+    // Pad táctil: tocás dónde cae la causa (x = esfuerzo, y = impacto). Guarda {impact, effort} 1–5.
+    const TapPad = (c: { id: string; text: string }) => {
+      const mine = myIE(c.id);
+      const has = mine?.impact != null && mine?.effort != null;
+      const mx = has ? ((mine!.effort! - 1) / 4) * 100 : null;
+      const my = has ? (1 - (mine!.impact! - 1) / 4) * 100 : null;
+      const place = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (isFacil) return; // el facilitador no participa
+        const r = e.currentTarget.getBoundingClientRect();
+        const fx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+        const fy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+        const effort = Math.round((fx * 4 + 1) * 2) / 2;
+        const impact = Math.round(((1 - fy) * 4 + 1) * 2) / 2;
+        setMyIE(c.id, { impact, effort });
+      };
+      return (
+        <Card key={c.id} pad={14}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 99, background: cColor(c.id), flex: "none" }} />
+            <span style={{ fontWeight: 600, fontSize: "var(--t-sm)", flex: 1 }}>{c.text}</span>
+            {has && <span style={{ color: "var(--green)", display: "inline-flex" }}><Icon name="CircleCheck" size={15} /></span>}
+          </div>
+          <div onClick={place} style={{ ...padBase, aspectRatio: "2 / 1", cursor: isFacil ? "default" : "crosshair" }}>
+            {CrossLines}{QuadLabels}
+            {has && <span style={{ position: "absolute", left: `${mx}%`, top: `${my}%`, transform: "translate(-50%,-50%)", width: 18, height: 18, borderRadius: 99, background: cColor(c.id), border: "2px solid var(--bg-1)", boxShadow: `0 0 10px ${cColor(c.id)}`, animation: "pop-in .3s var(--spring)" }} />}
+            {!has && <span className="faint" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name={isFacil ? "EyeOff" : "Hand"} size={13} /> {isFacil ? "El equipo ubica en privado" : "Tocá dónde cae"}</span>}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}><span className="faint" style={{ fontSize: 9 }}>↑ más impacto · ← menos esfuerzo</span>{has && <span className="faint num" style={{ fontSize: 9 }}>I {mine!.impact} · E {mine!.effort}</span>}</div>
+        </Card>
+      );
+    };
+    // Mapa revelado: cada causa plotteada en su posición promedio; los votos individuales como "calor"; la ganadora brilla.
     const TheMatrix = (
       <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><Icon name="ArrowUp" size={12} style={{ color: "var(--ink-3)" }} /><span className="faint" style={{ fontSize: 10 }}>más impacto</span></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          {QuadBox("Quick win · priorizar", "var(--success)", QUAD(true, true))}
-          {QuadBox("Apuesta grande", "var(--violet)", QUAD(true, false))}
-          {QuadBox("Relleno", "var(--ink-3)", QUAD(false, true))}
-          {QuadBox("Evitar", "var(--risk)", QUAD(false, false))}
+        <div style={{ ...padBase, aspectRatio: "3 / 2" }}>
+          {CrossLines}{QuadLabels}
+          {causes.map((c) => ieFor(c.id).map((v, j) => (v.impact != null && v.effort != null) ? (
+            <span key={`${c.id}-${j}`} style={{ position: "absolute", left: `${((v.effort - 1) / 4) * 100}%`, top: `${(1 - (v.impact - 1) / 4) * 100}%`, transform: "translate(-50%,-50%)", width: 7, height: 7, borderRadius: 99, background: cColor(c.id), opacity: 0.32 }} />
+          ) : null))}
+          {scored.filter((c) => c.ie).map((c, i) => {
+            const x = ((c.ie!.effort - 1) / 4) * 100, y = (1 - (c.ie!.impact - 1) / 4) * 100;
+            const win = i === 0;
+            return (
+              <span key={c.id} title={c.text} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", width: win ? 30 : 24, height: win ? 30 : 24, borderRadius: 99, background: cColor(c.id), color: "#06121f", display: "grid", placeItems: "center", fontWeight: 800, fontSize: win ? 13 : 11, border: "2px solid var(--bg-1)", boxShadow: win ? `0 0 0 2px ${cColor(c.id)}, 0 0 18px ${cColor(c.id)}` : "var(--sh-sm)", animation: win ? "glow-pulse 1.6s infinite" : `gl-reveal .5s var(--spring) ${(i * 0.08).toFixed(2)}s both`, zIndex: win ? 2 : 1 }} className="num">{causes.findIndex((x2) => x2.id === c.id) + 1}</span>
+            );
+          })}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}><span className="faint" style={{ fontSize: 10 }}>menos esfuerzo</span><span className="faint" style={{ fontSize: 10 }}>más esfuerzo</span></div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10, justifyContent: "center" }}>
+          {causes.map((c, i) => <span key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--t-xs)", padding: "4px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}><span className="num" style={{ width: 16, height: 16, borderRadius: 99, background: cColor(c.id), color: "#06121f", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 10 }}>{i + 1}</span>{c.text}</span>)}
+        </div>
       </div>
     );
 
@@ -548,21 +599,13 @@ export default function SalaPage() {
       wide = true;
       sub = matrixShown ? "Dónde cae cada causa. El facilitador elige cuál atacar primero." : "Puntuá cada causa por impacto y esfuerzo (1–5). Anónimo y oculto hasta que el facilitador lo muestre.";
       if (!matrixShown) {
-        // Tablero compartido: TODOS puntúan cada causa (mismo board). Oculto hasta revelar.
+        // Tablero compartido: cada uno UBICA la causa en el plano (tap-to-place). Oculto hasta revelar.
         content = (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {causes.map((c) => { const mine = (myIE(c.id) ?? {}) as Record<string, number>; return (
-              <Card key={c.id} pad={14}>
-                <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: isFacil ? 0 : 10 }}>{c.text}</div>
-                {!isFacil && [{ k: "impact", l: "Impacto", hint: "si lo resolvemos, ¿cuánto mejora?" }, { k: "effort", l: "Esfuerzo", hint: "¿cuánto cuesta resolverlo?" }].map((row) => (
-                  <div key={row.k} style={{ marginBottom: 8 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><span style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>{row.l}</span><span className="faint" style={{ fontSize: 10 }}>{row.hint}</span></div>
-                    <div style={{ display: "flex", gap: 6 }}>{[1, 2, 3, 4, 5].map((v) => { const on = mine[row.k] === v; return <button key={v} onClick={() => setMyIE(c.id, { [row.k]: v })} style={{ flex: 1, padding: "7px 0", borderRadius: "var(--r-sm)", fontWeight: 700, fontSize: "var(--t-sm)", background: on ? "var(--st-focus)" : "var(--card-2)", color: on ? "#06121f" : "var(--ink-2)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line-2)"}` }}>{v}</button>; })}</div>
-                  </div>
-                ))}
-              </Card>
-            ); })}
-            <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}><Icon name="EyeOff" size={12} /> {raters} de {totalInRoom} puntuaron</p>
+            <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: causes.length > 1 ? "1fr 1fr" : "1fr", gap: 12 }}>
+              {causes.map((c) => TapPad(c))}
+            </div>
+            <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}><Icon name="EyeOff" size={12} /> Anónimo · {raters} de {totalInRoom} ubicaron las causas</p>
           </div>
         );
         controls = isFacil
@@ -572,7 +615,8 @@ export default function SalaPage() {
         // Revelado: TODOS ven la misma matriz + la causa elegida (solo el facilitador puede elegir).
         content = (
           <>
-            {TheMatrix}
+            <RevealHeader n={scored.filter((c) => c.ie).length} label="causas en el mapa" color="var(--st-focus)" />
+            <RevealPop>{TheMatrix}</RevealPop>
             <div style={{ marginTop: 16 }}>
               <div className="eyebrow" style={{ marginBottom: 8 }}>{isFacil ? "Elegí la causa a trabajar" : "Causa a trabajar"}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -777,39 +821,61 @@ export default function SalaPage() {
       const shown = !!session.result.iceShown;
       sub = shown ? "Resultado ICE: qué idea conviene apostar (impacto · confianza · facilidad)." : "Puntuá cada grupo: Impacto, Confianza y Facilidad (1–10). Oculto hasta que el facilitador lo muestre.";
       content = shown ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {iceRanked.map((cl, i) => { const on = chosenIds.includes(cl.id); const sc = iceScore(cl.id); return (
-            <button key={cl.id} onClick={() => isFacil && toggleBetGroup(cl.id)} disabled={!isFacil} style={{ textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default" }}>
-              {isFacil && <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={16} /></span>}
-              <span className="num" style={{ width: 18, fontWeight: 700, color: i === 0 ? "var(--st-proof)" : "var(--ink-3)" }}>{i + 1}</span>
-              <span style={{ flex: 1 }}>{cl.name}</span>
-              <div style={{ width: 70 }}><Bar value={(sc / 10) * 100} color="var(--st-proof)" height={6} /></div>
-              <span className="num" style={{ fontWeight: 700, width: 28, textAlign: "right" }}>{sc}</span>
-            </button>
-          ); })}
-          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 4 }}>Elegí 1 o 2 ideas para apostar (la de mayor ICE queda sugerida). Las demás quedan para probar después.</p>}
-        </div>
+        <>
+          <RevealHeader n={iceRanked.length} label={`ideas puntuadas · gana "${iceRanked[0]?.name ?? "—"}"`} color="var(--st-proof)" />
+          <Cascade>
+            {iceRanked.map((cl, i) => { const on = chosenIds.includes(cl.id); const sc = iceScore(cl.id); return (
+              <button key={cl.id} onClick={() => isFacil && toggleBetGroup(cl.id)} disabled={!isFacil} style={{ width: "100%", textAlign: "left", background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "11px 13px", fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 10, cursor: isFacil ? "pointer" : "default", boxShadow: i === 0 ? "var(--glow-soft)" : "none" }}>
+                {isFacil && <span style={{ color: on ? "var(--st-proof)" : "var(--ink-3)" }}><Icon name={on ? "CircleCheck" : "Circle"} size={16} /></span>}
+                <span className="num" style={{ width: 18, fontWeight: 700, color: i === 0 ? "var(--st-proof)" : "var(--ink-3)" }}>{i + 1}</span>
+                <span style={{ flex: 1 }}>{cl.name}</span>
+                <div style={{ width: 70 }}><Bar value={(sc / 10) * 100} color="var(--st-proof)" height={6} /></div>
+                <span className="num" style={{ fontWeight: 700, width: 28, textAlign: "right" }}>{sc}</span>
+              </button>
+            ); })}
+          </Cascade>
+          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 10 }}>Elegí 1 o 2 ideas para apostar (la de mayor ICE queda sugerida). Las demás quedan para probar después.</p>}
+        </>
       ) : (
         <>
           {isFacil ? (
-            <Card pad={24} style={{ textAlign: "center" }}><div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-proof)" }}>{iceSubmitters}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>puntuaron</div></Card>
+            <Card pad={24}><HiddenDots n={iceSubmitters} label={`de ${totalInRoom} puntuaron · oculto hasta revelar`} color="var(--st-proof)" /></Card>
           ) : iMyIce ? (
             <Card pad={24} style={{ textAlign: "center" }}><Icon name="Check" size={26} style={{ color: "var(--green)" }} /><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Puntuaste. Esperá a que el facilitador muestre el resultado.</p></Card>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {clusters.map((cl) => { const d = iceDraft[cl.id] ?? { i: 5, c: 5, e: 5 }; return (
                 <Card key={cl.id} pad={16}>
-                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: isFacil ? 0 : 10 }}>{cl.name}</div>
-                  {!isFacil && <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 10 }}>{cl.name}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                     {ICE_D.map(([k, label]) => (
                       <div key={k}>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-xs)", marginBottom: 3 }}><span className="muted">{label}</span><span className="num" style={{ fontWeight: 700 }}>{d[k]}</span></div>
                         <input type="range" min={1} max={10} value={d[k]} onChange={(e) => setIceDraft((p) => ({ ...p, [cl.id]: { ...d, [k]: Number(e.target.value) } }))} style={{ width: "100%", accentColor: "var(--st-proof)" }} />
                       </div>
                     ))}
-                  </div>}
+                  </div>
                 </Card>
               ); })}
+              {clusters.length > 1 && (() => {
+                // Ranking vivo: se reordena mientras movés las perillas (solo tu vista).
+                const myRank = [...clusters].map((cl) => { const d = iceDraft[cl.id] ?? { i: 5, c: 5, e: 5 }; return { cl, sc: Math.round(((d.i + d.c + d.e) / 3) * 10) / 10 }; }).sort((a, b) => b.sc - a.sc);
+                return (
+                  <Card pad={14}>
+                    <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="ListOrdered" size={13} /> Tu ranking (en vivo, privado)</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {myRank.map((r, i) => (
+                        <div key={r.cl.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-sm)", transition: "all .3s var(--ease)" }}>
+                          <span className="num" style={{ width: 16, fontWeight: 800, color: i === 0 ? "var(--st-proof)" : "var(--ink-3)" }}>{i + 1}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontWeight: i === 0 ? 700 : 500 }}>{r.cl.name}</span>
+                          <div style={{ width: 64 }}><Bar value={(r.sc / 10) * 100} color={i === 0 ? "var(--st-proof)" : "var(--ink-3)"} height={5} /></div>
+                          <span className="num" style={{ fontWeight: 700, width: 30, textAlign: "right", fontSize: "var(--t-xs)" }}>{r.sc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                );
+              })()}
             </div>
           )}
           {!iMyIce && clusters.length > 0 && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)", marginTop: 10 }}><Icon name="EyeOff" size={12} /> Puntuación anónima · {iceSubmitters} de {totalInRoom} puntuaron.</p>}
