@@ -30,8 +30,10 @@ export interface PulseResponse {
 export interface Participant { userId: string; name: string; initials: string; lastSeen?: string; }
 export interface SessionCard { id: string; columnKey: string; text: string; anonymous: boolean; authorId?: string; clusterId?: string; }
 export interface SessionCluster { id: string; name: string; }
-export interface SessionVote { id: string; clusterId: string; userId: string; }
-export interface SessionInput { userId: string; key: string; value: Record<string, unknown>; }
+// userId viene enmascarado (null) salvo en tus propias filas — anonimato real a nivel base.
+// voterKey = hash estable por sesión, sirve para contar votantes distintos sin identificar.
+export interface SessionVote { id: string; clusterId: string; userId: string | null; voterKey: string; }
+export interface SessionInput { userId: string | null; key: string; value: Record<string, unknown>; voterKey: string; }
 
 const RETRO_NAME: Record<string, string> = {
   founding: "Sesión Fundacional",
@@ -124,7 +126,7 @@ export async function touchPresence(sessionId: string): Promise<void> {
 
 export async function getPulseResponses(sessionId: string): Promise<PulseResponse[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.from("session_pulse_responses")
+  const { data } = await supabase.from("session_pulse_view")
     .select("confianza,comunic,claridad,foco,seguridad").eq("session_id", sessionId);
   return (data ?? []) as PulseResponse[];
 }
@@ -268,8 +270,8 @@ export async function assignCardToCluster(cardId: string, clusterId: string | nu
 // ── Aportes genéricos de miembros (confirmaciones, ICE, etc.) ──
 export async function getInputs(sessionId: string): Promise<SessionInput[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.from("session_inputs").select("user_id,key,value").eq("session_id", sessionId);
-  return (data ?? []).map((r: any) => ({ userId: r.user_id, key: r.key, value: (r.value as Record<string, unknown>) ?? {} }));
+  const { data } = await supabase.from("session_inputs_view").select("user_id,key,value,voter_key").eq("session_id", sessionId);
+  return (data ?? []).map((r: any) => ({ userId: r.user_id, key: r.key, value: (r.value as Record<string, unknown>) ?? {}, voterKey: r.voter_key }));
 }
 export async function setMyInput(sessionId: string, key: string, value: Record<string, unknown>, isPrivate = false): Promise<void> {
   const supabase = getSupabaseBrowserClient();
@@ -284,8 +286,8 @@ export async function setMyInput(sessionId: string, key: string, value: Record<s
 // ── Votar (un punto por fila) ──
 export async function getVotes(sessionId: string): Promise<SessionVote[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.from("session_votes").select("id,cluster_id,user_id").eq("session_id", sessionId);
-  return (data ?? []).map((r: any) => ({ id: r.id, clusterId: r.cluster_id, userId: r.user_id }));
+  const { data } = await supabase.from("session_votes_view").select("id,cluster_id,user_id,voter_key").eq("session_id", sessionId);
+  return (data ?? []).map((r: any) => ({ id: r.id, clusterId: r.cluster_id, userId: r.user_id, voterKey: r.voter_key }));
 }
 export async function addVote(sessionId: string, clusterId: string): Promise<void> {
   const supabase = getSupabaseBrowserClient();

@@ -79,7 +79,7 @@ export default function InvitePage() {
       role: invitation.role, orgId: invitation.orgId, orgName: invitation.orgName, teamId: invitation.teamId,
     });
     if (res.error) { setBusy(false); setError(res.error); return; }
-    await markInvitationAccepted(invitation.token, invitation.role, invitation.email);
+    await markInvitationAccepted(invitation.token);
     router.replace(homeFor(invitation.role));
   };
 

@@ -160,14 +160,28 @@ export async function assignOrgAdmin(orgId: string, adminEmail: string | null): 
   return {};
 }
 
-/** Crea una invitación con token. Devuelve el token (para armar el link). */
+/** Crea (o reutiliza) una invitación con token. Devuelve el token (para armar el link). */
 export async function createInvitation(p: {
   email: string; name?: string; role: RoleKey; orgId?: string; orgName?: string; teamId?: string;
 }): Promise<{ token?: string; error?: string }> {
   const supabase = getSupabaseBrowserClient();
+  const email = p.email.trim().toLowerCase();
+  // Si ya hay una invitación pendiente vigente para ese email+rol(+org/equipo), reutilizamos
+  // el token (y le renovamos el vencimiento) en vez de acumular tokens válidos.
+  let q = supabase.from("invitations").select("token")
+    .eq("email", email).eq("role", p.role).eq("status", "pending")
+    .gt("expires_at", new Date().toISOString());
+  q = p.teamId ? q.eq("team_id", p.teamId) : p.orgId ? q.eq("org_id", p.orgId) : q;
+  const { data: existing } = await q.limit(1).maybeSingle();
+  if (existing?.token) {
+    await supabase.from("invitations")
+      .update({ expires_at: new Date(Date.now() + 14 * 86400000).toISOString() })
+      .eq("token", existing.token);
+    return { token: existing.token };
+  }
   const token = newToken();
   const { error } = await supabase.from("invitations").insert({
-    token, email: p.email.trim(), name: p.name ?? null, role: p.role,
+    token, email, name: p.name ?? null, role: p.role,
     org_id: p.orgId ?? null, org_name: p.orgName ?? null, team_id: p.teamId ?? null, status: "pending",
   });
   if (error) return { error: error.message };
@@ -414,12 +428,14 @@ export async function addReflection(text: string, teamId?: string, prompt = "Ref
 // ── Invitations (Supabase) ──
 export async function getInvitation(token: string): Promise<Invitation | null> {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.from("invitations").select("*").eq("token", token).single();
-  if (error || !data) return null;
+  // RPC por token exacto: la tabla quedó cerrada por RLS (antes cualquiera podía listarla).
+  const { data, error } = await supabase.rpc("get_invitation_by_token", { p_token: token });
+  const row = Array.isArray(data) ? data[0] : data;
+  if (error || !row) return null;
   return {
-    token: data.token, email: data.email, name: data.name ?? undefined, role: data.role as RoleKey,
-    orgId: data.org_id ?? undefined, orgName: data.org_name ?? undefined, teamId: data.team_id ?? undefined,
-    status: data.status,
+    token: row.token, email: row.email, name: row.name ?? undefined, role: row.role as RoleKey,
+    orgId: row.org_id ?? undefined, orgName: row.org_name ?? undefined, teamId: row.team_id ?? undefined,
+    status: row.status,
   };
 }
 
@@ -441,11 +457,10 @@ export async function getCoordinatorsForOrg(orgId: string): Promise<{ token: str
   return data.map((r) => ({ token: r.token, email: r.email, name: r.name ?? undefined, status: r.status }));
 }
 
-export async function markInvitationAccepted(token: string, role: RoleKey, email: string): Promise<void> {
+export async function markInvitationAccepted(token: string): Promise<void> {
   const supabase = getSupabaseBrowserClient();
-  await supabase.from("invitations").update({ status: "accepted" }).eq("token", token);
-  // Activamos el registro del directorio (facilitador/admin) si existe.
-  if (role === "facilitator") await supabase.from("facilitators").update({ status: "active" }).eq("email", email);
-  if (role === "admin") await supabase.from("admins").update({ status: "active" }).eq("email", email);
+  // RPC security-definer: valida el token vigente, marca aceptada y activa
+  // la ficha del directorio (facilitador/admin) — que la RLS bloqueaba al invitado.
+  await supabase.rpc("accept_invitation", { p_token: token });
 }
 

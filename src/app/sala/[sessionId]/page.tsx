@@ -514,7 +514,7 @@ export default function SalaPage() {
     const avgIE = (id: string): { impact: number; effort: number; n: number } | null => { const xs = ieFor(id); if (!xs.length) return null; const im = xs.reduce((a, v) => a + (v.impact ?? 0), 0) / xs.length; const ef = xs.reduce((a, v) => a + (v.effort ?? 0), 0) / xs.length; return { impact: im, effort: ef, n: xs.length }; };
     const myIE = (id: string) => inputs.find((i) => i.userId === user.id && i.key === `ie:${id}`)?.value as { impact?: number; effort?: number } | undefined;
     const setMyIE = (id: string, patch: Record<string, number>) => { const cur = myIE(id) ?? {}; setMyInput(sessionId, `ie:${id}`, { ...cur, ...patch }); };
-    const raters = new Set(inputs.filter((i) => i.key.startsWith("ie:")).map((i) => i.userId)).size;
+    const raters = new Set(inputs.filter((i) => i.key.startsWith("ie:")).map((i) => i.voterKey)).size;
     const scored = causes.map((c) => { const a = avgIE(c.id); return { ...c, ie: a, score: a ? a.impact - a.effort : -99 }; }).sort((x, y) => y.score - x.score);
     const chosen = chosenIdx != null ? causes[chosenIdx] : undefined;
     const fSteps = ["matrix", "close"];
@@ -683,7 +683,7 @@ export default function SalaPage() {
     // ICE (Impacto · Confianza · Facilidad) por grupo de ideas
     const ICE_D: [("i" | "c" | "e"), string][] = [["i", "Impacto"], ["c", "Confianza"], ["e", "Facilidad"]];
     const iceScore = (cid: string) => { const xs = inputs.filter((i) => i.key === `ice:${cid}`).map((i) => i.value as { i: number; c: number; e: number }); if (!xs.length) return 0; return Math.round((xs.reduce((s, v) => s + ((v.i ?? 0) + (v.c ?? 0) + (v.e ?? 0)) / 3, 0) / xs.length) * 10) / 10; };
-    const iceSubmitters = new Set(inputs.filter((i) => i.key.startsWith("ice:")).map((i) => i.userId)).size;
+    const iceSubmitters = new Set(inputs.filter((i) => i.key.startsWith("ice:")).map((i) => i.voterKey)).size;
     const iMyIce = inputs.some((i) => i.userId === user.id && i.key.startsWith("ice:"));
     const iceRanked = [...clusters].sort((a, b) => iceScore(b.id) - iceScore(a.id));
     const iceTop = iceRanked[0];
@@ -1167,7 +1167,7 @@ export default function SalaPage() {
       );
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={fNext}>Votar los más importantes</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mirá cómo se agrupan los aprendizajes.</p>;
     } else if (step === "vote") {
-      const lVoters = new Set(votes.map((v) => v.userId)).size;
+      const lVoters = new Set(votes.map((v) => v.voterKey)).size;
       const maxL = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
       sub = lShown ? "Los aprendizajes más importantes del equipo." : "¿Cuáles aprendizajes son los más importantes? Repartí tus puntos (oculto).";
       content = lShown ? (
@@ -1382,7 +1382,7 @@ export default function SalaPage() {
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={goNext}>Siguiente: votar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa y pasa a la votación.</p>;
   } else if (step === "vote") {
     const shown = !!session.result.voteShown;
-    const voters = new Set(votes.map((v) => v.userId)).size;
+    const voters = new Set(votes.map((v) => v.voterKey)).size;
     const max = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
     sub = shown ? "Resultado de la votación: qué tensión atendemos primero." : "¿Qué tensión atendemos primero? Repartí tus puntos. La votación está oculta hasta que el facilitador la muestre.";
     content = shown ? (
@@ -1456,7 +1456,7 @@ export default function SalaPage() {
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Votar etapa crítica</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo vota la etapa más crítica.</p>;
   } else if (step === "flow_vote") {
     const shown = !!session.result.flowShown;
-    const fVoters = new Set(inputs.filter((i) => i.key === "critical").map((i) => i.userId)).size;
+    const fVoters = new Set(inputs.filter((i) => i.key === "critical").map((i) => i.voterKey)).size;
     const maxF = Math.max(1, ...FLOW_COLS.map((f) => flowVotes[f.key] ?? 0));
     sub = shown ? "Resultado: la etapa más crítica del flujo." : "¿Cuál es la etapa más crítica del flujo? Elegí una. La votación está oculta hasta que el facilitador la muestre.";
     content = shown ? (
