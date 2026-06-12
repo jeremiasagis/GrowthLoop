@@ -100,6 +100,8 @@ export default function SalaPage() {
   const [voteBusy, setVoteBusy] = useState(false);
   // Sesión continua: tras cerrar una etapa, el facilitador puede encadenar la siguiente.
   const [afterClose, setAfterClose] = useState<string | null>(null);
+  // Foco: qué causa está "en la mano" para ubicar en el mapa único.
+  const [focusSel, setFocusSel] = useState<string | null>(null);
   const sessionId = params.sessionId;
   // Resultado "más fresco que el poll": evita que dos ediciones seguidas (< 2s) se pisen
   // entre sí — cada patch local se acumula acá y los setters leen de este ref, no del estado.
@@ -614,37 +616,51 @@ export default function SalaPage() {
         <span style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: "var(--line-2)" }} />
       </>
     );
-    // Pad táctil: tocás dónde cae la causa (x = esfuerzo, y = impacto). Guarda {impact, effort} 1–5.
-    const TapPad = (c: { id: string; text: string }) => {
-      const mine = myIE(c.id);
-      const has = mine?.impact != null && mine?.effort != null;
-      const mx = has ? ((mine!.effort! - 1) / 4) * 100 : null;
-      const my = has ? (1 - (mine!.impact! - 1) / 4) * 100 : null;
-      const place = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (isFacil) return; // el facilitador no participa
-        const r = e.currentTarget.getBoundingClientRect();
-        const fx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-        const fy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
-        const effort = Math.round((fx * 4 + 1) * 2) / 2;
-        const impact = Math.round(((1 - fy) * 4 + 1) * 2) / 2;
-        setMyIE(c.id, { impact, effort });
-      };
-      return (
-        <Card key={c.id} pad={14}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 99, background: cColor(c.id), flex: "none" }} />
-            <span style={{ fontWeight: 600, fontSize: "var(--t-sm)", flex: 1 }}>{c.text}</span>
-            {has && <span style={{ color: "var(--green)", display: "inline-flex" }}><Icon name="CircleCheck" size={15} /></span>}
-          </div>
-          <div onClick={place} style={{ ...padBase, aspectRatio: "2 / 1", cursor: isFacil ? "default" : "crosshair" }}>
-            {CrossLines}{QuadLabels}
-            {has && <span style={{ position: "absolute", left: `${mx}%`, top: `${my}%`, transform: "translate(-50%,-50%)", width: 18, height: 18, borderRadius: 99, background: cColor(c.id), border: "2px solid var(--bg-1)", boxShadow: `0 0 10px ${cColor(c.id)}`, animation: "pop-in .3s var(--spring)" }} />}
-            {!has && <span className="faint" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name={isFacil ? "EyeOff" : "Hand"} size={13} /> {isFacil ? "El equipo ubica en privado" : "Tocá dónde cae"}</span>}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}><span className="faint" style={{ fontSize: 9 }}>↑ más impacto · ← menos esfuerzo</span>{has && <span className="faint num" style={{ fontSize: 9 }}>I {mine!.impact} · E {mine!.effort}</span>}</div>
-        </Card>
-      );
+    // Mapa ÚNICO compartido: elegís la ficha de una causa y tocás dónde cae en el plano.
+    // Cada uno ve solo SUS fichas hasta que el facilitador revela (ahí se ven las coincidencias).
+    const placedIds = causes.filter((c) => { const m = myIE(c.id); return m?.impact != null && m?.effort != null; }).map((c) => c.id);
+    const activeCause = causes.find((c) => c.id === focusSel) ?? causes.find((c) => !placedIds.includes(c.id)) ?? causes[0];
+    const placeOnBoard = (e: React.MouseEvent<HTMLDivElement>) => {
+      if (isFacil || !activeCause) return; // el facilitador no participa
+      const r = e.currentTarget.getBoundingClientRect();
+      const fx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      const fy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+      const effort = Math.round((fx * 4 + 1) * 2) / 2;
+      const impact = Math.round(((1 - fy) * 4 + 1) * 2) / 2;
+      setMyIE(activeCause.id, { impact, effort });
+      // Pasa solo a la siguiente causa sin ubicar.
+      const next = causes.find((c) => c.id !== activeCause.id && !placedIds.includes(c.id));
+      setFocusSel(next?.id ?? null);
     };
+    const SingleBoard = (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* fichas: tocá una para tenerla "en la mano", después tocá el mapa */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+          {causes.map((c, i) => { const placed = placedIds.includes(c.id); const on = !isFacil && activeCause?.id === c.id; return (
+            <button key={c.id} disabled={isFacil} onClick={() => setFocusSel(c.id)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, background: on ? `color-mix(in srgb, ${cColor(c.id)} 16%, var(--card))` : "var(--card)", border: `1px solid ${on ? cColor(c.id) : "var(--line-2)"}`, boxShadow: on ? `0 0 10px color-mix(in srgb, ${cColor(c.id)} 40%, transparent)` : "none", cursor: isFacil ? "default" : "pointer", maxWidth: 280 }}>
+              <span className="num" style={{ width: 18, height: 18, borderRadius: 99, background: cColor(c.id), color: "#06121f", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 10, flexShrink: 0 }}>{i + 1}</span>
+              <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.text}</span>
+              {placed && <Icon name="CircleCheck" size={13} style={{ color: "var(--green)", flexShrink: 0 }} />}
+            </button>
+          ); })}
+        </div>
+        <div onClick={placeOnBoard} style={{ ...padBase, aspectRatio: "3 / 2", cursor: isFacil ? "default" : "crosshair" }}>
+          {CrossLines}{QuadLabels}
+          {/* tus fichas ya ubicadas */}
+          {causes.map((c, i) => { const m = myIE(c.id); if (m?.impact == null || m?.effort == null) return null; return (
+            <span key={c.id} title={c.text} onClick={(e) => { e.stopPropagation(); if (!isFacil) setFocusSel(c.id); }}
+              style={{ position: "absolute", left: `${((m.effort - 1) / 4) * 100}%`, top: `${(1 - (m.impact - 1) / 4) * 100}%`, transform: "translate(-50%,-50%)", width: 24, height: 24, borderRadius: 99, background: cColor(c.id), color: "#06121f", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 11, border: "2px solid var(--bg-1)", boxShadow: `0 0 10px ${cColor(c.id)}`, animation: "pop-in .3s var(--spring)", cursor: "pointer", zIndex: 1 }} className="num">{i + 1}</span>
+          ); })}
+          {placedIds.length === 0 && (
+            <span className="faint" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 6, pointerEvents: "none" }}>
+              <Icon name={isFacil ? "EyeOff" : "Hand"} size={15} /> {isFacil ? "El equipo ubica las causas en privado" : "Tocá el mapa para ubicar la causa seleccionada"}
+            </span>
+          )}
+        </div>
+        {!isFacil && activeCause && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}>En la mano: <b style={{ color: cColor(activeCause.id) }}>{activeCause.text}</b> · tocá el mapa donde cae (↑ impacto · ← menos esfuerzo). Tocá una ficha para re-ubicarla.</p>}
+      </div>
+    );
     // Mapa revelado: cada causa plotteada en su posición promedio; los votos individuales como "calor"; la ganadora brilla.
     const TheMatrix = (
       <div>
@@ -679,9 +695,7 @@ export default function SalaPage() {
         // Tablero compartido: cada uno UBICA la causa en el plano (tap-to-place). Oculto hasta revelar.
         content = (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: causes.length > 1 ? "1fr 1fr" : "1fr", gap: 12 }}>
-              {causes.map((c) => TapPad(c))}
-            </div>
+            {SingleBoard}
             <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}><Icon name="EyeOff" size={12} /> Anónimo · {raters} de {totalInRoom} ubicaron las causas</p>
           </div>
         );
