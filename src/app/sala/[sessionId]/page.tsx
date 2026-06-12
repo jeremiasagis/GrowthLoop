@@ -94,6 +94,7 @@ const STEP_SEQ: Record<string, string[]> = {
   impactfreq: ["iflist", "ifrate", "ifmatrix"],
   clientvoice: ["cvclient", "cvperc", "cvcontrast", "cvsynth"],
   fishbone: ["fbsetup", "fbcauses", "fbvote", "fbdeep", "fbmain"],
+  perfection: ["pgscore", "pgreveal", "pgfactors", "pgsynth"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -2322,6 +2323,189 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 920 : 640 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ PERFECTION GAME · ¿en qué número estamos? ════════
+  if (session.type === "perfection") {
+    const pgVar = (session.result.pgVar as string) || initiative?.title || "la variable elegida";
+    const pgScores = inputs.filter((i) => i.key === "pg").map((i) => (i.value as { v?: number }).v).filter((v): v is number => typeof v === "number");
+    const myPg = (inputs.find((i) => i.userId === user.id && i.key === "pg")?.value as { v?: number } | undefined)?.v;
+    const pgAvg = pgScores.length ? pgScores.reduce((a, b) => a + b, 0) / pgScores.length : 0;
+    const pgMin = pgScores.length ? Math.min(...pgScores) : 0;
+    const pgMax = pgScores.length ? Math.max(...pgScores) : 0;
+    const highSpread = pgScores.length > 1 && pgMax - pgMin > 3;
+    const factors = allCards.filter((c) => c.columnKey === "pgf");
+    const pgGroup = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Factor ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
+    const pgCands = new Set((session.result.pgCands as string[]) ?? []);
+    const factorNames = [...clusters.map((c) => c.name), ...loose.filter((c) => c.columnKey === "pgf").map((c) => c.text)];
+    const VarChipPg = (
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--st-focus) 12%, var(--card))", border: "1px solid color-mix(in srgb, var(--st-focus) 40%, transparent)", color: "var(--st-focus)", fontSize: "var(--t-xs)", fontWeight: 700 }}>
+          <Icon name="Crosshair" size={13} /> Variable: {pgVar}
+        </span>
+      </div>
+    );
+    const addPgf = async () => { const t = (cardDraft.pgf ?? "").trim(); if (!t) return; await addCard(sessionId, "pgf", t, false); setCardDraft((d) => ({ ...d, pgf: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const pgFinish = async () => {
+      setBusy(true);
+      const cands = [...pgCands];
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: factors.length,
+        summaryText: `Perfection Game: ${pgAvg.toFixed(1)}/10 · ${cands.length} causas candidatas`,
+        dataKey: "focus", dataValue: { perfectionScore: Math.round(pgAvg * 10) / 10, ...(cands.length ? { candidateFactors: cands } : {}) },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "pgscore") {
+      sub = `¿En qué número estamos como equipo en relación a ${pgVar}? Anónimo, del 1 al 10.`;
+      content = (
+        <>
+          {VarChipPg}
+          <Card pad={24}>
+            {isFacil ? (
+              <>
+                <div className="eyebrow" style={{ marginBottom: 6 }}>La variable a evaluar</div>
+                <input defaultValue={pgVar} onBlur={(e) => { const v = e.target.value.trim(); if (v) patchResult({ pgVar: v }); }} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", fontWeight: 600, outline: "none", marginBottom: 16 }} />
+                <div style={{ textAlign: "center" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{pgScores.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>puntuaron · oculto hasta revelar</div></div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>Tu puntuación</span>
+                  <span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-focus)" }}>{myPg ?? "—"}</span>
+                </div>
+                <input type="range" min={1} max={10} step={1} value={myPg ?? 5} onChange={(e) => tapInput("pg", { v: Number(e.target.value) })} style={{ width: "100%", accentColor: "var(--st-focus)" }} />
+                <div className="muted num" style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-xs)", marginTop: 4 }}><span>1</span><span>5</span><span>10</span></div>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center" }}><Icon name="Lock" size={12} /> Anónimo · {pgScores.length} de {totalInRoom} puntuaron</p>
+              </>
+            )}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || pgScores.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "pgreveal", 1); setBusy(false); }}>Revelar puntuaciones ({pgScores.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mové el slider. El facilitador revela cuando estén todos.</p>;
+    } else if (step === "pgreveal") {
+      sub = "Las puntuaciones del equipo, reveladas.";
+      content = (
+        <>
+          {VarChipPg}
+          <Card pad={24}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 18, marginBottom: 18, flexWrap: "wrap" }}>
+              <span><span className="num" style={{ fontSize: 44, fontWeight: 800, color: "var(--st-focus)" }}>{pgAvg.toFixed(1)}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}>/10 promedio</span></span>
+              <span className="num muted" style={{ fontSize: "var(--t-sm)" }}>rango {pgMin}–{pgMax}</span>
+            </div>
+            <div style={{ position: "relative", height: 46, margin: "0 8px" }}>
+              <div style={{ position: "absolute", left: 0, right: 0, top: 20, height: 6, borderRadius: 99, background: "var(--card-2)" }} />
+              {[1, 5, 10].map((m) => <span key={m} className="num muted" style={{ position: "absolute", left: `${((m - 1) / 9) * 100}%`, top: 32, fontSize: 10, transform: "translateX(-50%)" }}>{m}</span>)}
+              {pgScores.map((s, i) => (
+                <span key={i} style={{ position: "absolute", left: `${((s - 1) / 9) * 100}%`, top: 14, width: 18, height: 18, borderRadius: 99, background: "color-mix(in srgb, var(--st-focus) 30%, var(--card))", border: "2px solid var(--st-focus)", transform: "translateX(-50%)", animation: `pop-in .4s var(--spring) ${i * 0.06}s both` }} />
+              ))}
+              <span style={{ position: "absolute", left: `${((pgAvg - 1) / 9) * 100}%`, top: 8, width: 3, height: 30, background: "var(--green)", transform: "translateX(-50%)", borderRadius: 2 }} title="promedio" />
+            </div>
+            {highSpread && (
+              <div style={{ marginTop: 16, padding: "10px 12px", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", display: "flex", gap: 8 }}>
+                <Icon name="Split" size={16} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
+                <span><b>Alta dispersión:</b> el equipo percibe la situación muy diferente (diferencia de {pgMax - pgMin} puntos). Vale la pena preguntar por qué.</span>
+              </div>
+            )}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "pgfactors", 2); setBusy(false); }}>La pregunta clave</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Miren el promedio y el rango.</p>;
+    } else if (step === "pgfactors") {
+      wide = true;
+      sub = `¿Qué tendría que pasar para subir 2 puntos (de ${pgAvg.toFixed(1)} a ${Math.min(10, pgAvg + 2).toFixed(1)})? Con tu nombre.`;
+      content = (
+        <>
+          {VarChipPg}
+          <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <span className="eyebrow">Respuestas ({factors.length})</span>
+                {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={pgGroup}>Agrupar {sel.length}</Button>}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 8 }}>
+                {loose.filter((c) => c.columnKey === "pgf").map((c) => {
+                  const on = sel.includes(c.id);
+                  const author = c.authorId ? participants.find((p) => p.userId === c.authorId)?.name : undefined;
+                  const st: React.CSSProperties = { textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "9px 10px", fontSize: "var(--t-xs)", lineHeight: 1.4 };
+                  const inner = <>{c.text}{author && <div className="muted" style={{ fontSize: 10, marginTop: 3 }}>· {author}</div>}</>;
+                  return isFacil ? <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))} style={st}>{inner}</button> : <div key={c.id} style={st}>{inner}</div>;
+                })}
+                {!factors.length && <p className="muted" style={{ gridColumn: "1/-1", fontSize: "var(--t-sm)", fontStyle: "italic", textAlign: "center", padding: 10 }}>“¿Qué está impidiendo que ya estemos ahí?”</p>}
+              </div>
+              {!isFacil && (
+                <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+                  <input value={cardDraft.pgf ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, pgf: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addPgf()} placeholder="Para subir 2 puntos tendría que pasar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                  <Button size="sm" icon="Plus" onClick={addPgf}>Sumar</Button>
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <span className="eyebrow">Factores agrupados ({clusters.length})</span>
+              {clusters.map((cl) => (
+                <Card key={cl.id} pad={12}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{ color: "var(--st-focus)" }}><Icon name="Layers" size={14} /></span>
+                    {isFacil
+                      ? <input defaultValue={cl.name} onBlur={(e) => { if (e.target.value.trim()) renameCluster(cl.id, e.target.value.trim()); }} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed color-mix(in srgb, var(--st-focus) 55%, transparent)" }} />
+                      : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
+                    <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{cardsOf(cl.id).length}</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: 10, color: "var(--ink-1)", padding: "4px 6px", background: "var(--card-2)", borderRadius: "var(--r-sm)" }}>{c.text}</div>)}
+                  </div>
+                </Card>
+              ))}
+              {!clusters.length && <div style={{ border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", padding: 14, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-xs)" }}>{isFacil ? "Agrupá las respuestas similares." : "El facilitador agrupa las similares."}</div>}
+            </div>
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || factors.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "pgsynth", 3); setBusy(false); }}>Síntesis</Button>
+        : null;
+    } else {
+      sub = "Los factores más mencionados pueden trabajarse como causas raíz en otras sesiones de Foco.";
+      content = (
+        <>
+          {VarChipPg}
+          <Card pad={20}>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Factores para subir de {pgAvg.toFixed(1)} a {Math.min(10, pgAvg + 2).toFixed(1)}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {factorNames.map((name, i) => {
+                const on = pgCands.has(name);
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: on ? "color-mix(in srgb, var(--st-focus) 9%, var(--card))" : "var(--card)", border: `1px solid ${on ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)" }}>
+                    <Icon name={on ? "Crosshair" : "Minus"} size={14} style={{ color: on ? "var(--st-focus)" : "var(--ink-3)", flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{name}</span>
+                    {isFacil && <Button size="sm" variant={on ? "primary" : "secondary"} onClick={() => { const cur = new Set((resultRef.current.pgCands as string[]) ?? [...pgCands]); if (cur.has(name)) cur.delete(name); else cur.add(name); patchResult({ pgCands: [...cur] }); }}>{on ? "Candidata ✓" : "Marcar candidata"}</Button>}
+                  </div>
+                );
+              })}
+              {!factorNames.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin factores registrados.</p>}
+            </div>
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={pgFinish}>{busy ? "Guardando…" : `Cerrar · ${pgCands.size} causas candidatas`}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador marca las candidatas y cierra.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

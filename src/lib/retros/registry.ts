@@ -334,7 +334,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "¿Qué tendría que pasar para subir 2 puntos?", minutes: 10 },
       { name: "Síntesis: factores → causas candidatas", minutes: 5 },
     ],
-    sessionType: "perfection", implemented: false,
+    sessionType: "perfection", entryStep: "pgscore", implemented: true,
   },
   {
     id: "focus-opposite-pairs", name: "Pares de Opuestos", stage: "focus", category: "classic",
