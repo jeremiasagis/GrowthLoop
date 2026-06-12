@@ -305,7 +305,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Contraste con feedback real (o tarea de conseguirlo)", minutes: 10 },
       { name: "Síntesis de la brecha", minutes: 5 },
     ],
-    sessionType: "clientvoice", implemented: false,
+    sessionType: "clientvoice", entryStep: "cvclient", implemented: true,
   },
   {
     id: "focus-fishbone", name: "Fishbone / Ishikawa", stage: "focus", category: "classic",

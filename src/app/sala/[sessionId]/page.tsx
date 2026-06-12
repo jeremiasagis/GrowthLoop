@@ -91,6 +91,7 @@ const STEP_SEQ: Record<string, string[]> = {
   whereblock: ["wbsetup", "wbcards", "wbvote", "wbdeep", "wbform"],
   whyhappening: ["whframe", "whcauses", "whcluster", "whvote", "whtree", "whvalidate"],
   impactfreq: ["iflist", "ifrate", "ifmatrix"],
+  clientvoice: ["cvclient", "cvperc", "cvcontrast", "cvsynth"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -1941,6 +1942,172 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 760 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ LA VOZ DEL CLIENTE · percepción vs. realidad ════════
+  if (session.type === "clientvoice") {
+    const CV_COLS = [
+      { key: "cv1", label: "¿Qué creés que valora más el cliente de nuestro trabajo?" },
+      { key: "cv2", label: "¿Qué creés que le molesta o frustra de trabajar con nosotros?" },
+      { key: "cv3", label: "¿Qué creés que piensa pero nunca nos dijo?" },
+    ];
+    const cvClient = (session.result.cvClient as string) || (initiative?.data?.focus?.clientName as string) || "";
+    const cvCards = allCards.filter((c) => CV_COLS.some((q) => q.key === c.columnKey));
+    const cvHasFb = session.result.cvHasFb as boolean | undefined;
+    const cvFeedback = (session.result.cvFeedback as string) ?? "";
+    const cvMarks = (session.result.cvMarks as Record<string, string>) ?? {};
+    const cvSynth = (session.result.cvSynth as string) ?? "";
+    const MARKS = [
+      { k: "ok", icon: "✅", label: "Confirmado", color: "var(--success)" },
+      { k: "no", icon: "❌", label: "Incorrecto", color: "var(--risk)" },
+      { k: "na", icon: "❓", label: "Sin datos", color: "#94A3B8" },
+    ];
+    const cycleMark = (id: string) => {
+      const order = ["ok", "no", "na"];
+      const cur = cvMarks[id];
+      const next = cur ? order[(order.indexOf(cur) + 1) % 3] : "ok";
+      patchResult({ cvMarks: { ...((resultRef.current.cvMarks as Record<string, string>) ?? {}), [id]: next } });
+    };
+    const ClientChip = cvClient ? (
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--st-focus) 12%, var(--card))", border: "1px solid color-mix(in srgb, var(--st-focus) 40%, transparent)", color: "var(--st-focus)", fontSize: "var(--t-xs)", fontWeight: 700 }}>
+          <Icon name="UserCheck" size={13} /> Cliente: {cvClient}
+        </span>
+      </div>
+    ) : null;
+    const cvFinish = async () => {
+      setBusy(true);
+      const task = cvHasFb === false && (session.result.cvHow || session.result.cvWho)
+        ? { how: (session.result.cvHow as string) ?? "", who: (session.result.cvWho as string) ?? "", due: (session.result.cvWhen as string) ?? "" }
+        : undefined;
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: cvCards.length,
+        summaryText: `Voz del cliente (${cvClient || "—"})${task ? " · queda tarea de conseguir feedback" : ""}`,
+        dataKey: "focus", dataValue: { clientName: cvClient, clientGap: cvSynth, ...(task ? { clientFbTask: task } : {}) },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "cvclient") {
+      sub = "¿A quién afecta directamente la traba que identificamos?";
+      content = (
+        <Card pad={24}>
+          <div style={{ textAlign: "center", marginBottom: 14 }}><span style={{ fontSize: 34 }}>🎯</span></div>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>El cliente de esta variable</div>
+          {isFacil
+            ? <input defaultValue={cvClient} onBlur={(e) => patchResult({ cvClient: e.target.value.trim() })} placeholder="Nombre o descripción del cliente (interno o externo)…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none" }} />
+            : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, color: cvClient ? "var(--ink-0)" : "var(--ink-3)" }}>{cvClient || "El facilitador lo está definiendo…"}</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !cvClient.trim()} onClick={async () => { setBusy(true); await setStep(sessionId, "cvperc", 1); setBusy(false); }}>Empezar las percepciones</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador confirma quién es el cliente.</p>;
+    } else if (step === "cvperc") {
+      wide = true;
+      sub = "Lo que el equipo CREE del cliente. Anónimo, oculto hasta contrastar.";
+      content = <>{ClientChip}{MultiWrite(CV_COLS, "var(--st-focus)", !isFacil, true)}</>;
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || cvCards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "cvcontrast", 2); setBusy(false); }}>Contrastar con la realidad ({cvCards.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres con honestidad.</p>;
+    } else if (step === "cvcontrast") {
+      wide = true;
+      sub = cvHasFb === undefined
+        ? "¿Tenemos feedback real del cliente para contrastar?"
+        : cvHasFb ? "Percepción vs. realidad: marcá cada percepción según el feedback." : "Sin feedback real: diseñemos cómo conseguirlo.";
+      content = (
+        <>
+          {ClientChip}
+          {isFacil && (
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 14 }}>
+              <Button size="sm" variant={cvHasFb === true ? "primary" : "secondary"} icon="MessageSquareQuote" onClick={() => patchResult({ cvHasFb: true })}>Tengo feedback real</Button>
+              <Button size="sm" variant={cvHasFb === false ? "primary" : "secondary"} icon="SearchX" onClick={() => patchResult({ cvHasFb: false })}>No tengo feedback</Button>
+            </div>
+          )}
+          {cvHasFb === true && (
+            <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {CV_COLS.map((q) => (
+                  <div key={q.key}>
+                    <div style={{ fontWeight: 700, fontSize: "var(--t-xs)", marginBottom: 6 }}>{q.label}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {allCards.filter((c) => c.columnKey === q.key).map((c) => {
+                        const m = MARKS.find((x) => x.k === cvMarks[c.id]);
+                        return (
+                          <button key={c.id} disabled={!isFacil} onClick={() => cycleMark(c.id)} title={isFacil ? "Tocar para marcar: ✅ → ❌ → ❓" : undefined}
+                            style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 8, background: "var(--card)", border: `1px solid ${m ? m.color : "var(--line)"}`, borderRadius: "var(--r-md)", padding: "8px 10px", fontSize: "var(--t-xs)", lineHeight: 1.4, cursor: isFacil ? "pointer" : "default" }}>
+                            <span style={{ flexShrink: 0 }}>{m?.icon ?? "○"}</span>
+                            <span style={{ flex: 1 }}>{c.text}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Card pad={14}>
+                <div className="eyebrow" style={{ marginBottom: 6 }}>El feedback real del cliente</div>
+                {isFacil
+                  ? <textarea defaultValue={cvFeedback} onBlur={(e) => patchResult({ cvFeedback: e.target.value })} rows={8} placeholder="Pegá o resumí el feedback real…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+                  : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, whiteSpace: "pre-wrap", color: cvFeedback ? "var(--ink-0)" : "var(--ink-3)" }}>{cvFeedback || "El facilitador lo está cargando…"}</p>}
+                <div className="muted" style={{ fontSize: 10, marginTop: 8 }}>✅ Confirmado · ❌ Incorrecto · ❓ Sin datos</div>
+              </Card>
+            </div>
+          )}
+          {cvHasFb === false && (
+            <Card pad={20}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><Icon name="ClipboardList" size={17} style={{ color: "var(--warning)" }} /><span style={{ fontWeight: 700 }}>Tarea: conseguir feedback real</span></div>
+              {isFacil ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <input defaultValue={(session.result.cvHow as string) ?? ""} onBlur={(e) => patchResult({ cvHow: e.target.value })} placeholder="¿Cómo y cuándo vamos a conseguirlo? (ej: 3 entrevistas esta quincena)" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <input defaultValue={(session.result.cvWho as string) ?? ""} onBlur={(e) => patchResult({ cvWho: e.target.value })} placeholder="Responsable" style={{ flex: 1, minWidth: 140, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                    <input type="date" defaultValue={(session.result.cvWhen as string) ?? ""} onBlur={(e) => patchResult({ cvWhen: e.target.value })} style={{ flex: 1, minWidth: 140, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                  </div>
+                  <p className="muted" style={{ fontSize: "var(--t-xs)" }}>Queda como tarea pendiente en la iniciativa. Mientras tanto, trabajamos con las percepciones reveladas abajo.</p>
+                </div>
+              ) : <p className="muted" style={{ fontSize: "var(--t-sm)" }}>El facilitador define cómo conseguir feedback real. Mientras, miren las percepciones.</p>}
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>{MultiReveal(CV_COLS)}</div>
+            </Card>
+          )}
+          {cvHasFb === undefined && !isFacil && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador decide si hay feedback real para contrastar.</p>}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || cvHasFb === undefined} onClick={async () => { setBusy(true); await setStep(sessionId, "cvsynth", 3); setBusy(false); }}>Pasar a la síntesis</Button>
+        : null;
+    } else {
+      sub = "La síntesis de la brecha entre lo que creemos y lo que el cliente vive.";
+      const template = cvSynth || `El equipo cree que el cliente valora X; las señales indican que realmente valora Y.`;
+      content = (
+        <>
+          {ClientChip}
+          <Card pad={20}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>La brecha, en una o dos oraciones</div>
+            {isFacil
+              ? <textarea defaultValue={template} onBlur={(e) => patchResult({ cvSynth: e.target.value.trim() })} rows={3} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+              : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.55, color: cvSynth ? "var(--ink-0)" : "var(--ink-3)" }}>{cvSynth || "El facilitador está redactando…"}</p>}
+            {cvHasFb === false && (session.result.cvHow as string) && (
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="ClipboardList" size={13} style={{ color: "var(--warning)" }} /> Tarea pendiente: {session.result.cvHow as string}{(session.result.cvWho as string) ? ` · ${session.result.cvWho}` : ""}{(session.result.cvWhen as string) ? ` · antes del ${session.result.cvWhen}` : ""}
+              </p>
+            )}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !cvSynth.trim()} onClick={cvFinish}>{busy ? "Guardando…" : "Cerrar y guardar"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra con la síntesis acordada.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
