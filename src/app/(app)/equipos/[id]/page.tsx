@@ -456,23 +456,25 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
   if (!isFacil) return null;
   const live = getTeam(team.id) ?? team;
   const membersDone = live.members.length > 0;
+  const fodaDone = !!live.data?.foda;
   const objectiveDone = !!live.data?.objective || (live.objectives ?? []).some((o) => o.status === "active");
   const contractDone = !!live.data?.contract;
   const initDone = (live.initiatives ?? []).length > 0;
-  if (membersDone && objectiveDone && contractDone && initDone) return null;
-  const startFounding = async () => {
+  if (membersDone && fodaDone && objectiveDone && contractDone && initDone) return null;
+  const startSession = async (type: string) => {
     if (launching) return;
     setLaunching(true);
-    const res = await createLiveSession({ teamId: team.id, type: "founding" });
+    const res = await createLiveSession({ teamId: team.id, type });
     setLaunching(false);
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
     router.push(`/sala/${res.session.id}`);
   };
   const STEPS = [
-    { done: membersDone, n: 1, title: "Invitá a los integrantes", desc: "Sumá al equipo para que participen en vivo.", btn: "Invitar", icon: "UserPlus", onClick: onInvite },
-    { done: objectiveDone, n: 2, title: "Definí el primer objetivo", desc: "El Norte al que van a apuntar las iniciativas.", btn: "Ir a Objetivos", icon: "Compass", onClick: () => onGoTab("objetivos") },
-    { done: contractDone, n: 3, title: "Hagan la Sesión Fundacional", desc: "Acuerden cómo va a funcionar el equipo y firmen el contrato.", btn: launching ? "Abriendo…" : "Iniciar Fundacional", icon: "Handshake", onClick: startFounding },
-    { done: initDone, n: 4, title: "Creen la primera iniciativa", desc: "Lo que el equipo va a trabajar para mejorar.", btn: "Ir a Iniciativas", icon: "Target", onClick: () => onGoTab("seguimiento") },
+    { done: membersDone, n: 1, title: "Invitá a los integrantes", desc: "Sumá al equipo para que participen en vivo.", btn: "Invitar", icon: "UserPlus", launch: false, onClick: onInvite },
+    { done: fodaDone, n: 2, title: "Hagan el FODA del equipo", desc: "El diagnóstico inicial: fortalezas, oportunidades, debilidades y amenazas, en vivo y anónimo.", btn: launching ? "Abriendo…" : "Iniciar FODA", icon: "Grid2x2", launch: true, onClick: () => startSession("foda") },
+    { done: objectiveDone, n: 3, title: "Definí el primer objetivo", desc: "El Norte al que van a apuntar las iniciativas.", btn: "Ir a Objetivos", icon: "Compass", launch: false, onClick: () => onGoTab("objetivos") },
+    { done: contractDone, n: 4, title: "Hagan la Sesión Fundacional", desc: "Acuerden cómo va a funcionar el equipo y firmen el contrato.", btn: launching ? "Abriendo…" : "Iniciar Fundacional", icon: "Handshake", launch: true, onClick: () => startSession("founding") },
+    { done: initDone, n: 5, title: "Creen la primera iniciativa", desc: "Lo que el equipo va a trabajar para mejorar.", btn: "Ir a Iniciativas", icon: "Target", launch: false, onClick: () => onGoTab("seguimiento") },
   ];
   const doneCount = STEPS.filter((s) => s.done).length;
   const nextIdx = STEPS.findIndex((s) => !s.done);
@@ -481,7 +483,7 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
       <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", textAlign: "left" }}>
         <Icon name="Rocket" size={15} style={{ color: "var(--st-explore)" }} />
         <span className="eyebrow" style={{ color: "var(--st-explore)" }}>Primeros pasos del equipo</span>
-        <span className="num" style={{ fontSize: "var(--t-xs)", fontWeight: 800, color: "var(--ink-1)", background: "var(--card)", borderRadius: 99, padding: "2px 9px" }}>{doneCount}/4</span>
+        <span className="num" style={{ fontSize: "var(--t-xs)", fontWeight: 800, color: "var(--ink-1)", background: "var(--card)", borderRadius: 99, padding: "2px 9px" }}>{doneCount}/{STEPS.length}</span>
         {!open && nextIdx >= 0 && <span className="muted" style={{ fontSize: "var(--t-xs)", flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Siguiente: {STEPS[nextIdx].title}</span>}
         <Icon name={open ? "ChevronUp" : "ChevronDown"} size={16} style={{ color: "var(--ink-2)", marginLeft: "auto", flexShrink: 0 }} />
       </button>
@@ -496,7 +498,7 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
                   <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", textDecoration: s.done ? "line-through" : "none", color: s.done ? "var(--ink-2)" : "var(--ink-0)" }}>{s.title}</div>
                   {isNext && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{s.desc}</p>}
                 </div>
-                {isNext && <Button size="sm" icon={s.icon} disabled={launching && s.n === 3} onClick={s.onClick}>{s.btn}</Button>}
+                {isNext && <Button size="sm" icon={s.icon} disabled={launching && s.launch} onClick={s.onClick}>{s.btn}</Button>}
               </div>
             );
           })}

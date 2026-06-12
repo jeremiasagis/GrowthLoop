@@ -36,7 +36,7 @@ export interface SessionVote { id: string; clusterId: string; userId: string | n
 export interface SessionInput { userId: string | null; key: string; value: Record<string, unknown>; voterKey: string; }
 
 const RETRO_NAME: Record<string, string> = {
-  founding: "Sesión Fundacional",
+  founding: "Sesión Fundacional", foda: "FODA del equipo",
   explore: "Exploración", focus: "Foco · impacto/esfuerzo", proof: "Ideación",
   learn: "Aprendizaje",
 };
@@ -148,7 +148,7 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   // Pulso semanal: si el equipo no hizo pulso esta semana (lun–dom), la sesión arranca con el pulso.
   // La Sesión Fundacional nunca lleva pulso (es el contrato inicial).
   let firstStep = normalFirst;
-  if (p.type !== "founding") {
+  if (p.type !== "founding" && p.type !== "foda") {
     const { data: teamRow } = await supabase.from("teams").select("data").eq("id", p.teamId).maybeSingle();
     const lastPulseAt = (teamRow?.data as { lastPulseAt?: string } | null)?.lastPulseAt;
     const d = new Date(); const dow = (d.getDay() + 6) % 7;

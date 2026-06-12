@@ -22,7 +22,7 @@ const ADMIN_PREFIXES = [
 ];
 const FACILITATOR_PREFIXES = [
   "/dashboard", "/organizaciones", "/equipos",
-  "/sesiones", "/sala", "/reportes", "/reporte", "/lab", "/ajustes",
+  "/sesiones", "/foda", "/sala", "/reportes", "/reporte", "/lab", "/ajustes",
 ];
 const MEMBER_PREFIXES = ["/member", "/sessions", "/sala"];
 // Coordinador: observador de una organización (solo lectura, panel propio).

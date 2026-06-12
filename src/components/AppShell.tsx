@@ -55,6 +55,7 @@ function navItemsFor(role: RoleKey | null): NavItem[] {
       inicio,
       { href: "/organizaciones", label: "Mis equipos", icon: "Building2" },
       { href: "/sesiones", label: "Sesiones", icon: "Radio" },
+      { href: "/foda", label: "FODA", icon: "Grid2x2" },
       reportes, ajustes,
     ];
   }

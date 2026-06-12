@@ -168,6 +168,7 @@ export interface TeamData {
   lastSessionAt?: string; // ISO; última sesión cerrada (para la cadencia)
   objective?: TeamObjective; // el "Norte" del equipo
   cadence?: { everyDays: number }; // ritmo sugerido (7 = semanal, 14 = quincenal)
+  foda?: { f?: string[]; o?: string[]; d?: string[]; a?: string[]; date?: string }; // diagnóstico FODA inicial
 }
 
 /** El "Norte" del equipo: a qué apuntan las iniciativas de mejora. */

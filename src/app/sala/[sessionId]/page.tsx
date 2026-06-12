@@ -40,11 +40,19 @@ const FLOW_COLS = [
 ];
 // Cierre de Exploración: lluvia de causas posibles (van a Foco para priorizar).
 const CAUSE_COLS = [{ key: "cause", label: "¿Por qué pasa? · causas posibles" }];
+// FODA inicial del equipo: 4 cuadrantes clásicos, anónimo hasta revelar.
+const FODA_COLS = [
+  { key: "f", label: "💪 Fortalezas · lo que hacemos bien" },
+  { key: "o", label: "🌱 Oportunidades · lo que podríamos aprovechar" },
+  { key: "d", label: "⚠️ Debilidades · lo que nos cuesta" },
+  { key: "a", label: "⛈️ Amenazas · lo que nos puede golpear de afuera" },
+];
 const STEPS = ["pulse", "pulse_reveal", "cards", "cards_reveal", "cluster", "vote", "purpose", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "causes", "causes_reveal", "close"];
 const DOTS_PER = 2;
 // Secuencia de pasos por tipo de sesión (para el indicador de progreso y "volver atrás").
 const STEP_SEQ: Record<string, string[]> = {
   founding: ["welcome", "contract", "sign", "close"],
+  foda: ["cards", "cards_reveal", "close"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -562,6 +570,44 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 720 : 560 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ FODA · diagnóstico inicial del equipo (4 cuadrantes) ════════
+  if (session.type === "foda") {
+    const total = allCards.length;
+    const fFinish = async () => {
+      setBusy(true);
+      const get = (k: string) => allCards.filter((c) => c.columnKey === k).map((c) => c.text);
+      const foda = { f: get("f"), o: get("o"), d: get("d"), a: get("a"), date: new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) };
+      await finalizeSession(session, { summaryText: `FODA del equipo: ${total} aportes`, cardCount: total, teamData: { foda } });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "cards") {
+      sub = isFacil
+        ? "El equipo completa los cuatro cuadrantes en anónimo. Vos facilitás y revelás."
+        : "La foto inicial del equipo: sumá lo tuyo en cada cuadrante. Queda oculto hasta revelar.";
+      content = MultiWrite(FODA_COLS, "var(--green)", !isFacil);
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || total === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "cards_reveal", 1); setBusy(false); }}>Revelar FODA ({total})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Cuando estén todos, el facilitador revela.</p>;
+    } else {
+      sub = "El FODA del equipo, revelado para todos. Conversen sobre lo que aparece.";
+      content = MultiReveal(FODA_COLS);
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar el FODA"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra y el FODA queda guardado en el equipo.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 880 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
