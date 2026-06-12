@@ -15,6 +15,7 @@ import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, teamLiveS
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { createLiveSession } from "@/lib/session";
+import { SessionLauncher } from "@/components/SessionLauncher";
 
 function SessionsLog({ team }: { team: Team }) {
   const [n, setN] = useState(8);
@@ -256,13 +257,9 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
   const router = useRouter();
   const { show } = useToast();
   const [busy, setBusy] = useState(false);
-  const startLive = async () => {
-    // Etapa nueva → tipo de sesión (retro) existente en la sala.
-    const type = ({ objectives: "explore", ideation: "proof" } as Record<string, string>)[init.stage] ?? init.stage;
-    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type });
-    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
-    router.push(`/sala/${res.session.id}`);
-  };
+  // Modo libre: el botón abre el selector (etapa → retro → modo).
+  const [launcherOpen, setLauncherOpen] = useState(false);
+  const startLive = () => setLauncherOpen(true);
   const done = init.status === "done";
   const paused = init.status === "paused";
   const stageIdx = Math.max(0, CYCLE_STAGES.indexOf(init.stage));
@@ -285,6 +282,7 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
 
   return (
     <Card pad={18} style={{ display: "flex", flexDirection: "column", gap: 14, opacity: done || paused ? 0.72 : 1 }}>
+      {launcherOpen && <SessionLauncher team={team} initiative={init} onClose={() => setLauncherOpen(false)} />}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>

@@ -150,12 +150,12 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 }
 
 // ── Escritura ──
-export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string }): Promise<{ session?: LiveSession; error?: string }> {
+export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string; firstStep?: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
   // Primer paso "real" de cada tipo (sin pulso). El pulso se antepone abajo si toca.
   const NORMAL_FIRST: Record<string, string> = { founding: "welcome", explore: "cards", focus: "matrix", proof: "ideas", learn: "result" };
-  const normalFirst = NORMAL_FIRST[p.type] || "cards";
+  const normalFirst = p.firstStep ?? (NORMAL_FIRST[p.type] || "cards");
   // Pulso semanal: si el equipo no hizo pulso esta semana (lun–dom), la sesión arranca con el pulso.
   // La Sesión Fundacional nunca lleva pulso (es el contrato inicial).
   let firstStep = normalFirst;
@@ -181,6 +181,8 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,
     mode: "live", status: "live", step_key: firstStep, step_index: 0,
     created_by: auth.user?.id ?? null, retro: p.retro ?? null, join_code: newJoinCode(),
+    // Si el pulso se antepuso, recordamos el paso pedido para retomar ahí después.
+    result: p.firstStep ? { entryStep: p.firstStep } : {},
   }).select().single();
   if (error) return { error: error.message };
   return { session: mapSession(data) };

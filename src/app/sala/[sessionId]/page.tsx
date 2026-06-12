@@ -11,6 +11,7 @@ import { HiddenDots, Cascade, RevealHeader, RevealPop } from "@/components/sessi
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getInitiatives, getTeam } from "@/lib/repository";
 import { retroByKey } from "@/lib/retros";
+import { retroById } from "@/lib/retros/registry";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -289,7 +290,7 @@ export default function SalaPage() {
     );
   }
 
-  const retroLabel = retroByKey(session.retro)?.name;
+  const retroLabel = retroByKey(session.retro)?.name ?? retroById(session.retro)?.name;
   const Header = (sub: string) => (
     <div style={{ textAlign: "center", marginBottom: 24 }}>
       <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -455,7 +456,7 @@ export default function SalaPage() {
   // semana), se maneja acá para cualquier tipo; al terminar va al primer paso real de la etapa.
   if (step === "pulse" || step === "pulse_reveal") {
     const NORMAL_FIRST: Record<string, string> = { explore: "cards", focus: "matrix", proof: "ideas", learn: "result" };
-    const afterPulse = NORMAL_FIRST[session.type] ?? "cards";
+    const afterPulse = (session.result.entryStep as string) ?? NORMAL_FIRST[session.type] ?? "cards";
     const toReveal = async () => { setBusy(true); await setStep(sessionId, "pulse_reveal", 1); setBusy(false); };
     const goAfterPulse = async () => { setBusy(true); await setStep(sessionId, afterPulse, 0); setBusy(false); };
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";

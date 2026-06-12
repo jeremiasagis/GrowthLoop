@@ -12,7 +12,8 @@ import { useToast } from "@/components/Toast";
 import {
   deleteInitiative, getFacilitators, getInitiatives, getTeam, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
-import { createLiveSession, getInitiativeSessions, getSessionContent, type SessionCard, type SessionCluster, type SessionVote } from "@/lib/session";
+import { getInitiativeSessions, getSessionContent, type SessionCard, type SessionCluster, type SessionVote } from "@/lib/session";
+import { SessionLauncher } from "@/components/SessionLauncher";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; result?: Record<string, unknown> };
@@ -363,11 +364,9 @@ export default function InitiativeDetailPage() {
       ? { label: "Pausada", color: "var(--warning)", bg: "var(--warning-bg)", icon: "Pause" }
       : { label: "En curso", color: "var(--green)", bg: "var(--success-bg)", icon: "Activity" };
 
-  const startLive = async () => {
-    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: STAGE_TO_TYPE[init.stage] ?? init.stage });
-    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
-    router.push(`/sala/${res.session.id}`);
-  };
+  // Modo libre: el botón abre el selector (etapa → retro → modo).
+  const [launcherOpen, setLauncherOpen] = useState(false);
+  const startLive = () => setLauncherOpen(true);
   const changeStage = async (s: StageKey) => {
     const res = await setInitiativeStage(init.id, s);
     if (res.error) show(res.error, "TriangleAlert"); else { show(`Etapa: ${STAGES[s].label}`, "Check"); refresh(); }
@@ -588,6 +587,8 @@ export default function InitiativeDetailPage() {
           </Card>
         </div>
       </div>
+
+      {launcherOpen && <SessionLauncher team={team} initiative={init} onClose={() => setLauncherOpen(false)} />}
 
       {closeStageOpen && (
         <div onClick={() => setCloseStageOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
