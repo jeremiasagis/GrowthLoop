@@ -16,6 +16,7 @@ import { WordCloud } from "@/components/WordCloud";
 import { TimelineBoard, TL_EMO, type TlEvent } from "@/components/TimelineBoard";
 import { CirclesDiagram, CIRCLE_META, type CircleKey } from "@/components/CirclesDiagram";
 import { CauseTree } from "@/components/CauseTree";
+import { FishboneDiagram } from "@/components/FishboneDiagram";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -92,6 +93,7 @@ const STEP_SEQ: Record<string, string[]> = {
   whyhappening: ["whframe", "whcauses", "whcluster", "whvote", "whtree", "whvalidate"],
   impactfreq: ["iflist", "ifrate", "ifmatrix"],
   clientvoice: ["cvclient", "cvperc", "cvcontrast", "cvsynth"],
+  fishbone: ["fbsetup", "fbcauses", "fbvote", "fbdeep", "fbmain"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -2108,6 +2110,218 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ FISHBONE / ISHIKAWA · causas por categoría ════════
+  if (session.type === "fishbone") {
+    const FB_DEFAULT = [
+      { key: "fb_p", label: "👥 Personas", color: "#00E87A" },
+      { key: "fb_pr", label: "⚙️ Procesos", color: "#3B82F6" },
+      { key: "fb_h", label: "🛠️ Herramientas", color: "#F59E0B" },
+      { key: "fb_e", label: "🌍 Entorno", color: "#7C3AED" },
+    ];
+    const EXTRA_COLORS = ["#EC4899", "#06B6D4"];
+    const fbCats = (session.result.fbCats as { key: string; label: string; color: string }[]) ?? FB_DEFAULT;
+    const fbProblem = (session.result.fbProblem as string) || (initiative?.data?.focus?.blockFormulation as string) || (initiative?.data?.focus?.rootCause as string) || "";
+    const fbSilent = !!session.result.fbSilent;
+    type FbCause = { id: string; text: string; cat: string };
+    const fbCauses = (session.result.fbCauses as FbCause[]) ?? [];
+    const memberCauses: FbCause[] = allCards.filter((c) => c.columnKey.startsWith("fb_")).map((c) => ({ id: c.id, text: c.text, cat: c.columnKey }));
+    const allCauses = [...fbCauses, ...memberCauses];
+    const causesOf = (k: string) => allCauses.filter((c) => c.cat === k);
+    const fbCritVotes: Record<string, number> = {};
+    inputs.filter((i) => i.key === "fbcrit").forEach((i) => { const k = (i.value as { k?: string }).k; if (k) fbCritVotes[k] = (fbCritVotes[k] ?? 0) + 1; });
+    const fbTotalCrit = Object.values(fbCritVotes).reduce((a, b) => a + b, 0);
+    const myFbCrit = (inputs.find((i) => i.userId === user.id && i.key === "fbcrit")?.value as { k?: string } | undefined)?.k;
+    const fbWinner = fbCats.reduce((best, c) => ((fbCritVotes[c.key] ?? 0) > (fbCritVotes[best.key] ?? 0) ? c : best), fbCats[0]);
+    const fbMain = (session.result.fbMain as string) ?? "";
+    const fbVals = inputs.filter((i) => i.key === "fbval");
+    const fbYes = fbVals.filter((v) => (v.value as { ok?: boolean }).ok).length;
+    const myFbVal = (inputs.find((i) => i.userId === user.id && i.key === "fbval")?.value as { ok?: boolean } | undefined)?.ok;
+    const diagCats = fbCats.map((c) => ({ ...c, count: causesOf(c.key).length }));
+    const addFbCause = (cat: string, text: string) => {
+      if (!text.trim()) return;
+      patchResult({ fbCauses: [...(((resultRef.current.fbCauses as FbCause[]) ?? fbCauses)), { id: `f${Date.now().toString(36)}`, text: text.trim(), cat }] });
+    };
+    const addFbCard = async (cat: string) => { const t = (cardDraft[cat] ?? "").trim(); if (!t) return; await addCard(sessionId, cat, t, true); setCardDraft((d) => ({ ...d, [cat]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const fbFinish = async () => {
+      setBusy(true);
+      const total = fbVals.length || 1;
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: allCauses.length,
+        summaryText: `Fishbone: ${fbMain.slice(0, 60)}${fbMain.length > 60 ? "…" : ""} (${fbWinner.label})`,
+        dataKey: "focus", dataValue: { rootCause: fbMain, cause: fbMain, secondaryCauses: causesOf(fbWinner.key).filter((c) => c.text !== fbMain).slice(0, 5).map((c) => ({ name: c.text, votes: 0 })) },
+      });
+      void total;
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "fbsetup") {
+      wide = true;
+      sub = isFacil ? "El problema en la cabeza del pez y las categorías (renombrables, máx 6)." : "El facilitador prepara el diagrama.";
+      content = (
+        <>
+          <Card pad={16} style={{ marginBottom: 14 }}><FishboneDiagram problem={fbProblem} cats={diagCats} /></Card>
+          {isFacil && (
+            <Card pad={18}>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>El problema central</div>
+              <textarea defaultValue={fbProblem} onBlur={(e) => patchResult({ fbProblem: e.target.value.trim() })} rows={2} placeholder="La traba que analizamos…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical", marginBottom: 12 }} />
+              <div className="eyebrow" style={{ marginBottom: 6 }}>Categorías (espinas)</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {fbCats.map((c) => (
+                  <div key={c.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, flexShrink: 0 }} />
+                    <input defaultValue={c.label} onBlur={(e) => { const v = e.target.value.trim(); if (v) patchResult({ fbCats: fbCats.map((x) => x.key === c.key ? { ...x, label: v } : x) }); }} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-sm)", fontWeight: 600, outline: "none" }} />
+                    {fbCats.length > 4 && <button onClick={() => patchResult({ fbCats: fbCats.filter((x) => x.key !== c.key) })} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
+                  </div>
+                ))}
+              </div>
+              {fbCats.length < 6 && <Button size="sm" variant="secondary" icon="Plus" style={{ marginTop: 10 }} onClick={() => patchResult({ fbCats: [...fbCats, { key: `fb_x${fbCats.length}`, label: `Categoría ${fbCats.length + 1}`, color: EXTRA_COLORS[fbCats.length - 4] ?? "#A3E635" }] })}>Agregar categoría</Button>}
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !fbProblem.trim()} onClick={async () => { setBusy(true); await setStep(sessionId, "fbcauses", 1); setBusy(false); }}>Empezar la lluvia de causas</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>En un momento arrancan las causas.</p>;
+    } else if (step === "fbcauses") {
+      wide = true;
+      sub = fbSilent
+        ? "Modo silencioso: cada uno suma causas en la categoría que corresponda."
+        : isFacil ? "El equipo aporta en voz alta; vos escribís en la espina que corresponda." : "Aporten causas en voz alta: el facilitador las escribe en el diagrama.";
+      content = (
+        <>
+          <Card pad={16} style={{ marginBottom: 14 }}><FishboneDiagram problem={fbProblem} cats={diagCats} /></Card>
+          {isFacil && (
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+              <button onClick={() => patchResult({ fbSilent: !fbSilent })} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--card)", fontSize: "var(--t-xs)", fontWeight: 700, color: fbSilent ? "var(--green)" : "var(--ink-2)" }}>
+                <Icon name={fbSilent ? "PenLine" : "Mic"} size={13} /> {fbSilent ? "Modo silencioso activado" : "Activar modo silencioso (cada uno escribe)"}
+              </button>
+            </div>
+          )}
+          <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+            {fbCats.map((c) => (
+              <div key={c.key} style={{ background: "var(--bg-2)", border: `1px solid color-mix(in srgb, ${c.color} 38%, var(--line))`, borderTop: `3px solid ${c.color}`, borderRadius: "var(--r-lg)", padding: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{c.label} <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{causesOf(c.key).length}</span></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {causesOf(c.key).map((x) => (
+                    <div key={x.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${c.color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)", lineHeight: 1.4 }}>
+                      <span style={{ flex: 1 }}>{x.text}</span>
+                      {isFacil && fbCauses.some((f) => f.id === x.id) && <button onClick={() => patchResult({ fbCauses: fbCauses.filter((f) => f.id !== x.id) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={12} /></button>}
+                    </div>
+                  ))}
+                  {!causesOf(c.key).length && <span className="faint" style={{ fontSize: "var(--t-xs)", textAlign: "center", padding: 6 }}>Sin causas todavía</span>}
+                </div>
+                {(isFacil || fbSilent) && (
+                  <div style={{ marginTop: 8, display: "flex", gap: 5 }}>
+                    <input value={cardDraft[c.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [c.key]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") { if (isFacil) { addFbCause(c.key, cardDraft[c.key] ?? ""); setCardDraft((d) => ({ ...d, [c.key]: "" })); } else addFbCard(c.key); } }} placeholder="Sumar causa…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none" }} />
+                    <button onClick={() => { if (isFacil) { addFbCause(c.key, cardDraft[c.key] ?? ""); setCardDraft((d) => ({ ...d, [c.key]: "" })); } else addFbCard(c.key); }} style={{ background: c.color, color: "#06121f", borderRadius: "var(--r-sm)", padding: "0 10px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || allCauses.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "fbvote", 2); setBusy(false); }}>Votar la espina crítica ({allCauses.length})</Button>
+        : null;
+    } else if (step === "fbvote") {
+      wide = true;
+      const shown = !!session.result.fbVoteShown;
+      sub = shown ? "La espina crítica del equipo." : "¿En qué categoría están las causas más relevantes? Una elección por persona.";
+      content = (
+        <>
+          <Card pad={16} style={{ marginBottom: 14 }}><FishboneDiagram problem={fbProblem} cats={diagCats} highlight={shown ? fbWinner.key : undefined} /></Card>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {fbCats.map((c) => {
+              const v = fbCritVotes[c.key] ?? 0;
+              const pct = fbTotalCrit ? Math.round((v / fbTotalCrit) * 100) : 0;
+              const isWin = shown && c.key === fbWinner.key && fbTotalCrit > 0;
+              const on = myFbCrit === c.key;
+              return (
+                <button key={c.key} disabled={isFacil || shown} onClick={() => tapInput("fbcrit", { k: c.key })}
+                  style={{ width: "100%", textAlign: "left", padding: "11px 13px", background: isWin || (on && !shown) ? `color-mix(in srgb, ${c.color} 10%, var(--card))` : "var(--card)", border: `1px solid ${isWin || (on && !shown) ? c.color : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil || shown ? "default" : "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ flex: 1, fontWeight: 600, fontSize: "var(--t-sm)" }}>{c.label}</span>
+                    {!shown && on && <Icon name="CheckCircle2" size={15} style={{ color: c.color }} />}
+                    {shown && <span className="num" style={{ fontWeight: 800, color: isWin ? c.color : "var(--ink-2)" }}>{pct}%</span>}
+                  </div>
+                  {shown && <div style={{ marginTop: 6 }}><Bar value={pct} color={c.color} height={6} /></div>}
+                </button>
+              );
+            })}
+          </div>
+          {!shown && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 10 }}><Icon name="EyeOff" size={13} /> {fbTotalCrit} de {totalInRoom} votaron</p>}
+        </>
+      );
+      controls = isFacil
+        ? (shown
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "fbdeep", 3); setBusy(false); }}>Profundizar en {fbWinner.label}</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy || fbTotalCrit === 0} onClick={() => setResult(sessionId, { fbVoteShown: true })}>Mostrar resultado ({fbTotalCrit}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Elegí una categoría. El facilitador muestra el resultado.</p>;
+    } else if (step === "fbdeep") {
+      sub = `Profundizamos en ${fbWinner.label}: ¿cuál de estas causas es la más determinante?`;
+      content = (
+        <>
+          <Card pad={18} style={{ marginBottom: 14, border: `1px solid color-mix(in srgb, ${fbWinner.color} 45%, var(--line))` }}>
+            <div style={{ fontWeight: 800, marginBottom: 10 }}>{fbWinner.label}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {causesOf(fbWinner.key).map((x, i) => <div key={x.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${fbWinner.color}`, borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4, animation: `pop-in .4s var(--spring) ${i * 0.04}s both` }}>{x.text}</div>)}
+            </div>
+          </Card>
+          {isFacil && (
+            <Card pad={16}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Preguntas para profundizar</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: "var(--t-sm)" }}>
+                <span>· “¿Cuál de estas causas es la más determinante?”</span>
+                <span>· “¿Hay alguna causa que genera las demás?”</span>
+                <span>· “¿Cuándo está esta causa en su peor momento?”</span>
+              </div>
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "fbmain", 4); setBusy(false); }}>Formular la causa principal</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Conversen: ¿cuál es la causa más determinante?</p>;
+    } else {
+      wide = true;
+      sub = "El diagrama completo, con la causa principal destacada. El equipo valida.";
+      content = (
+        <>
+          <Card pad={16} style={{ marginBottom: 14 }}><FishboneDiagram problem={fbProblem} cats={diagCats} highlight={fbWinner.key} /></Card>
+          <Card pad={20}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>La causa principal, en una oración</div>
+            {isFacil
+              ? <textarea defaultValue={fbMain} onBlur={(e) => patchResult({ fbMain: e.target.value.trim() })} rows={2} placeholder={`La causa principal dentro de ${fbWinner.label} es…`} style={{ width: "100%", background: "var(--card)", border: `1px solid color-mix(in srgb, ${fbWinner.color} 45%, var(--line-2))`, borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+              : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.55, color: fbMain ? "var(--ink-0)" : "var(--ink-3)" }}>{fbMain || "El facilitador está redactando…"}</p>}
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              {!isFacil ? (
+                <>
+                  <Button size="sm" variant={myFbVal === true ? "primary" : "secondary"} icon="ThumbsUp" onClick={() => tapInput("fbval", { ok: true })}>Sí</Button>
+                  <Button size="sm" variant={myFbVal === false ? "primary" : "secondary"} icon="Hand" onClick={() => tapInput("fbval", { ok: false })}>Ajustar</Button>
+                </>
+              ) : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Las causas secundarias quedan registradas para ciclos futuros.</span>}
+              <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-sm)", fontWeight: 700 }}><span style={{ color: "var(--success)" }}>👍 {fbYes}</span> · <span style={{ color: "var(--warning)" }}>✋ {fbVals.length - fbYes}</span></span>
+            </div>
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !fbMain.trim()} onClick={fbFinish}>{busy ? "Guardando…" : `Cerrar con esta causa (👍 ${fbYes})`}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Validá la formulación.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 640 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

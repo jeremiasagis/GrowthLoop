@@ -320,7 +320,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Causa principal formulada + validación", minutes: 5 },
       { name: "Síntesis del diagrama completo", minutes: 5 },
     ],
-    sessionType: "fishbone", implemented: false,
+    sessionType: "fishbone", entryStep: "fbsetup", implemented: true,
   },
   {
     id: "focus-perfection-game", name: "Perfection Game", stage: "focus", category: "classic",
