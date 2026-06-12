@@ -507,7 +507,8 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
 }
 
 /** Objetivos del equipo (varios): cada uno agrupa iniciativas. */
-function ObjetivosSection({ team, isFacil, onChanged }: { team: Team; isFacil: boolean; onChanged: () => void }) {
+function ObjetivosSection({ team, isFacil, onChanged, onGoIniciativas }: { team: Team; isFacil: boolean; onChanged: () => void; onGoIniciativas?: () => void }) {
+  const router = useRouter();
   const { show } = useToast();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(""); const [metric, setMetric] = useState(""); const [target, setTarget] = useState(""); const [horizon, setHorizon] = useState("este trimestre");
@@ -550,19 +551,41 @@ function ObjetivosSection({ team, isFacil, onChanged }: { team: Team; isFacil: b
       )}
       {actives.length === 0 && !open && <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>{isFacil ? "Cargá el primer objetivo: el Norte al que van a apuntar las iniciativas." : "El facilitador todavía no cargó objetivos."}</p>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: actives.length ? 8 : 0 }}>
-        {actives.map((o) => { const n = inits.filter((i) => i.objectiveId === o.id).length; return (
-          <div key={o.id} style={{ padding: "10px 12px", background: "linear-gradient(180deg, rgba(0,232,122,0.05), var(--card-2))", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+        {actives.map((o) => { const objInits = inits.filter((i) => i.objectiveId === o.id); return (
+          <div key={o.id} style={{ padding: "12px 14px", background: "linear-gradient(180deg, rgba(0,232,122,0.05), var(--card-2))", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
               <Icon name="Compass" size={15} style={{ color: "var(--green)", marginTop: 3, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", lineHeight: 1.4 }}>{o.text}</div>
-                <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{o.metric ? `Señal: ${o.metric}${o.target ? ` · meta ${o.target}` : ""} · ` : ""}{o.horizon ?? ""} · <b>{n}</b> {n === 1 ? "iniciativa" : "iniciativas"}</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{o.metric ? `Señal: ${o.metric}${o.target ? ` · meta ${o.target}` : ""} · ` : ""}{o.horizon ?? ""}</div>
               </div>
               {isFacil && (
                 <span style={{ display: "inline-flex", gap: 6, flexShrink: 0 }}>
                   <button title="Marcar logrado 🎯" onClick={() => mark(o.id, "achieved", "LOGRADO 🎯")} style={{ color: "var(--green)", display: "inline-flex", padding: 3 }}><Icon name="Trophy" size={15} /></button>
                   <button title="Archivar" onClick={() => mark(o.id, "archived", "archivado")} style={{ color: "var(--ink-3)", display: "inline-flex", padding: 3 }}><Icon name="Archive" size={15} /></button>
                 </span>
+              )}
+            </div>
+            {/* las iniciativas de este objetivo */}
+            <div style={{ marginTop: 10, paddingLeft: 25, display: "flex", flexDirection: "column", gap: 6 }}>
+              {objInits.map((i) => (
+                <button key={i.id} onClick={() => router.push(`/equipos/${team.id}/iniciativa/${i.id}`)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", borderRadius: "var(--r-sm)", textAlign: "left", background: "var(--card)", border: "1px solid var(--line)" }}>
+                  <Icon name="Target" size={13} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: "var(--t-sm)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{i.title}</span>
+                  <StageBadge stage={i.stage} size="sm" />
+                  <Icon name="ChevronRight" size={14} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+                </button>
+              ))}
+              {objInits.length === 0 && (
+                <button onClick={onGoIniciativas} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", borderRadius: "var(--r-sm)", textAlign: "left", border: "1px dashed var(--line-2)", color: "var(--ink-2)", fontSize: "var(--t-sm)" }}>
+                  <Icon name="Plus" size={13} /> Sin iniciativas todavía · crear una en Iniciativas
+                </button>
+              )}
+              {objInits.length > 0 && onGoIniciativas && (
+                <button onClick={onGoIniciativas} style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 5, color: "var(--green)", fontSize: "var(--t-xs)", fontWeight: 600, padding: "2px 0" }}>
+                  Ir a Iniciativas <Icon name="ArrowRight" size={12} />
+                </button>
               )}
             </div>
           </div>
@@ -860,7 +883,7 @@ export default function TeamPage() {
 
       {tab === "objetivos" && (
         <div style={{ maxWidth: 820 }}>
-          <ObjetivosSection team={getTeam(team.id) ?? team} isFacil={isFacil} onChanged={() => setTeamNonce((n) => n + 1)} />
+          <ObjetivosSection team={getTeam(team.id) ?? team} isFacil={isFacil} onChanged={() => setTeamNonce((n) => n + 1)} onGoIniciativas={() => setTab("seguimiento")} />
           <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 14 }}>
             Las iniciativas de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Iniciativas</button>.
           </p>
