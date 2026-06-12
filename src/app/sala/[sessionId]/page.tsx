@@ -15,6 +15,7 @@ import { retroById } from "@/lib/retros/registry";
 import { WordCloud } from "@/components/WordCloud";
 import { TimelineBoard, TL_EMO, type TlEvent } from "@/components/TimelineBoard";
 import { CirclesDiagram, CIRCLE_META, type CircleKey } from "@/components/CirclesDiagram";
+import { CauseTree } from "@/components/CauseTree";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -88,6 +89,7 @@ const STEP_SEQ: Record<string, string[]> = {
   relationships: ["frame", "questions", "read", "relword", "rel_close"],
   expclose: ["consolidate", "vote", "map"],
   whereblock: ["wbsetup", "wbcards", "wbvote", "wbdeep", "wbform"],
+  whyhappening: ["whframe", "whcauses", "whcluster", "whvote", "whtree", "whvalidate"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -1500,6 +1502,262 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿POR QUÉ ESTÁ PASANDO? · causas → árbol → causa raíz ════════
+  if (session.type === "whyhappening") {
+    const whTrouble = (session.result.whTrouble as string) || (initiative?.data?.focus?.blockFormulation as string) || "";
+    const whCards = allCards.filter((c) => c.columnKey === "whc");
+    const tree = (session.result.whTree as { id: string; text: string; parent?: string }[]) ?? [];
+    const whRoot = (session.result.whRoot as string) ?? "";
+    const whVoteShown = !!session.result.whVoteShown;
+    const whVoters = new Set(votes.map((v) => v.voterKey)).size;
+    const WH_DOTS = 3;
+    const whRemaining = WH_DOTS - myVoteCount;
+    const vVals = inputs.filter((i) => i.key === "whval");
+    const vCount = (k: string) => vVals.filter((v) => (v.value as { v?: string }).v === k).length;
+    const myWhVal = (inputs.find((i) => i.userId === user.id && i.key === "whval")?.value as { v?: string } | undefined)?.v;
+    const addWh = async () => { const t = (cardDraft.whc ?? "").trim(); if (!t) return; await addCard(sessionId, "whc", t, true); setCardDraft((d) => ({ ...d, whc: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const whGroup = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Causa ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
+    const treePatch = (next: { id: string; text: string; parent?: string }[]) => patchResult({ whTree: next });
+    const treeDelete = (id: string) => {
+      const drop = new Set([id]);
+      let grew = true;
+      while (grew) { grew = false; for (const n of tree) if (n.parent && drop.has(n.parent) && !drop.has(n.id)) { drop.add(n.id); grew = true; } }
+      treePatch(tree.filter((n) => !drop.has(n.id)));
+    };
+    const TroubleChip = whTrouble ? (
+      <div style={{ padding: "10px 14px", marginBottom: 14, background: "color-mix(in srgb, var(--st-focus) 9%, transparent)", border: "1px solid color-mix(in srgb, var(--st-focus) 32%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+        <span className="eyebrow" style={{ color: "var(--st-focus)", display: "block", marginBottom: 3 }}>La traba</span>{whTrouble}
+      </div>
+    ) : null;
+    const whFinish = async () => {
+      setBusy(true);
+      const total = vVals.length || 1;
+      const agreement = Math.round((vCount("yes") / total) * 100);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: whCards.length,
+        summaryText: `Causa raíz: ${whRoot.slice(0, 70)}${whRoot.length > 70 ? "…" : ""} · acuerdo ${agreement}%`,
+        dataKey: "focus", dataValue: { rootCause: whRoot, cause: whRoot, secondaryCauses: ranked.slice(2).map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })) },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "whframe") {
+      sub = "El encuadre antes de buscar causas.";
+      content = (
+        <Card pad={26} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 34, marginBottom: 10 }}>🔍</div>
+          <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, marginBottom: 8 }}>Hoy buscamos por qué está pasando esto,<br />no quién tiene la culpa.</h2>
+          {whTrouble && !isFacil && <p style={{ fontSize: "var(--t-sm)", marginTop: 14, padding: "10px 14px", background: "var(--card)", borderRadius: "var(--r-md)", lineHeight: 1.5 }}>{whTrouble}</p>}
+          {isFacil && (
+            <div style={{ marginTop: 16, textAlign: "left" }}>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>La traba que analizamos {initiative?.data?.focus?.blockFormulation ? "(vino de ¿Dónde se traba?)" : ""}</div>
+              <textarea defaultValue={whTrouble} onBlur={(e) => patchResult({ whTrouble: e.target.value.trim() })} rows={2} placeholder="Escribí la traba si no viene de la retro anterior…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !whTrouble.trim()} onClick={async () => { setBusy(true); await setStep(sessionId, "whcauses", 1); setBusy(false); }}>Buscar causas</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra y arranca.</p>;
+    } else if (step === "whcauses") {
+      sub = "“Creo que esto está pasando porque…” — anónimo, tantas como quieras.";
+      content = (
+        <>
+          {TroubleChip}
+          <Card pad={20}>
+            <HiddenDots n={whCards.length} label="causas escritas · ocultas hasta agrupar" color="var(--st-focus)" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+              {myCards.filter((c) => c.columnKey === "whc").map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· tuya</span></div>)}
+            </div>
+            {!isFacil && (
+              <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+                <input value={cardDraft.whc ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, whc: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addWh()} placeholder="Creo que esto está pasando porque…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                <Button size="sm" icon="Plus" onClick={addWh}>Sumar</Button>
+              </div>
+            )}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || whCards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "whcluster", 2); setBusy(false); }}>Agrupar causas ({whCards.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Una causa por tarjeta. El facilitador agrupa después.</p>;
+    } else if (step === "whcluster") {
+      wide = true;
+      sub = isFacil ? "Agrupación silenciosa: juntá las que hablan de lo mismo, sin leer en voz alta todavía." : "El facilitador agrupa las causas por temas, en silencio.";
+      content = (
+        <>
+          {TroubleChip}
+          <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span className="eyebrow">Sueltas ({loose.length})</span>
+                {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={whGroup}>Agrupar {sel.length}</Button>}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 10 }}>
+                {loose.map((c) => {
+                  const on = sel.includes(c.id);
+                  const st: React.CSSProperties = { textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "10px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4 };
+                  return isFacil
+                    ? <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))} style={st}>{c.text}</button>
+                    : <div key={c.id} style={st}>{c.text}</div>;
+                })}
+                {!loose.length && <div style={{ gridColumn: "1/-1", color: "var(--ink-3)", fontSize: "var(--t-sm)", padding: 16, textAlign: "center" }}>Todas agrupadas.</div>}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <span className="eyebrow">Grupos de causas ({clusters.length})</span>
+              {clusters.map((cl) => (
+                <Card key={cl.id} pad={12}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ color: "var(--st-focus)" }}><Icon name="Layers" size={15} /></span>
+                    {isFacil
+                      ? <input defaultValue={cl.name} onBlur={(e) => { if (e.target.value.trim()) renameCluster(cl.id, e.target.value.trim()); }} placeholder="Nombre del grupo…" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed color-mix(in srgb, var(--st-focus) 55%, transparent)" }} />
+                      : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
+                    {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "5px 7px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-focus)" }}>{c.text}</div>)}
+                  </div>
+                </Card>
+              ))}
+              {!clusters.length && <div style={{ border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", padding: 18, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>{isFacil ? "Seleccioná tarjetas y agrupalas." : "Todavía no hay grupos."}</div>}
+            </div>
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "whvote", 3); setBusy(false); }}>Votar las más probables</Button>
+        : null;
+    } else if (step === "whvote") {
+      sub = whVoteShown ? "Las 2 más votadas arrancan el árbol de causas." : "¿Qué causas son las más probables? 3 puntos por persona, en anónimo.";
+      const max = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
+      content = (
+        <>
+          {TroubleChip}
+          {whVoteShown ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {ranked.map((cl, i) => (
+                <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span className="num" style={{ width: 20, fontWeight: 700, color: i < 2 ? "var(--st-focus)" : "var(--ink-3)" }}>{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}{i < 2 && <Pill color="var(--st-focus)" bg="color-mix(in srgb, var(--st-focus) 14%, transparent)" icon="GitBranch">rama del árbol</Pill>}</div>
+                    <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i < 2 ? "var(--st-focus)" : "var(--violet)"} height={7} />
+                  </div>
+                  <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {!isFacil && (
+                <div style={{ textAlign: "center", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Tus puntos:</span>
+                  {Array.from({ length: WH_DOTS }).map((_, i) => <span key={i} style={{ width: 16, height: 16, borderRadius: 99, background: i < whRemaining ? "var(--st-focus)" : "var(--card-2)", border: `1px solid ${i < whRemaining ? "var(--st-focus)" : "var(--line-2)"}` }} />)}
+                </div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
+                  <button key={cl.id} onClick={() => { if (!isFacil && whRemaining > 0) castVote(cl.id, 1, whRemaining); }}
+                    style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: mine > 0 ? "color-mix(in srgb, var(--st-focus) 8%, var(--card))" : "var(--card)", border: `1px solid ${mine > 0 ? "color-mix(in srgb, var(--st-focus) 45%, var(--line))" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "default" : "pointer" }}>
+                    <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
+                    {!isFacil && (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        {Array.from({ length: mine }).map((_, k) => <span key={k} style={{ width: 14, height: 14, borderRadius: 99, background: "var(--st-focus)" }} />)}
+                        {mine > 0 && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); castVote(cl.id, -1, whRemaining); }} style={{ display: "inline-flex", color: "var(--ink-3)", padding: 3 }}><Icon name="X" size={13} /></span>}
+                      </span>
+                    )}
+                  </button>
+                ); })}
+              </div>
+              <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {whVoters} de {totalInRoom} votaron</p>
+            </>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? (whVoteShown
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => {
+              setBusy(true);
+              if (!tree.length && ranked.length) {
+                const roots = ranked.slice(0, 2).map((c, i) => ({ id: `r${i}`, text: c.name }));
+                await setResult(sessionId, { whTree: roots });
+              }
+              await setStep(sessionId, "whtree", 4); setBusy(false);
+            }}>Armar el árbol de causas</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { whVoteShown: true })}>Mostrar votación ({whVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {WH_DOTS} puntos.</p>;
+    } else if (step === "whtree") {
+      wide = true;
+      sub = isFacil ? "Preguntá en cadena: “¿y por qué está pasando eso?” — máx 3 niveles. Agregá lo que diga el equipo." : "El árbol de causas se arma en vivo: ¿y por qué está pasando eso?";
+      content = (
+        <>
+          {TroubleChip}
+          <Card pad={20}>
+            <CauseTree nodes={tree} editable={isFacil} maxDepth={3}
+              onAdd={(pid) => treePatch([...((resultRef.current.whTree as typeof tree) ?? tree), { id: `n${Date.now().toString(36)}`, text: "", parent: pid }])}
+              onEdit={(id, text) => treePatch((((resultRef.current.whTree as typeof tree) ?? tree)).map((n) => n.id === id ? { ...n, text } : n))}
+              onDelete={treeDelete} />
+          </Card>
+          {isFacil && (
+            <Card pad={16} style={{ marginTop: 14, border: "1px solid color-mix(in srgb, var(--warning) 40%, var(--line))" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <Icon name="ShieldAlert" size={18} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
+                <div style={{ flex: 1, fontSize: "var(--t-xs)", lineHeight: 1.5 }}>
+                  <b>⚠ ¿La cadena apunta hacia el líder?</b> Recomendación: nombrar el patrón (no la persona), formularlo como variable del sistema y agendar una charla privada post-retro.
+                  {!!session.result.whProtocol && <div style={{ marginTop: 6, color: "var(--warning)", fontWeight: 700 }}>Protocolo aplicado: reformulá el nodo como “Proceso de [X]”, no “Comportamiento de [nombre]”.</div>}
+                </div>
+                {!session.result.whProtocol && <Button size="sm" variant="secondary" onClick={() => patchResult({ whProtocol: true })}>Aplicar protocolo</Button>}
+              </div>
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !tree.length} onClick={async () => { setBusy(true); await setStep(sessionId, "whvalidate", 5); setBusy(false); }}>Validar la causa raíz</Button>
+        : null;
+    } else {
+      sub = "La causa raíz, formulada. El equipo valida antes de cerrar.";
+      const deepest = tree.filter((n) => n.text.trim() && !tree.some((c) => c.parent === n.id));
+      const template = whRoot || (deepest.length ? `La causa raíz de la traba es ${deepest[0].text}` : "La causa raíz de la traba es ");
+      content = (
+        <>
+          {TroubleChip}
+          <Card pad={20}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>La causa raíz, en una oración</div>
+            {isFacil
+              ? <textarea defaultValue={template} onBlur={(e) => patchResult({ whRoot: e.target.value.trim() })} rows={3} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+              : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.55, color: whRoot ? "var(--ink-0)" : "var(--ink-3)" }}>{whRoot || "El facilitador está redactando…"}</p>}
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {!isFacil ? (
+                <>
+                  <Button size="sm" variant={myWhVal === "yes" ? "primary" : "secondary"} onClick={() => tapInput("whval", { v: "yes" })}>Sí</Button>
+                  <Button size="sm" variant={myWhVal === "partial" ? "primary" : "secondary"} onClick={() => tapInput("whval", { v: "partial" })}>Parcialmente</Button>
+                  <Button size="sm" variant={myWhVal === "no" ? "primary" : "secondary"} onClick={() => tapInput("whval", { v: "no" })}>No</Button>
+                </>
+              ) : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Si no es “Sí”, ajustá hasta el acuerdo.</span>}
+              <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-sm)", fontWeight: 700 }}>
+                <span style={{ color: "var(--success)" }}>Sí {vCount("yes")}</span> · <span style={{ color: "var(--warning)" }}>Parcial {vCount("partial")}</span> · <span style={{ color: "var(--risk)" }}>No {vCount("no")}</span>
+              </span>
+            </div>
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !whRoot.trim()} onClick={whFinish}>{busy ? "Guardando…" : `Cerrar con esta causa raíz (Sí: ${vCount("yes")})`}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Validá: Sí / Parcialmente / No.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 640 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

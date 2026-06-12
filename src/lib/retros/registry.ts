@@ -276,7 +276,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Árbol de causas (¿y por qué pasa eso?) ×3", minutes: 10 },
       { name: "Validación de causa raíz: Sí / Parcialmente / No", minutes: 3 },
     ],
-    sessionType: "whyhappening", implemented: false,
+    sessionType: "whyhappening", entryStep: "whframe", implemented: true,
   },
   {
     id: "focus-impact-frequency", name: "Impacto y frecuencia", stage: "focus", category: "growthloop",
