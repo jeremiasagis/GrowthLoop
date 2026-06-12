@@ -14,6 +14,7 @@ import {
 } from "@/lib/repository";
 import { getInitiativeSessions, getSessionContent, type SessionCard, type SessionCluster, type SessionVote } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
+import { retrosForStage } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; result?: Record<string, unknown> };
@@ -125,13 +126,34 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
 
   if (st === "focus") {
     const d = data.focus;
-    if (!d?.rootCause && !d?.causes?.length) return empty("Todavía no se hizo la sesión de foco.");
+    if (!d?.rootCause && !d?.causes?.length && !d?.blockFormulation && !d?.priorityProblems?.length && !d?.tensionHypothesis && !d?.journeyFinding && !d?.perfectionScore && !d?.staceyZone) return empty("Todavía no se hizo la sesión de foco.");
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {d?.blockFormulation && (
+          <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-focus) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-focus) 28%, transparent)", borderRadius: "var(--r-md)" }}>
+            <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>La traba identificada{d.blockStage ? ` · en ${d.blockStage}${d.blockPct ? ` (${d.blockPct}%)` : ""}` : ""}</div>
+            <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, lineHeight: 1.5 }}>{d.blockFormulation}</div>
+          </div>
+        )}
         {(d?.roots?.length || d?.rootCause) && (
           <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-focus) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--st-focus) 35%, transparent)", borderRadius: "var(--r-md)" }}>
             <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>{(d.roots?.length ?? 0) > 1 ? "Causas raíz" : "Causa raíz"}</div>
             {(d.roots?.length ? d.roots : [d.rootCause!]).map((r, i) => <div key={i} style={{ fontSize: "var(--t-md)", fontWeight: 700 }}>{r}</div>)}
+          </div>
+        )}
+        {(d?.priorityProblems?.length || d?.perfectionScore || d?.tensionHypothesis || d?.journeyFinding || d?.clientGap || d?.staceyZone || d?.candidateFactors?.length || d?.clientFbTask) && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Contexto adicional de la etapa</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "var(--t-sm)" }}>
+              {!!d?.priorityProblems?.length && <p>🎯 <b>Priorizado (impacto×frecuencia):</b> {d.priorityProblems.join(" · ")}</p>}
+              {d?.perfectionScore != null && <p>🔟 <b>Perfection Game:</b> el equipo está en <b className="num">{d.perfectionScore}/10</b></p>}
+              {!!d?.candidateFactors?.length && <p>🌱 <b>Causas candidatas:</b> {d.candidateFactors.join(" · ")}</p>}
+              {d?.tensionHypothesis && <p>⚖️ <b>Tensión{d.tensionPair ? ` (${d.tensionPair})` : ""}:</b> {d.tensionHypothesis}</p>}
+              {d?.journeyFinding && <p>🧭 <b>Journey{d.journeyCritical ? ` · fricción en “${d.journeyCritical}”` : ""}:</b> {d.journeyFinding}</p>}
+              {d?.clientGap && <p>🗣️ <b>Voz del cliente{d.clientName ? ` (${d.clientName})` : ""}:</b> {d.clientGap}</p>}
+              {d?.clientFbTask && <p>📋 <b>Pendiente:</b> conseguir feedback real — {d.clientFbTask.how}{d.clientFbTask.who ? ` · ${d.clientFbTask.who}` : ""}{d.clientFbTask.due ? ` · antes del ${d.clientFbTask.due}` : ""}</p>}
+              {d?.staceyZone && <p>🧩 <b>Complejidad (Stacey):</b> {d.staceyZone}{d.staceyAdvice ? ` — ${d.staceyAdvice}` : ""}</p>}
+            </div>
           </div>
         )}
         {!!d?.causes?.length && (
@@ -613,11 +635,22 @@ export default function InitiativeDetailPage() {
                 </div>
               )}
             </div>
-            <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 16 }}>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 12 }}>
               {nextSt
                 ? <>La iniciativa pasa a <b style={{ color: STAGES[nextSt].color }}>{STAGES[nextSt].label}</b>. Lo acumulado queda guardado y siempre se puede volver atrás cambiando la etapa.</>
                 : <>El ciclo se cierra y la iniciativa queda marcada como terminada.</>}
             </p>
+            {nextSt && (() => {
+              const rec = retrosForStage(nextSt).find((r) => r.recommended && r.implemented) ?? retrosForStage(nextSt).find((r) => r.implemented);
+              return rec ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: 16, background: `color-mix(in srgb, ${STAGES[nextSt].color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${STAGES[nextSt].color} 32%, transparent)`, borderRadius: "var(--r-md)" }}>
+                  <Icon name="Sparkles" size={16} style={{ color: STAGES[nextSt].color, flexShrink: 0 }} />
+                  <div style={{ fontSize: "var(--t-xs)", lineHeight: 1.45 }}>
+                    <b>Retro sugerida para {STAGES[nextSt].label}:</b> {rec.name} <span className="muted">· {rec.description} ({rec.duration}′)</span>
+                  </div>
+                </div>
+              ) : null;
+            })()}
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="secondary" full onClick={() => setCloseStageOpen(false)}>Cancelar</Button>
               <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy} onClick={doCloseStage}>{closeBusy ? "Guardando…" : "Confirmar"}</Button>

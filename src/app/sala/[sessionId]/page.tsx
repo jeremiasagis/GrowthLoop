@@ -19,6 +19,7 @@ import { CauseTree } from "@/components/CauseTree";
 import { FishboneDiagram } from "@/components/FishboneDiagram";
 import { OpposingScale } from "@/components/OpposingScales";
 import { JourneyBoard, type JourneyCol } from "@/components/JourneyBoard";
+import { StaceyMatrix, STACEY_ZONES, zoneOf } from "@/components/StaceyMatrix";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -99,6 +100,7 @@ const STEP_SEQ: Record<string, string[]> = {
   perfection: ["pgscore", "pgreveal", "pgfactors", "pgsynth"],
   opposites: ["oppairs", "oprate", "opreveal", "opsynth"],
   journey: ["sdsetup", "sdanalyze", "sdvote", "sddeep", "sdsynth"],
+  stacey: ["stintro", "stplace", "streveal", "stzone"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -2867,6 +2869,135 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 980 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ MATRIZ DE STACEY · ¿qué tan complejo es el problema? ════════
+  if (session.type === "stacey") {
+    const stVar = (session.result.stVar as string) || (initiative?.data?.focus?.blockFormulation as string) || initiative?.title || "la traba identificada";
+    const stPoints = inputs.filter((i) => i.key === "st").map((i) => i.value as { x?: number; y?: number }).filter((p): p is { x: number; y: number } => p.x != null && p.y != null);
+    const mydSt = (inputs.find((i) => i.userId === user.id && i.key === "st")?.value as { x?: number; y?: number } | undefined);
+    const mySt = mydSt?.x != null && mydSt?.y != null ? { x: mydSt.x, y: mydSt.y } : undefined;
+    const centroid = stPoints.length ? { x: stPoints.reduce((a, p) => a + p.x, 0) / stPoints.length, y: stPoints.reduce((a, p) => a + p.y, 0) / stPoints.length } : undefined;
+    const zone = centroid ? zoneOf(centroid.x, centroid.y) : undefined;
+    const ZONE_TALK: Record<string, string[]> = {
+      simple: ["“Si es simple, ¿por qué no lo resolvimos antes?”", "“¿Qué mejor práctica podemos aplicar?”"],
+      complicated: ["“¿Qué experto o análisis necesitamos?”", "“¿Tenemos esa capacidad adentro o necesitamos ayuda externa?”"],
+      complex: ["“No hay una solución evidente. Necesitamos experimentar.”", "“¿Qué experimento pequeño podríamos correr para aprender más?”"],
+      chaotic: ["“Esto es una urgencia. ¿Qué acción inmediata estabiliza la situación, aunque sea temporal?”"],
+    };
+    const ZONE_NEXT: Record<string, string> = {
+      simple: "En Ideación busquen una práctica probada.",
+      complicated: "En Ideación consideren traer perspectiva externa.",
+      complex: "En Ideación diseñen un experimento pequeño. (Acá vive Growthloop 💚)",
+      chaotic: "Antes de Ideación necesitan estabilizar.",
+    };
+    const VarChipSt = (
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--st-focus) 12%, var(--card))", border: "1px solid color-mix(in srgb, var(--st-focus) 40%, transparent)", color: "var(--st-focus)", fontSize: "var(--t-xs)", fontWeight: 700, maxWidth: "100%" }}>
+          <Icon name="Crosshair" size={13} style={{ flexShrink: 0 }} /> <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{stVar}</span>
+        </span>
+      </div>
+    );
+    const stFinish = async () => {
+      setBusy(true);
+      const z = zone ? STACEY_ZONES[zone] : undefined;
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Stacey: ${z?.label ?? "—"} · ${zone ? ZONE_NEXT[zone] : ""}`,
+        dataKey: "focus", dataValue: { staceyZone: z?.label, staceyAdvice: zone ? ZONE_NEXT[zone] : undefined },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "stintro") {
+      sub = "Antes de diseñar una solución: ¿qué tan complejo es este problema?";
+      content = (
+        <>
+          {VarChipSt}
+          <Card pad={18} style={{ marginBottom: 14 }}><StaceyMatrix points={[]} /></Card>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 8 }}>
+            {(Object.entries(STACEY_ZONES) as [string, { label: string; color: string; desc: string }][]).map(([k, z]) => (
+              <div key={k} style={{ padding: "10px 12px", background: "var(--card)", border: `1px solid color-mix(in srgb, ${z.color} 38%, var(--line))`, borderLeft: `3px solid ${z.color}`, borderRadius: "var(--r-md)" }}>
+                <div style={{ fontWeight: 800, fontSize: "var(--t-sm)", color: z.color }}>{z.label}</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2, lineHeight: 1.4 }}>{z.desc}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "stplace", 1); setBusy(false); }}>Posicionarse en la matriz</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador explica las 4 zonas.</p>;
+    } else if (step === "stplace") {
+      sub = isFacil ? "Cada miembro toca la matriz donde cree que está el problema. Anónimo." : "Tocá la matriz: ¿cuánta certeza tenemos de cómo resolverlo y cuánto acuerdo de qué hacer?";
+      content = (
+        <>
+          {VarChipSt}
+          <Card pad={18}>
+            <StaceyMatrix points={[]} my={isFacil ? undefined : mySt} editable={!isFacil} onPlace={(x, y) => tapInput("st", { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 })} />
+            <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>
+              {isFacil ? <><Icon name="EyeOff" size={12} /> {stPoints.length} de {totalInRoom} se posicionaron · oculto hasta revelar</> : mySt ? "Marcaste tu posición (podés tocar de nuevo para moverla)." : "Tocá donde creas que está el problema."}
+            </p>
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || stPoints.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "streveal", 2); setBusy(false); }}>Revelar posiciones ({stPoints.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador revela cuando estén todos.</p>;
+    } else if (step === "streveal") {
+      sub = "Todas las posiciones + el centroide ⭐ del equipo.";
+      content = (
+        <>
+          {VarChipSt}
+          <Card pad={18}>
+            <StaceyMatrix points={stPoints} centroid={centroid} />
+            {zone && (
+              <div style={{ marginTop: 14, padding: "12px 14px", background: `color-mix(in srgb, ${STACEY_ZONES[zone].color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${STACEY_ZONES[zone].color} 40%, transparent)`, borderRadius: "var(--r-md)" }}>
+                <div style={{ fontWeight: 800, color: STACEY_ZONES[zone].color, marginBottom: 2 }}>Zona del equipo: {STACEY_ZONES[zone].label}</div>
+                <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.5 }}>{STACEY_ZONES[zone].desc}</div>
+              </div>
+            )}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "stzone", 3); setBusy(false); }}>Conversar sobre la zona</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Miren dónde cayó el equipo y la dispersión.</p>;
+    } else {
+      sub = zone ? `El problema es ${STACEY_ZONES[zone].label.toLowerCase()}. ¿Qué significa para lo que sigue?` : "Conversación sobre la zona.";
+      content = (
+        <>
+          {VarChipSt}
+          {zone && (
+            <>
+              <Card pad={18} style={{ marginBottom: 14, border: `1px solid color-mix(in srgb, ${STACEY_ZONES[zone].color} 45%, var(--line))` }}>
+                <div style={{ fontWeight: 800, fontSize: "var(--t-md)", color: STACEY_ZONES[zone].color, marginBottom: 8 }}>{STACEY_ZONES[zone].label}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "var(--t-sm)" }}>
+                  {ZONE_TALK[zone].map((q, i) => <span key={i}>· {q}</span>)}
+                </div>
+              </Card>
+              <Card pad={18} style={{ background: "color-mix(in srgb, var(--st-proof) 7%, var(--card))", border: "1px solid color-mix(in srgb, var(--st-proof) 35%, var(--line))" }}>
+                <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>Implicancia para Ideación</div>
+                <p style={{ fontSize: "var(--t-md)", fontWeight: 700, lineHeight: 1.5 }}>{ZONE_NEXT[zone]}</p>
+              </Card>
+            </>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !zone} onClick={stFinish}>{busy ? "Guardando…" : "Cerrar y guardar la zona"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra con la implicancia para Ideación.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 640 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

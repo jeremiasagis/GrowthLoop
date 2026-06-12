@@ -376,7 +376,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Conversación según la zona", minutes: 10 },
       { name: "Implicancia para Ideación", minutes: 4 },
     ],
-    sessionType: "stacey", implemented: false,
+    sessionType: "stacey", entryStep: "stintro", implemented: true,
   },
   {
     id: "ideation-bet-design", name: "Diseño de la apuesta", stage: "ideation", category: "growthloop",
