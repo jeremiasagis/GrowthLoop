@@ -9,7 +9,7 @@ import { SessionTimer } from "@/components/session/Timer";
 import { JoinModal } from "@/components/session/JoinModal";
 import { HiddenDots, Cascade, RevealHeader, RevealPop } from "@/components/session/RevealFx";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getInitiatives, getTeam } from "@/lib/repository";
+import { createInitiative, getInitiatives, getTeam } from "@/lib/repository";
 import { retroByKey } from "@/lib/retros";
 import { retroById } from "@/lib/retros/registry";
 import { WordCloud } from "@/components/WordCloud";
@@ -20,7 +20,7 @@ import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/dat
 import {
   addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster, pulseOverall,
   finalizeSession, getCardCounts, getCards, getClusters, getInitiativeSessions, getInputs, getMyCards, getParticipants, getSessionContent,
-  getLastClosedTeamSession, getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
+  getClosedTeamSessions, getLastClosedTeamSession, getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
   renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession, touchPresence,
   type LiveSession, type Participant, type PulseResponse, type SessionCard, type SessionCluster, type SessionInput, type SessionVote,
 } from "@/lib/session";
@@ -86,6 +86,7 @@ const STEP_SEQ: Record<string, string[]> = {
   timeline: ["build", "tload", "timeline_reveal"],
   circles: ["brain", "classify", "soup_close"],
   relationships: ["frame", "questions", "read", "relword", "rel_close"],
+  expclose: ["consolidate", "vote", "map"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -197,6 +198,41 @@ export default function SalaPage() {
     if (user && !joinedRef.current) { joinedRef.current = true; joinSession(sessionId, user.name, user.initials); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Cierre de Exploración: la plataforma consolida las variables candidatas
+  // de todas las retros de Exploración cerradas (con frecuencia de aparición).
+  useEffect(() => {
+    if (!session || session.type !== "expclose" || session.status !== "live") return;
+    if (!user || user.role === "member") return;
+    if (session.result.expVars) return;
+    let active = true;
+    (async () => {
+      const all = await getClosedTeamSessions(session.teamId);
+      const CLUSTERY = ["explore", "madsadglad", "balloon", "sailboat"];
+      const found: string[] = [];
+      for (const s of all) {
+        if (s.id === session.id) continue;
+        const r = s.result ?? {};
+        for (const k of ["trCandidates", "circleCandidates", "tlPatterns", "relPatterns"]) {
+          for (const v of ((r[k] as string[]) ?? [])) found.push(v);
+        }
+        if (CLUSTERY.includes(s.type)) {
+          const c = await getSessionContent(s.id);
+          for (const cl of c.clusters) found.push(cl.name);
+        }
+      }
+      const freq = new Map<string, { name: string; freq: number }>();
+      for (const raw of found) {
+        const k = raw.trim().toLowerCase(); if (!k) continue;
+        const cur = freq.get(k);
+        if (cur) cur.freq += 1; else freq.set(k, { name: raw.trim(), freq: 1 });
+      }
+      const vars = [...freq.values()].sort((a, b) => b.freq - a.freq);
+      if (active) patchResult({ expVars: vars });
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.type, session?.status, session?.id, user?.role, !!session?.result?.expVars]);
 
   // Radar del Equipo: si ya hicieron esta retro antes, traemos el radar
   // anterior para superponerlo y ver la evolución.
@@ -1270,6 +1306,157 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ CIERRE DE EXPLORACIÓN · variables → mapa de mejoras ════════
+  if (session.type === "expclose") {
+    const EXP_DOTS = 3;
+    const expRemaining = EXP_DOTS - myVoteCount;
+    const expVars = session.result.expVars as { name: string; freq: number }[] | undefined;
+    const expSkip = new Set((session.result.expSkip as string[]) ?? []);
+    const included = ranked.filter((cl) => !expSkip.has(cl.id));
+    const toggleSkip = (id: string) => {
+      const cur = new Set((resultRef.current.expSkip as string[]) ?? []);
+      if (cur.has(id)) cur.delete(id); else cur.add(id);
+      patchResult({ expSkip: [...cur] });
+    };
+    const addVar = () => {
+      const t = (cardDraft.expvar ?? "").trim(); if (!t || !expVars) return;
+      patchResult({ expVars: [...expVars, { name: t, freq: 1 }] });
+      setCardDraft((d) => ({ ...d, expvar: "" }));
+    };
+    const startVote = async () => {
+      if (busy || !expVars?.length) return;
+      setBusy(true);
+      if (!clusters.length) for (const v of expVars) await createCluster(sessionId, v.name);
+      await load();
+      await setStep(sessionId, "vote", 1);
+      setBusy(false);
+    };
+    const confirmMap = async () => {
+      if (busy || !included.length) return;
+      setBusy(true);
+      for (let i = 0; i < included.length; i++) {
+        await createInitiative({ teamId: session.teamId, title: included[i].name, status: i === 0 ? "active" : "paused", stage: "objectives" });
+      }
+      await finalizeSession(session, {
+        summaryText: `Mapa de mejoras: ${included.length} variables · activa: ${included[0].name}`,
+        teamData: { explorationClosedAt: new Date().toISOString() },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "consolidate") {
+      sub = "Todo lo que emergió en Exploración, consolidado. El facilitador puede ajustar la lista.";
+      content = !expVars ? (
+        <Card pad={28} style={{ textAlign: "center" }}><div style={{ fontSize: 32, marginBottom: 10 }}>🔭</div><p className="muted" style={{ fontSize: "var(--t-sm)" }}>Juntando las variables candidatas de todas las retros de Exploración…</p></Card>
+      ) : (
+        <Card pad={20}>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Variables candidatas ({expVars.length})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {expVars.map((v, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{v.name}</span>
+                <Pill color={v.freq > 1 ? "var(--green)" : "var(--ink-2)"} bg={v.freq > 1 ? "var(--success-bg)" : "var(--card-2)"}>{v.freq > 1 ? `apareció ${v.freq} veces` : "1 vez"}</Pill>
+                {isFacil && <button onClick={() => patchResult({ expVars: expVars.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={14} /></button>}
+              </div>
+            ))}
+            {!expVars.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>No se encontraron variables — agregá a mano lo que el equipo descubrió.</p>}
+          </div>
+          {isFacil && (
+            <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+              <input value={cardDraft.expvar ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, expvar: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addVar()} placeholder="Agregar variable…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={addVar}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !expVars?.length} onClick={startVote}>{busy ? "Preparando…" : `Pasar a la priorización (${expVars?.length ?? 0})`}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>En un momento priorizan entre todos.</p>;
+    } else if (step === "vote") {
+      const shown = !!session.result.voteShown;
+      const voters = new Set(votes.map((v) => v.voterKey)).size;
+      const max = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
+      sub = shown ? "La prioridad del equipo, revelada." : "¿Qué variable trabajamos primero? 3 puntos por persona, en anónimo.";
+      content = shown ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {ranked.map((cl, i) => (
+            <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span className="num" style={{ width: 20, fontWeight: 700, color: i === 0 ? "var(--green)" : "var(--ink-3)" }}>{i + 1}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}</div>
+                <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i === 0 ? "var(--green)" : "var(--violet)"} height={7} />
+              </div>
+              <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <>
+          {!isFacil && (
+            <div style={{ textAlign: "center", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Tus puntos:</span>
+              {Array.from({ length: EXP_DOTS }).map((_, i) => <span key={i} style={{ width: 16, height: 16, borderRadius: 99, background: i < expRemaining ? "var(--green)" : "var(--card-2)", border: `1px solid ${i < expRemaining ? "var(--green)" : "var(--line-2)"}` }} />)}
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {clusters.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
+              <button key={cl.id} onClick={() => { if (!isFacil && expRemaining > 0) castVote(cl.id, 1, expRemaining); }}
+                style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: mine > 0 ? "color-mix(in srgb, var(--green) 8%, var(--card))" : "var(--card)", border: `1px solid ${mine > 0 ? "color-mix(in srgb, var(--green) 45%, var(--line))" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "default" : "pointer" }}>
+                <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
+                {!isFacil && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    {Array.from({ length: mine }).map((_, k) => <span key={k} style={{ width: 14, height: 14, borderRadius: 99, background: "var(--green)", boxShadow: "0 0 7px rgba(0,232,122,0.6)" }} />)}
+                    {mine > 0 && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); castVote(cl.id, -1, expRemaining); }} style={{ display: "inline-flex", color: "var(--ink-3)", padding: 3 }}><Icon name="X" size={13} /></span>}
+                  </span>
+                )}
+              </button>
+            ); })}
+          </div>
+          <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> Votación oculta · {voters} de {totalInRoom} votaron</p>
+        </>
+      );
+      controls = isFacil
+        ? (shown
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "map", 2); setBusy(false); }}>Generar el mapa de mejoras</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { voteShown: true })}>Mostrar votación ({voters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {EXP_DOTS} puntos. El facilitador revela el resultado.</p>;
+    } else {
+      sub = "El mapa de mejoras del equipo. El facilitador puede ajustar antes de confirmar.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {ranked.map((cl) => {
+            const skipped = expSkip.has(cl.id);
+            const pos = included.findIndex((x) => x.id === cl.id);
+            return (
+              <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: pos === 0 ? "color-mix(in srgb, var(--green) 10%, var(--card))" : "var(--card)", border: `1px solid ${pos === 0 ? "var(--green)" : "var(--line)"}`, borderRadius: "var(--r-md)", opacity: skipped ? 0.45 : 1 }}>
+                <span style={{ width: 32, height: 32, borderRadius: 99, display: "grid", placeItems: "center", flex: "none", background: pos === 0 ? "var(--green)" : "var(--card-2)", color: pos === 0 ? "#08120c" : "var(--ink-2)" }}><Icon name={pos === 0 ? "Target" : skipped ? "X" : "Clock"} size={15} /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", textDecoration: skipped ? "line-through" : "none" }}>{cl.name}</div>
+                  <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{skipped ? "fuera del mapa" : pos === 0 ? "ACTIVA · arranca en Objetivos" : `en cola · prioridad ${pos + 1}`} · {votesByCluster[cl.id] ?? 0} votos</div>
+                </div>
+                {isFacil && <Button size="sm" variant="secondary" onClick={() => toggleSkip(cl.id)}>{skipped ? "Incluir" : "Sacar"}</Button>}
+              </div>
+            );
+          })}
+          <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center" }}>Al confirmar, cada variable se crea como iniciativa del equipo: la primera activa, el resto pausadas en cola.</p>
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !included.length} onClick={confirmMap}>{busy ? "Creando el mapa…" : `Confirmar mapa (${included.length} variables)`}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Este es el mapa que sale de Exploración. El facilitador confirma.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

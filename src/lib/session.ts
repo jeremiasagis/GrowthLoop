@@ -106,6 +106,15 @@ export async function getSessionContent(sessionId: string): Promise<{ cards: Ses
   return { cards, clusters, votes, inputs };
 }
 
+/** Todas las sesiones cerradas de un equipo (para consolidar Exploración). */
+export async function getClosedTeamSessions(teamId: string): Promise<LiveSession[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.from("sessions").select("*")
+    .eq("team_id", teamId).eq("status", "closed")
+    .order("created_at", { ascending: true });
+  return (data ?? []).map(mapSession);
+}
+
 /** La última sesión CERRADA de un tipo para un equipo (ej: radar anterior). */
 export async function getLastClosedTeamSession(teamId: string, type: string, excludeId?: string): Promise<LiveSession | null> {
   const supabase = getSupabaseBrowserClient();
@@ -172,7 +181,7 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   let firstStep = normalFirst;
   // founding/foda: arranque del equipo. teamradar: ya es una medición.
   // relationships: retro sensible, el encuadre va primero.
-  if (!["founding", "foda", "teamradar", "relationships"].includes(p.type)) {
+  if (!["founding", "foda", "teamradar", "relationships", "expclose"].includes(p.type)) {
     const { data: teamRow } = await supabase.from("teams").select("data").eq("id", p.teamId).maybeSingle();
     const lastPulseAt = (teamRow?.data as { lastPulseAt?: string } | null)?.lastPulseAt;
     const d = new Date(); const dow = (d.getDay() + 6) % 7;

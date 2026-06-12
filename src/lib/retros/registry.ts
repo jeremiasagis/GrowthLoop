@@ -197,6 +197,21 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
     sessionType: "circles", entryStep: "brain", implemented: true,
   },
 
+  {
+    id: "exploration-close", name: "Cierre de Exploración → mapa de mejoras", stage: "exploration", category: "growthloop",
+    description: "Consolidar lo descubierto, priorizar en equipo y generar el mapa de mejoras.",
+    purpose: "La plataforma junta las variables candidatas de todas las retros de Exploración, el equipo vota con 3 puntos en anónimo, y el resultado se convierte en el mapa: la variable 1 arranca como iniciativa activa y el resto queda en cola.",
+    duration: 20, minDuration: 15, maxDuration: 30, anonymous: true, asyncAvailable: false, sensitive: false, recommended: false,
+    note: "Hacela cuando sientan que ya exploraron suficiente",
+    phases: [
+      { name: "Variables candidatas consolidadas (con frecuencia)", minutes: 5 },
+      { name: "Priorización final · 3 puntos por miembro", minutes: 5 },
+      { name: "Mapa de mejoras generado + ajuste del facilitador", minutes: 5 },
+      { name: "Confirmación: variable 1 activa, resto en cola", minutes: 3 },
+    ],
+    sessionType: "expclose", entryStep: "consolidate", implemented: true,
+  },
+
   // ══════════ CICLO DE MEJORA ══════════
   {
     id: "objectives-tensions", name: "Tensiones y causas", stage: "objectives", category: "growthloop",
