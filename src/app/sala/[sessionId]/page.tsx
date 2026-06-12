@@ -1174,7 +1174,7 @@ export default function SalaPage() {
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${rOv?.l ?? "—"} · ${dOv?.l ?? "—"}`,
         dataKey: "learn", dataValue: { result: overallResult, results, decision: overallDecision, decisions, achieved, learnings: learnCards.map((c) => c.text), highlights: ranked.map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })).filter((h) => h.votes > 0) },
-        noAdvance: true, status: anyIterate ? "active" : "done", stageOverride: anyIterate ? "proof" : undefined,
+        noAdvance: true, status: anyIterate ? "active" : "done", stageOverride: anyIterate ? "ideation" : undefined,
       });
       setBusy(false); leave();
     };

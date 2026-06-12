@@ -6,43 +6,64 @@
    que es la única costura para enchufar Supabase más adelante.
    ============================================================ */
 
+// ── Modelo de etapas ──
+// PARTE A — Módulo de diagnóstico (fuera del ciclo, opcional):
+//   exploration → output: mapa de variables priorizadas.
+// PARTE B — Ciclo de mejora (se repite por variable):
+//   objectives → focus → ideation → follow → learn
+export type CycleStage = "objectives" | "focus" | "ideation" | "follow" | "learn";
+export type DiagnosticModule = "exploration";
+
 export type StageKey =
-  | "queue" | "explore" | "focus" | "proof"
-  | "follow" | "learn" | "consol" | "improved" | "paused";
+  | CycleStage | DiagnosticModule
+  // legacy (datos viejos en DB; se normalizan con normalizeStage)
+  | "queue" | "explore" | "proof" | "consol" | "improved" | "paused";
 
 export interface Stage {
   key: StageKey;
   label: string;
   color: string; // CSS var reference
   n: string;
+  module?: boolean; // true = módulo de diagnóstico, no etapa del ciclo
 }
 
-// ── Stage metadata (the spiral of continuous improvement) ──
+// ── Stage metadata ──
 export const STAGES: Record<StageKey, Stage> = {
-  queue:    { key: "queue",    label: "Cola",          color: "var(--st-queue)",    n: "·" },
-  explore:  { key: "explore",  label: "Exploración",   color: "var(--st-explore)",  n: "1" },
-  focus:    { key: "focus",    label: "Foco",          color: "var(--st-focus)",    n: "2" },
-  proof:    { key: "proof",    label: "Ideación",      color: "var(--st-proof)",    n: "3" },
-  follow:   { key: "follow",   label: "Seguimiento",   color: "var(--st-follow)",   n: "·" }, // legacy (fuera del ciclo)
-  learn:    { key: "learn",    label: "Aprendizaje",   color: "var(--st-learn)",    n: "4" },
-  consol:   { key: "consol",   label: "Consolidación", color: "var(--st-consol)",   n: "✦" },
-  improved: { key: "improved", label: "Mejorada",      color: "var(--st-improved)", n: "✓" },
-  paused:   { key: "paused",   label: "Pausada",       color: "var(--st-paused)",   n: "‖" },
+  queue:       { key: "queue",       label: "Cola",          color: "var(--st-queue)",    n: "·" },
+  exploration: { key: "exploration", label: "Exploración",   color: "var(--st-explore)",  n: "◇", module: true },
+  objectives:  { key: "objectives",  label: "Objetivos",     color: "var(--st-objectives)", n: "1" },
+  focus:       { key: "focus",       label: "Foco",          color: "var(--st-focus)",    n: "2" },
+  ideation:    { key: "ideation",    label: "Ideación",      color: "var(--st-proof)",    n: "3" },
+  follow:      { key: "follow",      label: "Seguimiento",   color: "#F59E0B",            n: "4" },
+  learn:       { key: "learn",       label: "Aprendizaje",   color: "var(--st-learn)",    n: "5" },
+  // legacy — solo para que los datos viejos sigan renderizando
+  explore:     { key: "explore",     label: "Exploración",   color: "var(--st-explore)",  n: "◇" },
+  proof:       { key: "proof",       label: "Ideación",      color: "var(--st-proof)",    n: "3" },
+  consol:      { key: "consol",      label: "Consolidación", color: "var(--st-consol)",   n: "✦" },
+  improved:    { key: "improved",    label: "Mejorada",      color: "var(--st-improved)", n: "✓" },
+  paused:      { key: "paused",      label: "Pausada",       color: "var(--st-paused)",   n: "‖" },
 };
 
 export const STAGE_ORDER: StageKey[] = [
-  "queue", "explore", "focus", "proof", "follow", "learn", "consol", "improved",
+  "queue", "exploration", "objectives", "focus", "ideation", "follow", "learn", "consol", "improved",
 ];
 
 // Las etapas que recorre una iniciativa (el ciclo de mejora, en orden).
-export const CYCLE_STAGES: StageKey[] = ["explore", "focus", "proof", "learn"];
+export const CYCLE_STAGES: StageKey[] = ["objectives", "focus", "ideation", "follow", "learn"];
+
+/** Normaliza valores de etapa viejos guardados en DB al modelo nuevo. */
+export function normalizeStage(s: string | null | undefined): StageKey {
+  if (s === "explore") return "objectives"; // arranque del ciclo viejo → arranque del nuevo
+  if (s === "proof") return "ideation";
+  return (s as StageKey) || "objectives";
+}
 
 /** Etapa "viva" del equipo: la más avanzada entre sus iniciativas activas.
  *  (teams.stage quedó del modelo viejo y nunca se actualiza — no usarla para mostrar.) */
 export function teamLiveStage(t: { initiatives?: { stage: StageKey; status: string }[] }): StageKey | undefined {
   const act = (t.initiatives ?? []).filter((i) => i.status === "active");
   if (!act.length) return undefined;
-  return act.reduce((best, i) => (CYCLE_STAGES.indexOf(i.stage) > CYCLE_STAGES.indexOf(best.stage) ? i : best)).stage;
+  return normalizeStage(act.reduce((best, i) => (CYCLE_STAGES.indexOf(normalizeStage(i.stage)) > CYCLE_STAGES.indexOf(normalizeStage(best.stage)) ? i : best)).stage);
 }
 
 // Pulso del equipo: 8 dimensiones. Cada miembro puntúa 1-5 en anónimo;

@@ -40,13 +40,22 @@ const RETRO_NAME: Record<string, string> = {
   learn: "Aprendizaje",
 };
 
-const CYCLE = ["explore", "focus", "proof", "learn"];
-function nextStageForward(current: string | undefined | null, completed: string): string | undefined {
-  // Si la sesión cerrada no es una etapa del ciclo (founding/consolidate), no tocar la etapa.
-  if (CYCLE.indexOf(completed) < 0) return current ?? undefined;
+// Ciclo de mejora nuevo. Exploración es un módulo aparte (no avanza el ciclo).
+const CYCLE = ["objectives", "focus", "ideation", "follow", "learn"];
+// Tipo de sesión (retro) → etapa del ciclo que completa.
+// "explore" como sesión de iniciativa legacy completaba el arranque del ciclo.
+const TYPE_TO_STAGE: Record<string, string> = {
+  explore: "objectives", objectives: "objectives", focus: "focus",
+  proof: "ideation", ideation: "ideation", follow: "follow", learn: "learn",
+};
+function nextStageForward(current: string | undefined | null, completedType: string): string | undefined {
+  const completed = TYPE_TO_STAGE[completedType];
+  // Si la sesión cerrada no es una etapa del ciclo (founding/foda/exploration), no tocar la etapa.
+  if (!completed || CYCLE.indexOf(completed) < 0) return current ?? undefined;
+  const cur = current ? (TYPE_TO_STAGE[current] ?? current) : undefined;
   const want = CYCLE[Math.min(CYCLE.length - 1, CYCLE.indexOf(completed) + 1)];
-  if (!current) return want;
-  return CYCLE.indexOf(want) > CYCLE.indexOf(current) ? want : current;
+  if (!cur || CYCLE.indexOf(cur) < 0) return want;
+  return CYCLE.indexOf(want) > CYCLE.indexOf(cur) ? want : cur;
 }
 
 const newId = (p: string) => `${p}${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
@@ -375,7 +384,7 @@ export async function finalizeSession(session: LiveSession, opts: {
 
     if (opts.pausedNames?.length) {
       const rows = opts.pausedNames.map((n) => ({
-        id: newId("i"), team_id: session.teamId, title: n, stage: "explore", status: "paused", data: {},
+        id: newId("i"), team_id: session.teamId, title: n, stage: "objectives", status: "paused", data: {},
         objective_id: (initRow as { objective_id?: string } | null)?.objective_id ?? null, // heredan el objetivo
       }));
       await supabase.from("initiatives").insert(rows);

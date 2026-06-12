@@ -11,7 +11,7 @@
 import { create } from "zustand";
 import { getSupabaseBrowserClient } from "./supabase/client";
 import {
-  FACILITATOR,
+  FACILITATOR, normalizeStage,
   type Admin, type Facilitator, type Initiative, type Org,
   type PulsePoint, type SessionLog, type StageKey, type Team,
 } from "./data";
@@ -68,7 +68,7 @@ function mapOrg(o: any, teams: Team[]): Org {
 function mapInitiative(i: any, sessionCount: number): Initiative {
   return {
     id: i.id, teamId: i.team_id, title: i.title, description: i.description ?? undefined,
-    stage: i.stage as StageKey, status: (i.status ?? "active") as Initiative["status"],
+    stage: normalizeStage(i.stage), status: (i.status ?? "active") as Initiative["status"],
     objectiveId: i.objective_id ?? undefined,
     createdAt: i.created_at ?? undefined, sessionsCount: sessionCount,
     data: i.data ?? undefined,

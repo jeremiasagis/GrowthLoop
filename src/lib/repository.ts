@@ -311,14 +311,14 @@ export async function createTeam(input: {
   return { teamId, memberInvites };
 }
 
-/** Crea una iniciativa (línea de trabajo) para un equipo. Arranca en exploración. */
+/** Crea una iniciativa (línea de trabajo) para un equipo. Arranca en Objetivos. */
 export async function createInitiative(input: { teamId: string; title: string; description?: string; stage?: StageKey; status?: Initiative["status"]; objectiveId?: string | null }): Promise<{ error?: string; id?: string }> {
   const supabase = getSupabaseBrowserClient();
   const id = newId("i");
   const { error } = await supabase.from("initiatives").insert({
     id, team_id: input.teamId, title: input.title.trim(),
     description: input.description?.trim() || null,
-    stage: input.stage ?? "explore", status: input.status ?? "active",
+    stage: input.stage ?? "objectives", status: input.status ?? "active",
     objective_id: input.objectiveId ?? null,
   });
   if (error) return { error: error.message };

@@ -21,7 +21,7 @@ type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: S
  *  de las sesiones reales (tarjetas, clusters, votos y el result vivo). */
 function withDerived(init: Initiative, sc: Record<string, StageContent>): Initiative {
   const d = { ...(init.data ?? {}) } as NonNullable<Initiative["data"]>;
-  const ex = sc["explore"];
+  const ex = sc["objectives"];
   if (ex) {
     const vb: Record<string, number> = {}; ex.votes.forEach((v) => { vb[v.clusterId] = (vb[v.clusterId] ?? 0) + 1; });
     const ranked = [...ex.clusters].sort((a, b) => (vb[b.id] ?? 0) - (vb[a.id] ?? 0));
@@ -39,7 +39,7 @@ function withDerived(init: Initiative, sc: Record<string, StageContent>): Initia
     const cause = idx != null ? causes[idx] : undefined;
     if (cause) d.focus = { ...(d.focus ?? {}), cause, rootCause: cause, causes };
   }
-  const pr = sc["proof"];
+  const pr = sc["ideation"];
   if (pr?.result && !(d.proof?.bets?.length || d.proof?.betThen)) {
     const bets = pr.result.bets as NonNullable<NonNullable<Initiative["data"]>["proof"]>["bets"];
     if (bets?.length) d.proof = { ...(d.proof ?? {}), bets, betIf: bets[0]?.betIf, betThen: bets[0]?.betThen, signalMetric: bets[0]?.signalMetric, signalTarget: bets[0]?.signalTarget, signalHow: bets[0]?.signalHow, deadline: bets[0]?.deadline, actions: bets[0]?.actions };
@@ -64,20 +64,23 @@ function fmtDate(iso?: string): string {
 }
 
 const OUTCOME: Record<string, string> = {
-  explore: "Tensiones y causas detectadas",
+  objectives: "Variable elegida y tensiones detectadas",
   focus: "Causa elegida (impacto/esfuerzo)",
-  proof: "Apuesta diseñada y en marcha",
+  ideation: "Apuesta diseñada y en marcha",
+  follow: "¿Cómo viene la acción definida?",
   learn: "Aprendizajes y decisión de cierre",
 };
+// Etapa del ciclo → tipo de sesión (retro) que hoy la trabaja en la sala.
+const STAGE_TO_TYPE: Record<string, string> = { objectives: "explore", ideation: "proof" };
 
 /* ── cuerpo de cada etapa ─────────────────────────────────── */
 function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; hasSession?: boolean }) {
   const data = init.data ?? {};
   const empty = (text: string) => hasSession ? null : <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>{text}</p>;
 
-  if (st === "explore") {
+  if (st === "objectives") {
     const d = data.explore;
-    if (!d?.tensions?.length && !d?.priority) return empty("Todavía no se hizo la sesión de exploración.");
+    if (!d?.tensions?.length && !d?.priority) return empty("Todavía no se trabajó esta etapa.");
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {d?.priority && (
@@ -142,7 +145,21 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
     );
   }
 
-  if (st === "proof") {
+  if (st === "follow") {
+    const d = data.follow;
+    if (!d?.betCheckins?.length && !d?.signalNow && !d?.decision) return empty("Todavía no se hizo seguimiento de la acción.");
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {d?.signalNow && <p style={{ fontSize: "var(--t-sm)" }}><b>Señal hoy:</b> {d.signalNow}</p>}
+        {(d?.betCheckins ?? []).map((c, i) => (
+          <p key={i} style={{ fontSize: "var(--t-sm)" }}><b>{c.name || "Apuesta"}:</b> {c.signal} · {c.value} ({c.pct}%)</p>
+        ))}
+        {d?.decision && <p style={{ fontSize: "var(--t-sm)" }}><b>Decisión:</b> {d.decision}</p>}
+      </div>
+    );
+  }
+
+  if (st === "ideation") {
     const d = data.proof;
     if (!d?.betIf && !d?.betThen && !d?.bets?.length) return empty("Todavía no se diseñó la apuesta.");
     const betsList = (d?.bets?.length ? d.bets : [{ name: "", betIf: d?.betIf, betThen: d?.betThen, signalMetric: d?.signalMetric, signalTarget: d?.signalTarget, signalHow: d?.signalHow, deadline: d?.deadline, actions: d?.actions, mitigations: d?.mitigations }]);
@@ -311,7 +328,9 @@ export default function InitiativeDetailPage() {
       const out: Record<string, StageContent> = {};
       for (const [type, info] of Object.entries(byType)) {
         const c = await getSessionContent(info.id);
-        out[type] = { cards: c.cards, clusters: c.clusters, votes: c.votes, result: info.result };
+        // El contenido se indexa por etapa del ciclo nuevo (tipos de sesión legacy → etapa).
+        const stKey = type === "explore" ? "objectives" : type === "proof" ? "ideation" : type;
+        out[stKey] = { cards: c.cards, clusters: c.clusters, votes: c.votes, result: info.result };
       }
       if (active) setStageContent(out);
     })();
@@ -345,7 +364,7 @@ export default function InitiativeDetailPage() {
       : { label: "En curso", color: "var(--green)", bg: "var(--success-bg)", icon: "Activity" };
 
   const startLive = async () => {
-    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: init.stage });
+    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: STAGE_TO_TYPE[init.stage] ?? init.stage });
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
     router.push(`/sala/${res.session.id}`);
   };
@@ -404,6 +423,12 @@ export default function InitiativeDetailPage() {
       {/* riel del ciclo */}
       <Card pad={16} style={{ marginBottom: 22 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
+          {/* Módulo de diagnóstico: fuera del ciclo (estilo punteado) */}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flex: "none", padding: "6px 12px", borderRadius: "var(--r-md)", border: "1.5px dashed var(--st-explore)", color: "var(--st-explore)" }} title="Módulo de diagnóstico (opcional, fuera del ciclo)">
+            <Icon name="Compass" size={15} />
+            <span className="hide-sm" style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>Exploración</span>
+          </span>
+          <div style={{ width: 26, height: 0, borderTop: "2px dashed var(--line-2)", margin: "0 10px", flex: "none" }} />
           {CYCLE_STAGES.map((st, i) => {
             const meta = STAGES[st];
             const completed = done || i < curIdx;
@@ -454,7 +479,9 @@ export default function InitiativeDetailPage() {
                 ); })()}
                 {current && isFacil && (
                   <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-                    <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>
+                    {st === "follow"
+                      ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Las retros de Seguimiento llegan en el próximo paso. Podés avanzar la etapa manualmente.</p>
+                      : <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>}
                   </div>
                 )}
               </Card>

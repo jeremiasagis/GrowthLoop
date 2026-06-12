@@ -257,7 +257,9 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
   const { show } = useToast();
   const [busy, setBusy] = useState(false);
   const startLive = async () => {
-    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: init.stage });
+    // Etapa nueva → tipo de sesión (retro) existente en la sala.
+    const type = ({ objectives: "explore", ideation: "proof" } as Record<string, string>)[init.stage] ?? init.stage;
+    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type });
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
     router.push(`/sala/${res.session.id}`);
   };
@@ -535,7 +537,7 @@ function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; is
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Row label="Confianza" value={team.psychSafety ? to5(team.psychSafety).toFixed(1) + "/5" : "—"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
           <Row label="Iniciativas en curso" value={inits.filter((i) => i.status === "active").length} />
-          <Row label="Ideación en curso" value={inits.filter((i) => i.stage === "proof" && i.status === "active").length} />
+          <Row label="Ideación en curso" value={inits.filter((i) => i.stage === "ideation" && i.status === "active").length} />
           <Row label="Sesiones realizadas" value={team.sessions.length} />
           {(() => {
             const doneOk = inits.filter((i) => i.status === "done" && i.data?.learn?.result).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
