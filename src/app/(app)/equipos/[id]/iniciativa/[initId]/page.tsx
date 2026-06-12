@@ -15,7 +15,47 @@ import {
 import { createLiveSession, getInitiativeSessions, getSessionContent, type SessionCard, type SessionCluster, type SessionVote } from "@/lib/session";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
 
-type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[] };
+type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; result?: Record<string, unknown> };
+
+/** Red de seguridad: si el resumen guardado de una etapa falta, lo derivamos
+ *  de las sesiones reales (tarjetas, clusters, votos y el result vivo). */
+function withDerived(init: Initiative, sc: Record<string, StageContent>): Initiative {
+  const d = { ...(init.data ?? {}) } as NonNullable<Initiative["data"]>;
+  const ex = sc["explore"];
+  if (ex) {
+    const vb: Record<string, number> = {}; ex.votes.forEach((v) => { vb[v.clusterId] = (vb[v.clusterId] ?? 0) + 1; });
+    const ranked = [...ex.clusters].sort((a, b) => (vb[b.id] ?? 0) - (vb[a.id] ?? 0));
+    const e = { ...(d.explore ?? {}) };
+    if (!e.tensions?.length && ranked.length) e.tensions = ranked.map((c) => ({ name: c.name, signals: ex.cards.filter((x) => x.clusterId === c.id).length, dots: vb[c.id] ?? 0 }));
+    if (!e.priority && ranked[0]) e.priority = ranked[0].name;
+    if (!e.purpose && ex.result?.purpose) e.purpose = String(ex.result.purpose);
+    if (!e.causes?.length) { const cz = ex.cards.filter((c) => c.columnKey === "cause").map((c) => c.text); if (cz.length) e.causes = cz; }
+    d.explore = e;
+  }
+  const fo = sc["focus"];
+  if (fo?.result && !d.focus?.cause) {
+    const idx = fo.result.causeIdx as number | undefined;
+    const causes = d.explore?.causes ?? [];
+    const cause = idx != null ? causes[idx] : undefined;
+    if (cause) d.focus = { ...(d.focus ?? {}), cause, rootCause: cause, causes };
+  }
+  const pr = sc["proof"];
+  if (pr?.result && !(d.proof?.bets?.length || d.proof?.betThen)) {
+    const bets = pr.result.bets as NonNullable<NonNullable<Initiative["data"]>["proof"]>["bets"];
+    if (bets?.length) d.proof = { ...(d.proof ?? {}), bets, betIf: bets[0]?.betIf, betThen: bets[0]?.betThen, signalMetric: bets[0]?.signalMetric, signalTarget: bets[0]?.signalTarget, signalHow: bets[0]?.signalHow, deadline: bets[0]?.deadline, actions: bets[0]?.actions };
+  }
+  const le = sc["learn"];
+  if (le?.result && !(d.learn?.decision || d.learn?.learnings?.length)) {
+    const r = le.result;
+    const results = r.results as string[] | undefined;
+    const decisions = r.decisions as string[] | undefined;
+    const learnings = le.cards.filter((c) => c.columnKey === "learning").map((c) => c.text);
+    if (results?.length || decisions?.length || learnings.length) {
+      d.learn = { ...(d.learn ?? {}), results, decisions, achieved: r.achieved as string[] | undefined, result: (r.result as string) ?? results?.[0], decision: (r.decision as string) ?? decisions?.[0], learnings };
+    }
+  }
+  return { ...init, data: d };
+}
 
 function fmtDate(iso?: string): string {
   if (!iso) return "—";
@@ -266,12 +306,12 @@ export default function InitiativeDetailPage() {
     let active = true;
     (async () => {
       const ss = await getInitiativeSessions(id);
-      const byType: Record<string, string> = {};
-      for (const s of ss) byType[s.type] = s.id; // última sesión de cada etapa (orden ascendente)
+      const byType: Record<string, { id: string; result: Record<string, unknown> }> = {};
+      for (const s of ss) byType[s.type] = { id: s.id, result: s.result }; // última sesión de cada etapa (orden ascendente)
       const out: Record<string, StageContent> = {};
-      for (const [type, sid] of Object.entries(byType)) {
-        const c = await getSessionContent(sid);
-        out[type] = { cards: c.cards, clusters: c.clusters, votes: c.votes };
+      for (const [type, info] of Object.entries(byType)) {
+        const c = await getSessionContent(info.id);
+        out[type] = { cards: c.cards, clusters: c.clusters, votes: c.votes, result: info.result };
       }
       if (active) setStageContent(out);
     })();
@@ -406,9 +446,9 @@ export default function InitiativeDetailPage() {
                         : <Pill icon="Clock">pendiente</Pill>}
                   </span>
                 </div>
-                {(() => { const sc = stageContent[st]; const hasS = !!(sc && sc.cards.length); return (
+                {(() => { const sc = stageContent[st]; const hasS = !!(sc && (sc.cards.length || sc.result)); return (
                   <>
-                    <StageBody st={st} init={init} hasSession={hasS} />
+                    <StageBody st={st} init={withDerived(init, stageContent)} hasSession={hasS} />
                     {sc && <SessionCards sess={sc} />}
                   </>
                 ); })()}
