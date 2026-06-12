@@ -170,7 +170,9 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   // Pulso semanal: si el equipo no hizo pulso esta semana (lun–dom), la sesión arranca con el pulso.
   // La Sesión Fundacional nunca lleva pulso (es el contrato inicial).
   let firstStep = normalFirst;
-  if (p.type !== "founding" && p.type !== "foda" && p.type !== "teamradar") {
+  // founding/foda: arranque del equipo. teamradar: ya es una medición.
+  // relationships: retro sensible, el encuadre va primero.
+  if (!["founding", "foda", "teamradar", "relationships"].includes(p.type)) {
     const { data: teamRow } = await supabase.from("teams").select("data").eq("id", p.teamId).maybeSingle();
     const lastPulseAt = (teamRow?.data as { lastPulseAt?: string } | null)?.lastPulseAt;
     const d = new Date(); const dow = (d.getDay() + 6) % 7;

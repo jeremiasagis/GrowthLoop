@@ -92,7 +92,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Resonancia voluntaria", minutes: 6 },
       { name: "Cierre: una palabra por miembro", minutes: 3 },
     ],
-    sessionType: "relationships", implemented: false,
+    sessionType: "relationships", entryStep: "frame", implemented: true,
   },
   {
     id: "exploration-mad-sad-glad", name: "Mad Sad Glad", stage: "exploration", category: "classic",

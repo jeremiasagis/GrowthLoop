@@ -85,6 +85,7 @@ const STEP_SEQ: Record<string, string[]> = {
   teamradar: ["setup", "rate", "radar_reveal"],
   timeline: ["build", "tload", "timeline_reveal"],
   circles: ["brain", "classify", "soup_close"],
+  relationships: ["frame", "questions", "read", "relword", "rel_close"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -1106,6 +1107,165 @@ export default function SalaPage() {
         : (isFacil
           ? <Button full size="lg" icon="Check" disabled={busy} onClick={csFinish}>{busy ? "Guardando…" : `Cerrar · ${counts3.control} variables candidatas`}</Button>
           : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra y guarda la clasificación.</p>);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿CÓMO NOS RELACIONAMOS? · retro sensible ════════
+  if (session.type === "relationships") {
+    const REL_COLS = [
+      { key: "rq1", label: "¿Qué hace que la comunicación fluya en este equipo?" },
+      { key: "rq2", label: "¿Qué te cuesta decir o pedir en este equipo?" },
+      { key: "rq3", label: "¿Qué vínculo o dinámica te gustaría que cambie?" },
+    ];
+    const relCards = allCards.filter((c) => REL_COLS.some((q) => q.key === c.columnKey));
+    const relWords = allCards.filter((c) => c.columnKey === "relword");
+    const myRelWord = myCards.find((c) => c.columnKey === "relword");
+    const relPatterns = (session.result.relPatterns as string[]) ?? [];
+    const relPaused = !!session.result.relPaused;
+    const resonates = new Set(inputs.filter((i) => i.key === "resonate").map((i) => i.voterKey)).size;
+    const iResonated = inputs.some((i) => i.key === "resonate" && i.userId === user.id);
+    const addRelPattern = () => { const t = (cardDraft.relpat ?? "").trim(); if (!t) return; patchResult({ relPatterns: [...relPatterns, t] }); setCardDraft((d) => ({ ...d, relpat: "" })); };
+    const submitRelWord = async () => {
+      const w = (cardDraft.relword ?? "").trim().split(/\s+/)[0]?.slice(0, 24);
+      if (!w || myRelWord) return;
+      await addCard(sessionId, "relword", w, true);
+      setCardDraft((d) => ({ ...d, relword: "" }));
+      if (user) setMyCards(await getMyCards(sessionId, user.id));
+    };
+    const relFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, { cardCount: relCards.length, summaryText: `Relaciones: ${relCards.length} aportes${relPatterns.length ? ` · ${relPatterns.length} patrones` : ""}` });
+      setBusy(false); leave();
+    };
+    // Botón de emergencia: el facilitador pausa y gestiona en privado.
+    const EmergencyBar = isFacil ? (
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        {relPaused
+          ? <Button size="sm" icon="Play" onClick={() => setResult(sessionId, { relPaused: false })}>Retomar la sesión</Button>
+          : <button onClick={() => setResult(sessionId, { relPaused: true })} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: "var(--r-full)", border: "1px solid color-mix(in srgb, var(--warning) 45%, transparent)", background: "var(--warning-bg)", color: "var(--warning)", fontSize: "var(--t-xs)", fontWeight: 700 }}><Icon name="PauseCircle" size={14} /> Pausar y gestionar en privado</button>}
+      </div>
+    ) : null;
+    // Pantalla de pausa para los miembros.
+    if (relPaused && !isFacil) {
+      return (
+        <Shell onExit={exit} mood={teamMood}>
+          <div style={{ width: "100%", maxWidth: 480, textAlign: "center" }}>
+            {Header("Pausa")}
+            <Card pad={32}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🫧</div>
+              <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, marginBottom: 8 }}>Hacemos una pausa</h2>
+              <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.6 }}>El facilitador pausó la sesión para gestionar algo en privado. Está bien — estas conversaciones a veces necesitan aire. Quedate cerca.</p>
+            </Card>
+          </div>
+        </Shell>
+      );
+    }
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "frame") {
+      sub = "Antes de empezar: el encuadre lo es todo en esta retro.";
+      content = (
+        <Card pad={26}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <span style={{ width: 44, height: 44, borderRadius: "var(--r-lg)", background: "var(--warning-bg)", color: "var(--warning)", display: "grid", placeItems: "center" }}><Icon name="ShieldAlert" size={22} /></span>
+            <div><div style={{ fontWeight: 800 }}>Retro sensible</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>Hablamos de vínculos, no de personas culpables.</div></div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: "var(--t-sm)", lineHeight: 1.55 }}>
+            <p><b>El facilitador encuadra en voz alta:</b></p>
+            <p>· Lo que se diga acá es del equipo y queda en el equipo.</p>
+            <p>· Las respuestas son anónimas y <b>no se proyectan</b>: las voy a leer yo, en voz alta, con cuidado.</p>
+            <p>· Hablamos de dinámicas y patrones, no de nombres propios.</p>
+            <p>· Si algo se pone difícil, paro la sesión y lo gestionamos en privado.</p>
+          </div>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "questions", 1); setBusy(false); }}>Empezar las preguntas</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador está encuadrando la conversación.</p>;
+    } else if (step === "questions") {
+      wide = true;
+      sub = "Tres preguntas sobre vínculos. Anónimo de verdad: nadie ve quién escribió qué.";
+      content = <>{EmergencyBar}{MultiWrite(REL_COLS, "var(--warning)", !isFacil, true)}</>;
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || relCards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "read", 2); setBusy(false); }}>Pasar a la lectura ({relCards.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escribí con honestidad. El facilitador va a leer sin mostrar pantalla.</p>;
+    } else if (step === "read") {
+      wide = isFacil;
+      sub = isFacil ? "Leé en voz alta, despacio. Solo vos ves las tarjetas." : "Escuchá. Si algo te resuena, avisalo.";
+      content = isFacil ? (
+        <>
+          {EmergencyBar}
+          <div style={{ padding: "8px 12px", marginBottom: 12, background: "var(--warning-bg)", borderRadius: "var(--r-md)", fontSize: "var(--t-xs)", color: "var(--warning)", display: "flex", alignItems: "center", gap: 6 }}><Icon name="EyeOff" size={13} /> Esta pantalla NO se comparte. Los miembros solo escuchan.</div>
+          {MultiReveal(REL_COLS)}
+          <Card pad={14} style={{ marginTop: 14 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Patrones relacionales que escuchás ({relPatterns.length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {relPatterns.map((p, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name="Sparkles" size={13} style={{ color: "var(--warning)" }} /><span style={{ flex: 1 }}>{p}</span><button onClick={() => patchResult({ relPatterns: relPatterns.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={13} /></button></div>)}
+            </div>
+            <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+              <input value={cardDraft.relpat ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, relpat: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addRelPattern()} placeholder="Registrar patrón…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={addRelPattern}>Sumar</Button>
+            </div>
+          </Card>
+        </>
+      ) : (
+        <Card pad={32} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 38, marginBottom: 10 }}>👂</div>
+          <p style={{ fontSize: "var(--t-md)", fontWeight: 700, marginBottom: 6 }}>El facilitador está leyendo las respuestas en voz alta.</p>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 20 }}>Sin pantalla compartida, sin autores. Solo escuchar.</p>
+          {iResonated
+            ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--green)", fontWeight: 700 }}><Icon name="HeartHandshake" size={18} /> Avisaste que algo te resonó</div>
+            : <Button size="lg" icon="HeartHandshake" onClick={() => tapInput("resonate", { at: Date.now() })}>Me resuena algo de esto</Button>}
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14 }}>{resonates} {resonates === 1 ? "persona resonó" : "personas resonaron"} · es voluntario</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "relword", 3); setBusy(false); }}>Cerrar con una palabra · {resonates} resonancias</Button>
+        : null;
+    } else if (step === "relword") {
+      sub = "Cerramos con una palabra por persona: ¿cómo te vas de esta conversación?";
+      content = (
+        <Card pad={28} style={{ textAlign: "center" }}>
+          {isFacil ? (
+            <div><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{relWords.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>palabras de cierre</div></div>
+          ) : myRelWord ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--green)", fontWeight: 700 }}><Icon name="Check" size={18} /> Tu palabra: “{myRelWord.text}”</div>
+          ) : (
+            <div style={{ display: "flex", gap: 8, maxWidth: 320, margin: "0 auto" }}>
+              <input value={cardDraft.relword ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, relword: e.target.value.split(/\s+/)[0] ?? "" }))} onKeyDown={(e) => e.key === "Enter" && submitRelWord()} placeholder="Una palabra…" maxLength={24} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", textAlign: "center", outline: "none" }} />
+              <Button icon="Send" onClick={submitRelWord} disabled={!(cardDraft.relword ?? "").trim()}>Enviar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || relWords.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "rel_close", 4); setBusy(false); }}>Revelar palabras ({relWords.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador revela las palabras de cierre.</p>;
+    } else {
+      sub = "Las palabras del equipo. Gracias por la honestidad.";
+      content = (
+        <>
+          <Card pad={24} style={{ marginBottom: 14 }}><WordCloud words={relWords.map((c) => c.text)} size="lg" /></Card>
+          {relPatterns.length > 0 && (
+            <Card pad={16}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Patrones relacionales identificados</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{relPatterns.map((p, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name="Sparkles" size={13} style={{ color: "var(--warning)" }} />{p}</div>)}</div>
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={relFinish}>{busy ? "Guardando…" : "Cerrar y guardar"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra la sesión.</p>;
     }
     return (
       <Shell onExit={exit} mood={teamMood}>
