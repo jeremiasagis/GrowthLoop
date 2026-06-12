@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Logo } from "@/components/AppShell";
@@ -65,12 +65,12 @@ const RETRO_COLS: Record<string, { key: string; label: string; color: string; ic
   ],
 };
 
-// FODA inicial del equipo: 4 cuadrantes clásicos, anónimo hasta revelar.
+// FODA del equipo: matriz 2×2 (internas arriba, externas abajo), anónimo hasta revelar.
 const FODA_COLS = [
-  { key: "f", label: "💪 Fortalezas · lo que hacemos bien" },
-  { key: "o", label: "🌱 Oportunidades · lo que podríamos aprovechar" },
-  { key: "d", label: "⚠️ Debilidades · lo que nos cuesta" },
-  { key: "a", label: "⛈️ Amenazas · lo que nos puede golpear de afuera" },
+  { key: "f", label: "💪 Fortalezas · lo que hacemos bien", color: "var(--green)" },
+  { key: "d", label: "⚠️ Debilidades · lo que nos cuesta", color: "var(--warning)" },
+  { key: "o", label: "🌱 Oportunidades · lo que podríamos aprovechar", color: "#3B82F6" },
+  { key: "a", label: "⛈️ Amenazas · lo que nos puede golpear de afuera", color: "var(--risk)" },
 ];
 const STEPS = ["pulse", "pulse_reveal", "cards", "cards_reveal", "cluster", "vote", "purpose", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "causes", "causes_reveal", "close"];
 const DOTS_PER = 2;
@@ -694,18 +694,60 @@ export default function SalaPage() {
       await finalizeSession(session, { summaryText: `FODA del equipo: ${total} aportes`, cardCount: total, teamData: { foda } });
       setBusy(false); leave();
     };
+    // La matriz 2×2 con brújula al centro: internas arriba, externas abajo.
+    const addF = async (colKey: string) => { const t = (cardDraft[colKey] ?? "").trim(); if (!t) return; await addCard(sessionId, colKey, t, true); setCardDraft((d) => ({ ...d, [colKey]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const FodaBoard = (editable: boolean, reveal: boolean) => (
+      <div style={{ position: "relative", borderRadius: "var(--r-lg)", border: "1px solid var(--line)", overflow: "hidden", background: "color-mix(in srgb, var(--green) 4%, var(--bg-2))", padding: 14 }}>
+        <span className="scene-center" aria-hidden style={{ position: "absolute", left: "50%", top: "50%", fontSize: 56, transform: "translate(-50%,-50%)", opacity: 0.85, pointerEvents: "none", zIndex: 2, filter: "drop-shadow(0 6px 12px rgba(0,0,0,0.3))" }}>🧭</span>
+        <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, position: "relative" }}>
+          {FODA_COLS.map((col, i) => {
+            const mine = myCards.filter((c) => c.columnKey === col.key);
+            const revealed = allCards.filter((c) => c.columnKey === col.key);
+            const list = reveal ? revealed : mine;
+            const n = counts[col.key] ?? 0;
+            const [title, q] = col.label.split(" · ");
+            return (
+              <Fragment key={col.key}>
+                {i === 0 && <div className="eyebrow" style={{ gridColumn: "1 / -1", color: "var(--ink-2)" }}>De puertas adentro · lo que depende de nosotros</div>}
+                {i === 2 && <div className="eyebrow" style={{ gridColumn: "1 / -1", color: "var(--ink-2)", marginTop: 4 }}>De puertas afuera · el contexto</div>}
+                <div style={{ background: `color-mix(in srgb, ${col.color} 7%, var(--bg-2))`, border: `1px solid color-mix(in srgb, ${col.color} 40%, var(--line))`, borderTop: `3px solid ${col.color}`, borderRadius: "var(--r-lg)", padding: 12, display: "flex", flexDirection: "column", minHeight: 170 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+                    <span style={{ fontWeight: 800, fontSize: "var(--t-sm)" }}>{title}</span>
+                    {!reveal && <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "1px 7px" }} title="escritas · ocultas">🔒 {n}</span>}
+                    {reveal && <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: col.color, fontWeight: 800 }}>{revealed.length}</span>}
+                  </div>
+                  {q && <div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 8 }}>{q}</div>}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                    {list.map((c, k) => (
+                      <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-md)", padding: "8px 10px", fontSize: "var(--t-xs)", lineHeight: 1.4, animation: reveal ? `pop-in .4s var(--spring) ${k * 0.04}s both` : undefined }}>{c.text}{!reveal && <span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· tuya</span>}</div>
+                    ))}
+                    {!list.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 8 }}>{reveal ? "Sin aportes" : editable ? "Sumá lo tuyo · queda oculto" : "Ocultas hasta revelar"}</div>}
+                  </div>
+                  {editable && !reveal && (
+                    <div style={{ marginTop: 8, display: "flex", gap: 5 }}>
+                      <input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addF(col.key)} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none" }} />
+                      <button onClick={() => addF(col.key)} style={{ background: col.color, color: "#06121f", borderRadius: "var(--r-sm)", padding: "0 10px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button>
+                    </div>
+                  )}
+                </div>
+              </Fragment>
+            );
+          })}
+        </div>
+      </div>
+    );
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "cards") {
       sub = isFacil
         ? "El equipo completa los cuatro cuadrantes en anónimo. Vos facilitás y revelás."
         : "La foto inicial del equipo: sumá lo tuyo en cada cuadrante. Queda oculto hasta revelar.";
-      content = MultiWrite(FODA_COLS, "var(--green)", !isFacil);
+      content = FodaBoard(!isFacil, false);
       controls = isFacil
         ? <Button full size="lg" icon="Eye" disabled={busy || total === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "cards_reveal", 1); setBusy(false); }}>Revelar FODA ({total})</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Cuando estén todos, el facilitador revela.</p>;
     } else {
       sub = "El FODA del equipo, revelado para todos. Conversen sobre lo que aparece.";
-      content = MultiReveal(FODA_COLS);
+      content = <RevealPop>{FodaBoard(false, true)}</RevealPop>;
       controls = isFacil
         ? <Button full size="lg" icon="Check" disabled={busy} onClick={fFinish}>{busy ? "Guardando…" : "Cerrar y guardar el FODA"}</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra y el FODA queda guardado en el equipo.</p>;
@@ -2358,6 +2400,18 @@ export default function SalaPage() {
     );
   };
 
+  // El flujo como pipeline: las 4 etapas encadenadas con flechas.
+  const FlowRibbon = (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+      {FLOW_COLS.map((f, i) => (
+        <Fragment key={f.key}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: "var(--r-full)", border: `1.5px solid ${f.color}`, background: `color-mix(in srgb, ${f.color} 12%, var(--card))`, color: f.color, fontWeight: 700, fontSize: "var(--t-xs)" }}><Icon name={f.icon} size={13} /> {f.label}</span>
+          {i < FLOW_COLS.length - 1 && <Icon name="ArrowRight" size={15} style={{ color: "var(--ink-3)" }} />}
+        </Fragment>
+      ))}
+    </div>
+  );
+
   let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
   if (step === "pulse") {
     sub = "Cinco señales, anónimas. Cada uno responde; el facilitador revela el promedio.";
@@ -2513,13 +2567,13 @@ export default function SalaPage() {
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: flujo de trabajo</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador escribe el propósito con el equipo.</p>;
   } else if (step === "flow") {
     wide = true; sub = "Mapeamos el flujo de trabajo del equipo, etapa por etapa.";
-    content = MultiWrite(FLOW_COLS, "var(--st-explore)", !isFacil);
+    content = <>{FlowRibbon}{MultiWrite(FLOW_COLS, "var(--st-explore)", !isFacil)}</>;
     controls = isFacil
       ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}><Button full size="lg" icon="Eye" disabled={busy} onClick={goNext}>Revelar flujo</Button><Button full variant="secondary" icon="SkipForward" disabled={busy} onClick={() => setStep(sessionId, "causes", STEPS.indexOf("causes"))}>Saltar el módulo Flujo → ir a causas</Button></div>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá lo que veas en cada etapa del flujo.</p>;
   } else if (step === "flow_reveal") {
     wide = true; sub = "El flujo completo. Ahora votamos la etapa más crítica.";
-    content = MultiReveal(FLOW_COLS);
+    content = <>{FlowRibbon}{MultiReveal(FLOW_COLS)}</>;
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Votar etapa crítica</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo vota la etapa más crítica.</p>;
   } else if (step === "flow_vote") {
     const shown = !!session.result.flowShown;

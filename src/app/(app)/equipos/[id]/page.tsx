@@ -17,6 +17,7 @@ import { useToast } from "@/components/Toast";
 import { createLiveSession } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage } from "@/lib/retros/registry";
+import { FodaGrid } from "@/components/FodaGrid";
 
 function SessionsLog({ team }: { team: Team }) {
   const [n, setN] = useState(8);
@@ -600,6 +601,13 @@ function ExploracionSection({ team, isFacil }: { team: Team; isFacil: boolean })
           })}
         </div>
       </Card>
+
+      {team.data?.foda && (
+        <Card pad={20}>
+          <SectionTitle icon="Grid2x2" sub={team.data.foda.date ? `Hecho el ${team.data.foda.date}` : "El diagnóstico FODA del equipo"}>FODA del equipo</SectionTitle>
+          <FodaGrid team={team} />
+        </Card>
+      )}
 
       <Card pad={20}>
         <SectionTitle icon="History" sub="Lo que el equipo ya exploró">Sesiones de Exploración ({expSessions.length})</SectionTitle>

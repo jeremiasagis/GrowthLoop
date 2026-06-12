@@ -198,6 +198,18 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
   },
 
   {
+    id: "exploration-foda", name: "FODA del equipo", stage: "exploration", category: "classic",
+    description: "Fortalezas, Oportunidades, Debilidades y Amenazas en una matriz 2×2.",
+    purpose: "El diagnóstico clásico: cada miembro aporta en los cuatro cuadrantes en anónimo, el facilitador revela y la matriz queda guardada en el equipo.",
+    duration: 25, minDuration: 15, maxDuration: 40, anonymous: true, asyncAvailable: true, sensitive: false, recommended: true,
+    phases: [
+      { name: "Escritura anónima en los 4 cuadrantes", minutes: 8 },
+      { name: "Reveal de la matriz" },
+      { name: "Conversación y cierre", minutes: 10 },
+    ],
+    sessionType: "foda", entryStep: "cards", implemented: true,
+  },
+  {
     id: "exploration-close", name: "Cierre de Exploración → mapa de mejoras", stage: "exploration", category: "growthloop",
     description: "Consolidar lo descubierto, priorizar en equipo y generar el mapa de mejoras.",
     purpose: "La plataforma junta las variables candidatas de todas las retros de Exploración, el equipo vota con 3 puntos en anónimo, y el resultado se convierte en el mapa: la variable 1 arranca como iniciativa activa y el resto queda en cola.",
