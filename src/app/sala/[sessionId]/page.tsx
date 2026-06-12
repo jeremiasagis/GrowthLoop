@@ -18,7 +18,7 @@ import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/dat
 import {
   addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster, pulseOverall,
   finalizeSession, getCardCounts, getCards, getClusters, getInitiativeSessions, getInputs, getMyCards, getParticipants, getSessionContent,
-  getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
+  getLastClosedTeamSession, getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
   renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession, touchPresence,
   type LiveSession, type Participant, type PulseResponse, type SessionCard, type SessionCluster, type SessionInput, type SessionVote,
 } from "@/lib/session";
@@ -80,6 +80,7 @@ const STEP_SEQ: Record<string, string[]> = {
   balloon: ["cards", "cards_reveal", "cluster", "vote", "close"],
   sailboat: ["cards", "cards_reveal", "cluster", "vote", "close"],
   oneword: ["word", "word_reveal", "close"],
+  teamradar: ["setup", "rate", "radar_reveal"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -189,6 +190,21 @@ export default function SalaPage() {
     if (user && !joinedRef.current) { joinedRef.current = true; joinSession(sessionId, user.name, user.initials); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Radar del Equipo: si ya hicieron esta retro antes, traemos el radar
+  // anterior para superponerlo y ver la evolución.
+  const [prevRadar, setPrevRadar] = useState<{ avg: Record<string, number>; date?: string } | null>(null);
+  useEffect(() => {
+    if (session?.type !== "teamradar") return;
+    let active = true;
+    (async () => {
+      const last = await getLastClosedTeamSession(session.teamId, "teamradar", session.id);
+      const avg = last?.result?.trAvg as Record<string, number> | undefined;
+      if (active && avg) setPrevRadar({ avg });
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.type, session?.teamId]);
 
   // Foco a prueba de fallos: si el resumen de Exploración no guardó las causas,
   // las leemos directamente de las tarjetas de la última sesión de Exploración.
@@ -732,6 +748,131 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ RADAR DEL EQUIPO · dimensiones editables, 1-5 anónimo ════════
+  if (session.type === "teamradar") {
+    const CPAL = ["#00E87A", "#3B82F6", "#7C3AED", "#06B6D4", "#F59E0B", "#EF4444", "#EC4899", "#A3E635", "#14B8A6", "#F97316"];
+    const defDims = PULSE_DIMS.map((d) => ({ key: d.key, label: d.label }));
+    const trDims = ((session.result.trDims as { key: string; label: string }[]) ?? defDims);
+    const radarDims = trDims.map((d, i) => ({ key: d.key, label: d.label, color: CPAL[i % CPAL.length] }));
+    const trAvg = averagePulse(responses);
+    const trOverall = pulseOverall(trAvg);
+    // Rango y dispersión por dimensión (sobre las respuestas individuales anónimas).
+    const rangeOf = (k: string) => {
+      const vals = responses.map((r) => r[k]).filter((v) => typeof v === "number");
+      if (!vals.length) return null;
+      return { min: Math.min(...vals), max: Math.max(...vals), spread: Math.max(...vals) - Math.min(...vals) };
+    };
+    const sortedLow = radarDims.filter((d) => trAvg[d.key] != null).sort((a, b) => (trAvg[a.key] ?? 0) - (trAvg[b.key] ?? 0));
+    const mostSpread = [...radarDims].map((d) => ({ d, r: rangeOf(d.key) })).filter((x) => x.r).sort((a, b) => (b.r!.spread) - (a.r!.spread)).slice(0, 2);
+    const setDims = (next: { key: string; label: string }[]) => patchResult({ trDims: next });
+    const trFinish = async () => {
+      setBusy(true);
+      // Persistimos el radar en el result de la sesión: sirve de línea de base
+      // para superponer la próxima vez y como variable candidata en el cierre.
+      await setResult(sessionId, { trAvg, trDims, trCandidates: sortedLow.slice(0, 2).map((d) => d.label) });
+      await finalizeSession(session, {
+        cardCount: 0,
+        summaryText: `Radar del equipo: ${to5(trOverall).toFixed(1)}/5 · más baja: ${sortedLow[0]?.label ?? "—"}`,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "setup") {
+      sub = isFacil ? "Adaptá las dimensiones al equipo: renombrá, sacá (mínimo 4) o sumá (máximo 10)." : "El facilitador está configurando las dimensiones a puntuar.";
+      content = isFacil ? (
+        <Card pad={20}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {trDims.map((d, i) => (
+              <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: CPAL[i % CPAL.length], flexShrink: 0 }} />
+                <input defaultValue={d.label} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== d.label) setDims(trDims.map((x) => x.key === d.key ? { ...x, label: v } : x)); }}
+                  style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+                <button disabled={trDims.length <= 4} onClick={() => setDims(trDims.filter((x) => x.key !== d.key))} title={trDims.length <= 4 ? "Mínimo 4 dimensiones" : "Quitar"} style={{ color: trDims.length <= 4 ? "var(--ink-3)" : "var(--risk)", padding: 4 }}><Icon name="Trash2" size={15} /></button>
+              </div>
+            ))}
+          </div>
+          {trDims.length < 10 && (
+            <Button size="sm" variant="secondary" icon="Plus" style={{ marginTop: 12 }} onClick={() => setDims([...trDims, { key: `x${Date.now().toString(36)}`, label: `Dimensión ${trDims.length + 1}` }])}>Agregar dimensión</Button>
+          )}
+        </Card>
+      ) : (
+        <Card pad={24}><div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>{trDims.map((d, i) => <Pill key={d.key} color={CPAL[i % CPAL.length]} bg={`color-mix(in srgb, ${CPAL[i % CPAL.length]} 14%, transparent)`}>{d.label}</Pill>)}</div></Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || trDims.length < 4} onClick={async () => { setBusy(true); await setStep(sessionId, "rate", 1); setBusy(false); }}>Empezar la puntuación ({trDims.length} dimensiones)</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>En un momento arranca la puntuación.</p>;
+    } else if (step === "rate") {
+      sub = "Puntuá cada dimensión del 1 al 5. Anónimo: solo se revela el promedio.";
+      content = isFacil ? (
+        <Card pad={24}><div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{responses.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>puntuaron</div></div></Card>
+      ) : (
+        <Card pad={24}>
+          {submitted && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 14 }}><Icon name="Check" size={16} /> Tu puntuación quedó guardada (anónima).</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, opacity: submitted ? 0.85 : 1 }}>
+            {radarDims.map((d) => (
+              <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ flex: 1, minWidth: 150, fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, flexShrink: 0 }} />{d.label}</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[1, 2, 3, 4, 5].map((v) => { const on = (draft[d.key] ?? 3) === v; return (
+                    <button key={v} disabled={submitted} onClick={() => setDraft((s) => ({ ...s, [d.key]: v }))} className="num" style={{ width: 34, height: 34, borderRadius: 99, fontWeight: 800, fontSize: "var(--t-sm)", border: `1.5px solid ${on ? d.color : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${d.color} 22%, transparent)` : "var(--card)", color: on ? d.color : "var(--ink-2)", cursor: submitted ? "default" : "pointer" }}>{v}</button>
+                  ); })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center" }}><Icon name="Lock" size={12} /> 1 Muy mal · 3 Regular · 5 Muy bien — {responses.length} de {totalInRoom} puntuaron</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || responses.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "radar_reveal", 2); setBusy(false); }}>Revelar radar ({responses.length})</Button>
+        : submitted
+          ? <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá a que el facilitador revele el radar.</p>
+          : <Button full size="lg" icon="Send" disabled={busy} onClick={async () => { setBusy(true); const res = await submitPulse(sessionId, Object.fromEntries(radarDims.map((d) => [d.key, to100(draft[d.key] ?? 3)]))); setBusy(false); if (!res.error) setSubmitted(true); }}>{busy ? "Enviando…" : "Enviar mi puntuación"}</Button>;
+    } else {
+      sub = "El radar del equipo. Miren las más bajas, las más altas y dónde perciben distinto.";
+      content = (
+        <Card pad={24}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+            <span style={{ fontWeight: 700 }}>Radar del equipo</span>
+            <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+              {prevRadar && <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 0, borderTop: "2px dashed var(--violet)" }} /> radar anterior</span>}
+              <Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{to5(trOverall).toFixed(1)}/5</Pill>
+            </span>
+          </div>
+          <PulseRadar values={trAvg} dims={radarDims} size={330} compare={prevRadar?.avg} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+            {radarDims.map((d) => { const r = rangeOf(d.key); if (!r || trAvg[d.key] == null) return null; return (
+              <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-xs)" }}>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{d.label}</span>
+                <span className="num muted">rango {to5(r.min).toFixed(1)}–{to5(r.max).toFixed(1)}</span>
+                <span className="num" style={{ fontWeight: 800, color: d.color, width: 34, textAlign: "right" }}>{to5(trAvg[d.key]).toFixed(1)}</span>
+              </div>
+            ); })}
+          </div>
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 6, fontSize: "var(--t-sm)" }}>
+            {sortedLow[0] && <div><Icon name="TrendingDown" size={14} style={{ color: "var(--warning)" }} /> <b>Más bajas:</b> {sortedLow.slice(0, 2).map((d) => d.label).join(" · ")} <span className="muted">→ variables candidatas a mejorar</span></div>}
+            {sortedLow.length > 2 && <div><Icon name="TrendingUp" size={14} style={{ color: "var(--success)" }} /> <b>Fortalezas:</b> {sortedLow.slice(-2).reverse().map((d) => d.label).join(" · ")}</div>}
+            {mostSpread[0] && mostSpread[0].r!.spread >= 50 && <div><Icon name="Split" size={14} style={{ color: "var(--violet)" }} /> <b>Perciben distinto:</b> {mostSpread.filter((x) => x.r!.spread >= 50).map((x) => x.d.label).join(" · ")}</div>}
+          </div>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={trFinish}>{busy ? "Guardando…" : "Cerrar y guardar el radar"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>“¿Por qué estamos así en las más bajas? ¿Qué haría falta para subir 2 puntos?”</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 640 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

@@ -106,6 +106,17 @@ export async function getSessionContent(sessionId: string): Promise<{ cards: Ses
   return { cards, clusters, votes, inputs };
 }
 
+/** La última sesión CERRADA de un tipo para un equipo (ej: radar anterior). */
+export async function getLastClosedTeamSession(teamId: string, type: string, excludeId?: string): Promise<LiveSession | null> {
+  const supabase = getSupabaseBrowserClient();
+  let q = supabase.from("sessions").select("*")
+    .eq("team_id", teamId).eq("type", type).eq("status", "closed")
+    .order("created_at", { ascending: false }).limit(1);
+  if (excludeId) q = q.neq("id", excludeId);
+  const { data } = await q.maybeSingle();
+  return data ? mapSession(data) : null;
+}
+
 /** La sesión en vivo abierta de un equipo (si hay). */
 export async function getOpenSessionForTeam(teamId: string): Promise<LiveSession | null> {
   const supabase = getSupabaseBrowserClient();
@@ -159,7 +170,7 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   // Pulso semanal: si el equipo no hizo pulso esta semana (lun–dom), la sesión arranca con el pulso.
   // La Sesión Fundacional nunca lleva pulso (es el contrato inicial).
   let firstStep = normalFirst;
-  if (p.type !== "founding" && p.type !== "foda") {
+  if (p.type !== "founding" && p.type !== "foda" && p.type !== "teamradar") {
     const { data: teamRow } = await supabase.from("teams").select("data").eq("id", p.teamId).maybeSingle();
     const lastPulseAt = (teamRow?.data as { lastPulseAt?: string } | null)?.lastPulseAt;
     const d = new Date(); const dow = (d.getDay() + 6) % 7;

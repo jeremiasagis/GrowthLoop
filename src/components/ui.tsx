@@ -308,8 +308,8 @@ export function ProgressRing({
 /* ── Pulse radar (8 dimensiones, escala 1-5) ─────────────────
    values: dimensión → 0-100 interno; se muestra 1-5. */
 export function PulseRadar({
-  values, dims = PULSE_DIMS, size = 300, showValues = true,
-}: { values: Record<string, number>; dims?: PulseDim[]; size?: number; showValues?: boolean }) {
+  values, dims = PULSE_DIMS, size = 300, showValues = true, compare,
+}: { values: Record<string, number>; dims?: PulseDim[]; size?: number; showValues?: boolean; compare?: Record<string, number> }) {
   const n = dims.length;
   const cx = size / 2, cy = size / 2, R = size / 2 - (showValues ? 52 : 16);
   const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
@@ -324,6 +324,10 @@ export function PulseRadar({
     <svg viewBox={`0 0 ${size} ${size}`} width="100%" style={{ display: "block", overflow: "visible" }}>
       {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" stroke="var(--line)" strokeWidth="1" />)}
       {dims.map((d, i) => { const [x2, y2] = pt(i, R); return <line key={d.key} x1={cx} y1={cy} x2={x2} y2={y2} stroke="var(--line)" strokeWidth="1" />; })}
+      {compare && (
+        <polygon points={dims.map((d, i) => pt(i, R * Math.max(0.04, (compare[d.key] ?? 0) / 100)).map((v) => v.toFixed(1)).join(",")).join(" ")}
+          fill="color-mix(in srgb, var(--violet) 10%, transparent)" stroke="var(--violet)" strokeWidth="1.6" strokeDasharray="5 4" strokeLinejoin="round" />
+      )}
       <polygon points={shape} fill="color-mix(in srgb, var(--green) 22%, transparent)" stroke="var(--green)" strokeWidth="2" strokeLinejoin="round" />
       {dims.map((d, i) => {
         const v = values[d.key];

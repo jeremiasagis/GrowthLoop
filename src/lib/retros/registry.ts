@@ -119,7 +119,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Reveal: nube de palabras" },
       { name: "Lectura y reflexión voluntaria", minutes: 5 },
     ],
-    sessionType: "oneword", implemented: true,
+    sessionType: "oneword", entryStep: "word", implemented: true,
   },
   {
     id: "exploration-timeline", name: "Timeline", stage: "exploration", category: "classic",
@@ -164,7 +164,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Lectura colectiva: bajas, altas, dispersas", minutes: 7 },
       { name: "Conversación + variables candidatas", minutes: 8 },
     ],
-    sessionType: "teamradar", implemented: false,
+    sessionType: "teamradar", entryStep: "setup", implemented: true,
   },
   {
     id: "exploration-sailboat", name: "Sailboat", stage: "exploration", category: "classic",
