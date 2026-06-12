@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { getInitiatives, getTeam } from "@/lib/repository";
 import { retroByKey } from "@/lib/retros";
 import { retroById } from "@/lib/retros/registry";
+import { WordCloud } from "@/components/WordCloud";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -41,6 +42,27 @@ const FLOW_COLS = [
 ];
 // Cierre de Exploración: lluvia de causas posibles (van a Foco para priorizar).
 const CAUSE_COLS = [{ key: "cause", label: "¿Por qué pasa? · causas posibles" }];
+// Retros clásicas de tablero: mismas fases (tarjetas → reveal → agrupar →
+// votar → cierre) con columnas propias de cada metáfora.
+const RETRO_COLS: Record<string, { key: string; label: string; color: string; icon: string }[]> = {
+  madsadglad: [
+    { key: "mad",  label: "😤 Mad · ¿Qué te frustró o molestó?",        color: "var(--risk)",    icon: "Angry" },
+    { key: "sad",  label: "😔 Sad · ¿Qué te entristeció o decepcionó?", color: "#3B82F6",        icon: "Frown" },
+    { key: "glad", label: "😊 Glad · ¿Qué te alegró o satisfizo?",      color: "var(--success)", icon: "Smile" },
+  ],
+  balloon: [
+    { key: "fire",  label: "🔥 Aire caliente · ¿qué nos eleva?",        color: "var(--warning)", icon: "Flame" },
+    { key: "sand",  label: "⚓ Sacos de arena · ¿qué nos pesa?",         color: "#94A3B8",        icon: "Anchor" },
+    { key: "storm", label: "⛈️ Tormentas · amenazas externas",          color: "var(--violet)",  icon: "CloudLightning" },
+  ],
+  sailboat: [
+    { key: "wind",   label: "💨 Viento · ¿qué nos impulsa?",   color: "var(--success)", icon: "Wind" },
+    { key: "anchor", label: "⚓ Ancla · ¿qué nos frena?",       color: "var(--warning)", icon: "Anchor" },
+    { key: "rocks",  label: "🪨 Rocas · ¿qué riesgos vemos?",  color: "var(--risk)",    icon: "TriangleAlert" },
+    { key: "island", label: "🏝️ Isla · ¿hacia dónde vamos?",   color: "var(--green)",   icon: "Flag" },
+  ],
+};
+
 // FODA inicial del equipo: 4 cuadrantes clásicos, anónimo hasta revelar.
 const FODA_COLS = [
   { key: "f", label: "💪 Fortalezas · lo que hacemos bien" },
@@ -54,6 +76,10 @@ const DOTS_PER = 2;
 const STEP_SEQ: Record<string, string[]> = {
   founding: ["welcome", "contract", "sign", "close"],
   foda: ["cards", "cards_reveal", "close"],
+  madsadglad: ["cards", "cards_reveal", "cluster", "vote", "close"],
+  balloon: ["cards", "cards_reveal", "cluster", "vote", "close"],
+  sailboat: ["cards", "cards_reveal", "cluster", "vote", "close"],
+  oneword: ["word", "word_reveal", "close"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -229,7 +255,9 @@ export default function SalaPage() {
   const ranked = [...clusters].sort((a, b) => (votesByCluster[b.id] ?? 0) - (votesByCluster[a.id] ?? 0));
   const cardsOf = (cid: string) => allCards.filter((c) => c.clusterId === cid);
   const loose = allCards.filter((c) => !c.clusterId);
-  const colMeta = (key: string) => COLS.find((c) => c.key === key) ?? COLS[0];
+  // Columnas del tablero según la retro (las clásicas traen su metáfora propia).
+  const RCOLS = RETRO_COLS[session.type] ?? COLS;
+  const colMeta = (key: string) => RCOLS.find((c) => c.key === key) ?? RCOLS[0];
   // Exploración — fases Propósito y Flujo
   const purposeText = (session.result.purpose as string) ?? "";
   const flowVotes: Record<string, number> = {};
@@ -336,8 +364,8 @@ export default function SalaPage() {
   );
 
   const RevealedCards = (
-    <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-      {COLS.map((col) => {
+    <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: `repeat(${RCOLS.length}, 1fr)`, gap: 14 }}>
+      {RCOLS.map((col) => {
         const cards = allCards.filter((c) => c.columnKey === col.key);
         return (
           <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 14 }}>
@@ -626,6 +654,84 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 880 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ONE WORD · una palabra por miembro, nube al revelar ════════
+  if (session.type === "oneword") {
+    const PROMPTS: Record<string, { label: string; q: string }> = {
+      open: { label: "Apertura", q: "¿Con una sola palabra, cómo llegás a esta sesión?" },
+      diag: { label: "Diagnóstico", q: "¿Con una sola palabra, cómo estás con el equipo hoy?" },
+      close: { label: "Cierre", q: "¿Con una sola palabra, cómo te vas de esta sesión?" },
+    };
+    const variant = (session.result.owVariant as string) ?? "diag";
+    const myWord = myCards.find((c) => c.columnKey === "word");
+    const wordCards = allCards.filter((c) => c.columnKey === "word");
+    const total = counts["word"] ?? wordCards.length;
+    const submitWord = async () => {
+      const w = (cardDraft.word ?? "").trim().split(/\s+/)[0]?.slice(0, 24);
+      if (!w || myWord) return;
+      await addCard(sessionId, "word", w, true);
+      setCardDraft((d) => ({ ...d, word: "" }));
+      if (user) setMyCards(await getMyCards(sessionId, user.id));
+    };
+    const owFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, { pulseAvg: avg, summaryText: `One Word (${PROMPTS[variant]?.label ?? ""}): ${wordCards.length} palabras` });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "word") {
+      sub = "Una sola palabra por persona. Sin explicaciones obligatorias.";
+      content = (
+        <>
+          {isFacil && (
+            <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 14, flexWrap: "wrap" }}>
+              {Object.entries(PROMPTS).map(([k, p]) => (
+                <button key={k} onClick={() => setResult(sessionId, { owVariant: k })} style={{ padding: "5px 12px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${variant === k ? "var(--green)" : "var(--line-2)"}`, background: variant === k ? "color-mix(in srgb, var(--green) 14%, var(--card))" : "var(--card)", color: variant === k ? "var(--green)" : "var(--ink-2)" }}>{p.label}</button>
+              ))}
+            </div>
+          )}
+          <Card pad={28} style={{ textAlign: "center" }}>
+            <h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800, lineHeight: 1.35, marginBottom: 18 }}>{PROMPTS[variant]?.q}</h2>
+            {isFacil ? (
+              <div><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{total}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>palabras enviadas</div></div>
+            ) : myWord ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--green)", fontWeight: 700 }}><Icon name="Check" size={18} /> Tu palabra: “{myWord.text}”</div>
+            ) : (
+              <div style={{ display: "flex", gap: 8, maxWidth: 320, margin: "0 auto" }}>
+                <input value={cardDraft.word ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, word: e.target.value.split(/\s+/)[0] ?? "" }))} onKeyDown={(e) => e.key === "Enter" && submitWord()} placeholder="Una palabra…" maxLength={24} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", textAlign: "center", outline: "none" }} />
+                <Button icon="Send" onClick={submitWord} disabled={!(cardDraft.word ?? "").trim()}>Enviar</Button>
+              </div>
+            )}
+            <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14 }}>{total} de {totalInRoom} enviaron · se revelan todas juntas</p>
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || total === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "word_reveal", 1); setBusy(false); }}>Revelar nube de palabras ({total})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador revela cuando estén todas.</p>;
+    } else {
+      sub = "La nube del equipo. El facilitador lee las palabras; comentar es voluntario.";
+      content = (
+        <Card pad={28}>
+          <WordCloud words={wordCards.map((c) => c.text)} size="lg" />
+          <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 14 }}>“¿Alguien quiere decir algo sobre su palabra?” — participación voluntaria.</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={owFinish}>{busy ? "Guardando…" : "Cerrar y guardar"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra la sesión.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
@@ -1416,10 +1522,23 @@ export default function SalaPage() {
   }
 
   // ════════ EXPLORACIÓN · pantalla compartida ════════
-  const goNext = async () => { const idx = STEPS.indexOf(step); const nextKey = STEPS[Math.min(STEPS.length - 1, idx + 1)]; setBusy(true); await setStep(sessionId, nextKey, idx + 1); setBusy(false); };
-  const group = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Tensión ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
+  const goNext = async () => { const idx = seq.indexOf(step); const nextKey = seq[Math.min(seq.length - 1, idx + 1)]; setBusy(true); await setStep(sessionId, nextKey, idx + 1); setBusy(false); };
+  const clusterNoun = session.type === "explore" ? "Tensión" : "Grupo";
+  const group = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `${clusterNoun} ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
   const finish = async () => {
     setBusy(true);
+    // Retros clásicas de tablero: guardan el top votado por sección, sin tocar la iniciativa.
+    if (session.type !== "explore") {
+      const tops = RCOLS.map((col) => {
+        const top = ranked.find((cl) => cardsOf(cl.id).some((c) => c.columnKey === col.key));
+        return top ? `${col.label.split(" ·")[0]}: ${top.name}` : null;
+      }).filter(Boolean);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: allCards.length,
+        summaryText: ranked[0] ? `top: ${ranked[0].name}` : (tops[0] ?? `${allCards.length} tarjetas`),
+      });
+      setBusy(false); leave(); return;
+    }
     const hasClusters = clusters.length > 0;
     const causeList = allCards.filter((c) => c.columnKey === "cause").map((c) => c.text);
     const hasData = hasClusters || !!purposeText || !!criticalMeta || causeList.length > 0;
@@ -1465,7 +1584,7 @@ export default function SalaPage() {
           </div>
         )}
         <HiddenDots n={totalCards} label="cosas dichas · ocultas hasta revelar" color="var(--st-explore)" />
-        <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>{COLS.map((col) => { const mine = myCards.filter((c) => c.columnKey === col.key); const n = counts[col.key] ?? 0; return (
+        <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: `repeat(${RCOLS.length}, 1fr)`, gap: 14 }}>{RCOLS.map((col) => { const mine = myCards.filter((c) => c.columnKey === col.key); const n = counts[col.key] ?? 0; return (
           <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 14, display: "flex", flexDirection: "column", minHeight: 240 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><span style={{ color: col.color }}><Icon name={col.icon} size={16} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{col.label}</span><span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "2px 8px" }} title="escritas · ocultas">🔒 {n}</span></div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
@@ -1529,7 +1648,7 @@ export default function SalaPage() {
     const shown = !!session.result.voteShown;
     const voters = new Set(votes.map((v) => v.voterKey)).size;
     const max = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
-    sub = shown ? "Resultado de la votación: qué tensión atendemos primero." : "¿Qué tensión atendemos primero? Repartí tus puntos. La votación está oculta hasta que el facilitador la muestre.";
+    sub = shown ? `Resultado de la votación: qué ${clusterNoun.toLowerCase()} atendemos primero.` : `¿Qué ${clusterNoun.toLowerCase()} atendemos primero? Repartí tus puntos. La votación está oculta hasta que el facilitador la muestre.`;
     content = shown ? (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {ranked.map((cl, i) => (
@@ -1573,7 +1692,7 @@ export default function SalaPage() {
       </>
     );
     controls = isFacil
-      ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: propósito</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { voteShown: true })}>Mostrar votación ({voters}/{totalInRoom})</Button>)
+      ? (shown ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>{seq[seq.indexOf(step) + 1] === "close" ? "Siguiente: cierre" : "Siguiente: propósito"}</Button> : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { voteShown: true })}>Mostrar votación ({voters}/{totalInRoom})</Button>)
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {DOTS_PER} puntos. El facilitador muestra el resultado cuando todos terminen.</p>;
   } else if (step === "purpose") {
     wide = true; sub = "¿Para qué existe este equipo? Tres preguntas. Las respuestas son públicas (con tu nombre).";
@@ -1648,10 +1767,12 @@ export default function SalaPage() {
       ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: cerrar</Button>
       : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Quedan registradas para la etapa de Foco.</p>;
   } else {
-    sub = "El resumen final. Al cerrar, se guarda y la iniciativa avanza de etapa.";
+    sub = session.type === "explore"
+      ? "El resumen final. Al cerrar, queda guardado en la etapa."
+      : "El resumen final. Al cerrar, el resultado queda guardado para el equipo.";
     content = (
       <>
-        {(purposeText || criticalMeta) && (
+        {session.type === "explore" && (purposeText || criticalMeta) && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
             {purposeText && <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-explore) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-explore) 28%, transparent)", borderRadius: "var(--r-md)" }}><div className="eyebrow" style={{ color: "var(--st-explore)", marginBottom: 4 }}>Propósito del equipo</div><p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5 }}>{purposeText}</p></div>}
             {criticalMeta && <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name={criticalMeta.icon} size={15} style={{ color: "var(--st-explore)" }} /><span className="muted">Etapa más crítica del flujo:</span> <b>{criticalMeta.label}</b></div>}
@@ -1664,7 +1785,7 @@ export default function SalaPage() {
           </div>
         ) : null; })()}
         {RankedMap}
-        {ranked.length > 1 && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Pause" size={13} /> Las {ranked.length - 1} tensiones no priorizadas quedan como iniciativas <b style={{ color: "var(--warning)" }}>pausadas</b> del equipo.</p>}
+        {session.type === "explore" && ranked.length > 1 && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Pause" size={13} /> Las {ranked.length - 1} tensiones no priorizadas quedan como iniciativas <b style={{ color: "var(--warning)" }}>pausadas</b> del equipo.</p>}
       </>
     );
     controls = isFacil ? <Button full size="lg" icon="Check" disabled={busy} onClick={finish}>{busy ? "Guardando…" : "Cerrar y guardar sesión"}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra y guarda la sesión.</p>;

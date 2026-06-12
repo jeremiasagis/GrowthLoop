@@ -106,7 +106,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Lectura colectiva", minutes: 5 },
       { name: "Conversación sobre patrones", minutes: 5 },
     ],
-    sessionType: "madsadglad", implemented: false,
+    sessionType: "madsadglad", implemented: true,
   },
   {
     id: "exploration-one-word", name: "One Word", stage: "exploration", category: "classic",
@@ -119,7 +119,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Reveal: nube de palabras" },
       { name: "Lectura y reflexión voluntaria", minutes: 5 },
     ],
-    sessionType: "oneword", implemented: false,
+    sessionType: "oneword", implemented: true,
   },
   {
     id: "exploration-timeline", name: "Timeline", stage: "exploration", category: "classic",
@@ -149,7 +149,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Votación · 3 puntos por miembro", minutes: 3 },
       { name: "Conversación sobre prioridades", minutes: 7 },
     ],
-    sessionType: "balloon", implemented: false,
+    sessionType: "balloon", implemented: true,
   },
   {
     id: "exploration-team-radar", name: "Radar del Equipo", stage: "exploration", category: "classic",
@@ -179,7 +179,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Votación · 3 puntos por miembro", minutes: 3 },
       { name: "Conversación: anclas, rocas y viento", minutes: 7 },
     ],
-    sessionType: "sailboat", implemented: false,
+    sessionType: "sailboat", implemented: true,
   },
   {
     id: "exploration-circles-soup", name: "Circles & Soup", stage: "exploration", category: "classic",
