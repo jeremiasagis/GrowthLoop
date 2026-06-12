@@ -299,7 +299,18 @@ export default function SalaPage() {
 
   if (loading) return <Shell><span className="muted">Cargando sesión…</span></Shell>;
   if (!user) return <Shell><Card pad={24}><p className="muted">Iniciá sesión para entrar a la sala.</p></Card></Shell>;
-  if (!session) return <Shell onExit={() => router.back()}><Card pad={24}><p className="muted">La sesión no existe.</p></Card></Shell>;
+  if (!session) return (
+    <Shell onExit={() => router.back()}>
+      <Card pad={26} style={{ maxWidth: 460, textAlign: "center" }}>
+        <div style={{ fontSize: 30, marginBottom: 10 }}>🔎</div>
+        <p style={{ fontWeight: 700, marginBottom: 6 }}>No encontramos esta sesión con tu cuenta.</p>
+        <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55 }}>
+          Estás logueado como <b style={{ color: "var(--ink-0)" }}>{user.name}</b> ({user.role === "member" ? "miembro" : user.role}).
+          Si la sesión existe, esta cuenta no pertenece al equipo que la abrió — entrá con la cuenta correcta o pedile al facilitador que te invite al equipo.
+        </p>
+      </Card>
+    </Shell>
+  );
 
   const team = getTeam(session.teamId);
   // Atmósfera de la sala: el último pulso del equipo tiñe sutilmente el fondo.
