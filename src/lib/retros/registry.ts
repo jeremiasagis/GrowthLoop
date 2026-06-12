@@ -261,7 +261,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Profundización en la etapa más votada", minutes: 10 },
       { name: "Formulación de la traba + validación 👍/✋", minutes: 6 },
     ],
-    sessionType: "whereblock", implemented: false,
+    sessionType: "whereblock", entryStep: "wbsetup", implemented: true,
   },
   {
     id: "focus-why-is-it-happening", name: "¿Por qué está pasando?", stage: "focus", category: "growthloop",

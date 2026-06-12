@@ -87,6 +87,7 @@ const STEP_SEQ: Record<string, string[]> = {
   circles: ["brain", "classify", "soup_close"],
   relationships: ["frame", "questions", "read", "relword", "rel_close"],
   expclose: ["consolidate", "vote", "map"],
+  whereblock: ["wbsetup", "wbcards", "wbvote", "wbdeep", "wbform"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -1499,6 +1500,227 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿DÓNDE SE TRABA? · embudo adaptado a la variable ════════
+  if (session.type === "whereblock") {
+    const WB_DEFAULT = [
+      { key: "wb0", label: "Entrada", hint: "¿Cómo llega una tarea al equipo?" },
+      { key: "wb1", label: "Definición", hint: "¿Cómo se aclara qué hay que hacer?" },
+      { key: "wb2", label: "Ejecución", hint: "¿Dónde aparece la traba?" },
+      { key: "wb3", label: "Cierre", hint: "¿Cómo validamos antes de entregar?" },
+    ];
+    const wbStages = (session.result.wbStages as { key: string; label: string; hint: string }[]) ?? WB_DEFAULT;
+    const wbVar = (session.result.wbVariable as string) || initiative?.title || "la variable elegida";
+    const critVotes: Record<string, number> = {};
+    inputs.filter((i) => i.key === "wbcrit").forEach((i) => { const k = (i.value as { k?: string }).k; if (k) critVotes[k] = (critVotes[k] ?? 0) + 1; });
+    const totalCrit = Object.values(critVotes).reduce((a, b) => a + b, 0);
+    const myCrit = (inputs.find((i) => i.userId === user.id && i.key === "wbcrit")?.value as { k?: string } | undefined)?.k;
+    const winner = wbStages.reduce((best, s) => ((critVotes[s.key] ?? 0) > (critVotes[best.key] ?? 0) ? s : best), wbStages[0]);
+    const winnerPct = totalCrit ? Math.round(((critVotes[winner.key] ?? 0) / totalCrit) * 100) : 0;
+    const wbForm = (session.result.wbForm as string) ?? "";
+    const vals = inputs.filter((i) => i.key === "wbval");
+    const yes = vals.filter((v) => (v.value as { ok?: boolean }).ok).length;
+    const adjust = vals.length - yes;
+    const myVal = (inputs.find((i) => i.userId === user.id && i.key === "wbval")?.value as { ok?: boolean } | undefined)?.ok;
+    const wbCount = (k: string) => counts[k] ?? 0;
+    const wbTotal = wbStages.reduce((a, s) => a + wbCount(s.key), 0);
+    const addWb = async (k: string) => { const t = (cardDraft[k] ?? "").trim(); if (!t) return; await addCard(sessionId, k, t, true); setCardDraft((d) => ({ ...d, [k]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const VarChip = (
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--st-focus) 12%, var(--card))", border: "1px solid color-mix(in srgb, var(--st-focus) 40%, transparent)", color: "var(--st-focus)", fontSize: "var(--t-xs)", fontWeight: 700 }}>
+          <Icon name="Crosshair" size={13} /> Variable: {wbVar}
+        </span>
+      </div>
+    );
+    const wbFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: wbTotal,
+        summaryText: `Traba en ${winner.label} (${winnerPct}%)`,
+        dataKey: "focus", dataValue: { blockStage: winner.label, blockPct: winnerPct, blockFormulation: wbForm },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "wbsetup") {
+      sub = isFacil ? "Adaptá el embudo a la variable: renombrá las etapas para que suenen al equipo." : "El facilitador está adaptando el embudo a la variable.";
+      content = (
+        <>
+          {VarChip}
+          <Card pad={20}>
+            {isFacil && (
+              <div style={{ marginBottom: 14 }}>
+                <div className="eyebrow" style={{ marginBottom: 6 }}>La variable que trabajamos</div>
+                <input defaultValue={wbVar} onBlur={(e) => { const v = e.target.value.trim(); if (v) patchResult({ wbVariable: v }); }} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", fontWeight: 600, outline: "none" }} />
+              </div>
+            )}
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Las 4 etapas del embudo</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {wbStages.map((s, i) => (
+                <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span className="num" style={{ width: 22, color: "var(--st-focus)", fontWeight: 800 }}>{i + 1}</span>
+                  {isFacil
+                    ? <input defaultValue={s.label} onBlur={(e) => { const v = e.target.value.trim(); if (v) patchResult({ wbStages: wbStages.map((x) => x.key === s.key ? { ...x, label: v } : x) }); }} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", fontWeight: 600, outline: "none" }} />
+                    : <span style={{ flex: 1, fontWeight: 600, fontSize: "var(--t-sm)" }}>{s.label}</span>}
+                  <span className="muted hide-sm" style={{ fontSize: "var(--t-xs)", maxWidth: 220 }}>{s.hint}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); if (!session.result.wbStages) await setResult(sessionId, { wbStages }); await setStep(sessionId, "wbcards", 1); setBusy(false); }}>Empezar la carga de observaciones</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>En un momento cargan observaciones.</p>;
+    } else if (step === "wbcards") {
+      wide = true;
+      sub = `¿Qué pasa en cada etapa en relación a ${wbVar}? Anónimo, oculto hasta revelar.`;
+      content = (
+        <>
+          {VarChip}
+          <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+            {wbStages.map((s, i) => {
+              const mine = myCards.filter((c) => c.columnKey === s.key);
+              return (
+                <div key={s.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 12, display: "flex", flexDirection: "column", minHeight: 200 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                    <span className="num" style={{ color: "var(--st-focus)", fontWeight: 800, fontSize: "var(--t-xs)" }}>{i + 1}</span>
+                    <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{s.label}</span>
+                    <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)" }} title="escritas · ocultas">🔒 {wbCount(s.key)}</span>
+                  </div>
+                  <div className="muted" style={{ fontSize: 10, marginBottom: 8 }}>{s.hint}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                    {mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}</div>)}
+                    {!mine.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 8 }}>{isFacil ? "Ocultas hasta revelar" : "Sumá lo tuyo…"}</div>}
+                  </div>
+                  {!isFacil && (
+                    <div style={{ marginTop: 8, display: "flex", gap: 5 }}>
+                      <input value={cardDraft[s.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [s.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addWb(s.key)} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none" }} />
+                      <button onClick={() => addWb(s.key)} style={{ background: "var(--st-focus)", color: "#fff", borderRadius: "var(--r-sm)", padding: "0 10px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || wbTotal === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "wbvote", 2); setBusy(false); }}>Votar la etapa crítica ({wbTotal})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá observaciones en las etapas donde veas algo.</p>;
+    } else if (step === "wbvote") {
+      const shown = !!session.result.wbVoteShown;
+      sub = shown ? "El resultado: dónde se concentra la traba." : "¿En qué etapa se concentra más la traba? Una sola elección por persona.";
+      content = (
+        <>
+          {VarChip}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {wbStages.map((s) => {
+              const v = critVotes[s.key] ?? 0;
+              const pct = totalCrit ? Math.round((v / totalCrit) * 100) : 0;
+              const isWin = shown && s.key === winner.key && totalCrit > 0;
+              const on = myCrit === s.key;
+              return (
+                <button key={s.key} disabled={isFacil || shown} onClick={() => tapInput("wbcrit", { k: s.key })}
+                  style={{ width: "100%", textAlign: "left", padding: "13px 14px", background: isWin ? "color-mix(in srgb, var(--st-focus) 12%, var(--card))" : on && !shown ? "color-mix(in srgb, var(--st-focus) 8%, var(--card))" : "var(--card)", border: `1px solid ${isWin || (on && !shown) ? "var(--st-focus)" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil || shown ? "default" : "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ flex: 1, fontWeight: 600, fontSize: "var(--t-sm)" }}>{s.label}{isWin && <Pill color="var(--st-focus)" bg="color-mix(in srgb, var(--st-focus) 14%, transparent)" icon="Crosshair">etapa crítica</Pill>}</span>
+                    {!shown && on && <Icon name="CheckCircle2" size={16} style={{ color: "var(--st-focus)" }} />}
+                    {shown && <span className="num" style={{ fontWeight: 800, color: isWin ? "var(--st-focus)" : "var(--ink-2)" }}>{pct}%</span>}
+                  </div>
+                  {shown && <div style={{ marginTop: 7 }}><Bar value={pct} color={isWin ? "var(--st-focus)" : "var(--violet)"} height={7} /></div>}
+                </button>
+              );
+            })}
+          </div>
+          {!shown && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> {totalCrit} de {totalInRoom} votaron</p>}
+        </>
+      );
+      controls = isFacil
+        ? (shown
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "wbdeep", 3); setBusy(false); }}>Profundizar en {winner.label}</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy || totalCrit === 0} onClick={() => setResult(sessionId, { wbVoteShown: true })}>Mostrar resultado ({totalCrit}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Elegí una etapa. El facilitador muestra el resultado.</p>;
+    } else if (step === "wbdeep") {
+      wide = true;
+      sub = `Profundizamos solo en ${winner.label}: cuándo pasa, cuándo no, qué necesitaría fluir.`;
+      const winnerCards = allCards.filter((c) => c.columnKey === winner.key);
+      content = (
+        <>
+          {VarChip}
+          <Card pad={18} style={{ marginBottom: 14, border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line))" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <Icon name="Crosshair" size={16} style={{ color: "var(--st-focus)" }} />
+              <span style={{ fontWeight: 800 }}>{winner.label}</span>
+              <Pill color="var(--st-focus)" bg="color-mix(in srgb, var(--st-focus) 14%, transparent)">{winnerPct}% de los votos</Pill>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 8 }}>
+              {winnerCards.map((c, i) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-xs)", lineHeight: 1.4, animation: `pop-in .4s var(--spring) ${i * 0.04}s both` }}>{c.text}</div>)}
+              {!winnerCards.length && <p className="muted" style={{ gridColumn: "1/-1", fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin observaciones cargadas en esta etapa.</p>}
+            </div>
+          </Card>
+          {isFacil && (
+            <>
+              <Card pad={16} style={{ marginBottom: 14 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Preguntas para tirar al equipo</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "var(--t-sm)" }}>
+                  <span>· “¿Cuándo pasa esto con más frecuencia?”</span>
+                  <span>· “¿Hay momentos en que NO pasa? ¿Qué es diferente?”</span>
+                  <span>· “¿Qué necesitaría pasar para que esta etapa fluyera mejor?”</span>
+                </div>
+              </Card>
+              <Card pad={16}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}><Icon name="EyeOff" size={12} /> Tus notas (solo las ves vos)</div>
+                <textarea defaultValue={(session.result.wbNotes as string) ?? ""} onBlur={(e) => patchResult({ wbNotes: e.target.value })} rows={3} placeholder="Lo que escuchás en la conversación…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+              </Card>
+            </>
+          )}
+          {!isFacil && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Conversen: ¿cuándo pasa más? ¿cuándo no pasa? ¿qué necesitaría esta etapa?</p>}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "wbform", 4); setBusy(false); }}>Formular la traba</Button>
+        : null;
+    } else {
+      sub = "La formulación de la traba. El equipo valida antes de cerrar.";
+      const template = `La traba principal de ${wbVar} está en ${winner.label} y se manifiesta como `;
+      content = (
+        <>
+          {VarChip}
+          <Card pad={20}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>La traba, en una oración</div>
+            {isFacil
+              ? <textarea defaultValue={wbForm || template} onBlur={(e) => patchResult({ wbForm: e.target.value.trim() })} rows={3} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+              : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.55, color: wbForm ? "var(--ink-0)" : "var(--ink-3)" }}>{wbForm || "El facilitador está redactando…"}</p>}
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              {!isFacil ? (
+                <>
+                  <Button size="sm" variant={myVal === true ? "primary" : "secondary"} icon="ThumbsUp" onClick={() => tapInput("wbval", { ok: true })}>Sí, es esto</Button>
+                  <Button size="sm" variant={myVal === false ? "primary" : "secondary"} icon="Hand" onClick={() => tapInput("wbval", { ok: false })}>✋ Ajustar</Button>
+                </>
+              ) : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Ajustá la redacción en vivo hasta que haya acuerdo.</span>}
+              <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-sm)", fontWeight: 700 }}>
+                <span style={{ color: "var(--success)" }}>👍 {yes}</span> · <span style={{ color: "var(--warning)" }}>✋ {adjust}</span>
+              </span>
+            </div>
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !wbForm.trim()} onClick={wbFinish}>{busy ? "Guardando…" : `Cerrar con esta traba (👍 ${yes})`}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Validá la formulación. El facilitador cierra cuando hay acuerdo.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
