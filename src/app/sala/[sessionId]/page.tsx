@@ -90,6 +90,7 @@ const STEP_SEQ: Record<string, string[]> = {
   expclose: ["consolidate", "vote", "map"],
   whereblock: ["wbsetup", "wbcards", "wbvote", "wbdeep", "wbform"],
   whyhappening: ["whframe", "whcauses", "whcluster", "whvote", "whtree", "whvalidate"],
+  impactfreq: ["iflist", "ifrate", "ifmatrix"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -1758,6 +1759,188 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 920 : 640 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ IMPACTO Y FRECUENCIA · matriz gravedad × frecuencia ════════
+  if (session.type === "impactfreq") {
+    type Prob = { id: string; name: string; desc?: string };
+    const probs = (session.result.ifProbs as Prob[]) ?? [];
+    const chosen2 = new Set((session.result.ifChosen as string[]) ?? []);
+    const FREQ = ["Rara vez", "A veces", "Siempre"];
+    const GRAV = ["Poco", "Bastante", "Mucho"];
+    const myRate = (id: string) => (inputs.find((i) => i.userId === user.id && i.key === `if:${id}`)?.value as { f?: number; g?: number } | undefined) ?? {};
+    const avgOf = (id: string) => {
+      const xs = inputs.filter((i) => i.key === `if:${id}`).map((i) => i.value as { f?: number; g?: number });
+      if (!xs.length) return null;
+      return { f: xs.reduce((a, v) => a + (v.f ?? 2), 0) / xs.length, g: xs.reduce((a, v) => a + (v.g ?? 2), 0) / xs.length, n: xs.length };
+    };
+    const ifRaters = new Set(inputs.filter((i) => i.key.startsWith("if:")).map((i) => i.voterKey)).size;
+    const quad = (a: { f: number; g: number }) => {
+      const hiF = a.f >= 2, hiG = a.g >= 2;
+      if (hiG && hiF) return { k: "aa", label: "grave y frecuente", color: "var(--green)" };
+      if (hiG && !hiF) return { k: "ab", label: "grave pero raro", color: "#EAB308" };
+      if (!hiG && hiF) return { k: "ba", label: "frecuente pero menor", color: "#F97316" };
+      return { k: "bb", label: "menor prioridad", color: "#94A3B8" };
+    };
+    const iDoneAll = probs.length > 0 && probs.every((p) => { const r = myRate(p.id); return r.f != null && r.g != null; });
+    const suggestions = [
+      initiative?.data?.focus?.blockFormulation,
+      initiative?.data?.focus?.rootCause,
+      ...((initiative?.data?.focus?.secondaryCauses ?? []).map((s) => s.name)),
+    ].filter((s): s is string => !!s && !probs.some((p) => p.name === s)).slice(0, 4);
+    const addProb = (name: string, desc?: string) => {
+      if (!name.trim()) return;
+      patchResult({ ifProbs: [...(((resultRef.current.ifProbs as Prob[]) ?? probs)), { id: `p${Date.now().toString(36)}`, name: name.trim(), desc: desc?.trim() || undefined }] });
+    };
+    const ifFinish = async () => {
+      setBusy(true);
+      const sel2 = probs.filter((p) => chosen2.has(p.id));
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Priorizado: ${sel2.map((p) => p.name).join(" · ") || "—"}`,
+        dataKey: "focus", dataValue: { priorityProblems: sel2.map((p) => p.name) },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "iflist") {
+      sub = isFacil ? "Cargá las trabas a comparar (nombre corto + una línea)." : "El facilitador carga las trabas que van a comparar.";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {probs.map((p, i) => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                <span className="num" style={{ color: "var(--st-focus)", fontWeight: 800 }}>{i + 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{p.name}</div>
+                  {p.desc && <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{p.desc}</div>}
+                </div>
+                {isFacil && <button onClick={() => patchResult({ ifProbs: probs.filter((x) => x.id !== p.id) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={14} /></button>}
+              </div>
+            ))}
+            {!probs.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin trabas cargadas todavía.</p>}
+          </div>
+          {isFacil && suggestions.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>De sesiones previas de Foco</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {suggestions.map((s, i) => <button key={i} onClick={() => addProb(s)} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px dashed var(--line-2)", color: "var(--ink-1)" }}>+ {s.length > 60 ? s.slice(0, 60) + "…" : s}</button>)}
+              </div>
+            </div>
+          )}
+          {isFacil && (
+            <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <input value={cardDraft.ifname ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, ifname: e.target.value }))} placeholder="Nombre corto…" style={{ flex: 1, minWidth: 140, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <input value={cardDraft.ifdesc ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, ifdesc: e.target.value }))} placeholder="Descripción en una línea (opcional)" style={{ flex: 2, minWidth: 180, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={() => { addProb(cardDraft.ifname ?? "", cardDraft.ifdesc); setCardDraft((d) => ({ ...d, ifname: "", ifdesc: "" })); }}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || probs.length < 2} onClick={async () => { setBusy(true); await setStep(sessionId, "ifrate", 1); setBusy(false); }}>Evaluar en equipo ({probs.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>En un momento evalúan cada traba.</p>;
+    } else if (step === "ifrate") {
+      sub = "Para cada traba: ¿qué tan seguido pasa y qué tan grave es? Anónimo.";
+      content = isFacil ? (
+        <Card pad={24}><div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{ifRaters}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>evaluaron</div></div></Card>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {probs.map((p) => {
+            const r = myRate(p.id);
+            return (
+              <Card key={p.id} pad={16}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 2 }}>{p.name}</div>
+                {p.desc && <div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 8 }}>{p.desc}</div>}
+                <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 8 }}>
+                  {[{ lab: "Frecuencia", opts: FREQ, key: "f" as const }, { lab: "Gravedad", opts: GRAV, key: "g" as const }].map((dim) => (
+                    <div key={dim.key} style={{ flex: 1, minWidth: 200 }}>
+                      <div className="eyebrow" style={{ marginBottom: 6 }}>{dim.lab}</div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {dim.opts.map((o, i) => {
+                          const on = r[dim.key] === i + 1;
+                          return <button key={o} onClick={() => tapInput(`if:${p.id}`, { ...r, [dim.key]: i + 1 })} style={{ flex: 1, padding: "9px 6px", borderRadius: "var(--r-md)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1.5px solid ${on ? "var(--st-focus)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--st-focus) 16%, var(--card))" : "var(--card)", color: on ? "var(--st-focus)" : "var(--ink-2)" }}>{o}</button>;
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
+          {iDoneAll && <p style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, fontSize: "var(--t-sm)" }}><Icon name="Check" size={15} /> Evaluaste todas (anónimo)</p>}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || ifRaters === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "ifmatrix", 2); setBusy(false); }}>Revelar la matriz ({ifRaters})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>{ifRaters} de {totalInRoom} evaluaron · la matriz se arma con el promedio.</p>;
+    } else {
+      wide = true;
+      sub = "La matriz del equipo. El debate va en la zona grave y frecuente.";
+      const placed = probs.map((p, i) => ({ p, i, a: avgOf(p.id) })).filter((x) => x.a);
+      content = (
+        <>
+          <Card pad={16} style={{ marginBottom: 14 }}>
+            <div style={{ position: "relative", width: "100%", aspectRatio: "3/2", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
+              {/* cuadrantes tintados */}
+              <div style={{ position: "absolute", left: "50%", right: 0, top: 0, bottom: "50%", background: "color-mix(in srgb, var(--green) 8%, transparent)" }} />
+              <div style={{ position: "absolute", left: 0, right: "50%", top: 0, bottom: "50%", background: "color-mix(in srgb, #EAB308 7%, transparent)" }} />
+              <div style={{ position: "absolute", left: "50%", right: 0, top: "50%", bottom: 0, background: "color-mix(in srgb, #F97316 7%, transparent)" }} />
+              <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "var(--line-2)" }} />
+              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: "var(--line-2)" }} />
+              <span className="muted" style={{ position: "absolute", top: 6, left: 8, fontSize: 10 }}>GRAVE ↑</span>
+              <span className="muted" style={{ position: "absolute", bottom: 6, right: 8, fontSize: 10 }}>FRECUENTE →</span>
+              {placed.map(({ p, i, a }) => {
+                const x = ((a!.f - 1) / 2) * 86 + 7;
+                const y = 93 - ((a!.g - 1) / 2) * 86;
+                const q = quad(a!);
+                return (
+                  <span key={p.id} title={`${p.name} · ${q.label}`} className="num" style={{ position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", width: 30, height: 30, borderRadius: 99, display: "grid", placeItems: "center", fontWeight: 800, fontSize: "var(--t-sm)", background: `color-mix(in srgb, ${q.color} 24%, var(--card))`, border: `2px solid ${q.color}`, color: q.color, boxShadow: chosen2.has(p.id) ? `0 0 12px ${q.color}` : "none", animation: "pop-in .4s var(--spring) both" }}>{i + 1}</span>
+                );
+              })}
+            </div>
+          </Card>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {placed.sort((x, y) => (y.a!.f + y.a!.g) - (x.a!.f + x.a!.g)).map(({ p, i, a }) => {
+              const q = quad(a!);
+              const isChosen = chosen2.has(p.id);
+              return (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: isChosen ? `color-mix(in srgb, ${q.color} 10%, var(--card))` : "var(--card)", border: `1px solid ${isChosen ? q.color : "var(--line)"}`, borderRadius: "var(--r-md)" }}>
+                  <span className="num" style={{ width: 26, height: 26, borderRadius: 99, display: "grid", placeItems: "center", fontWeight: 800, fontSize: "var(--t-xs)", background: `color-mix(in srgb, ${q.color} 22%, transparent)`, color: q.color, flexShrink: 0 }}>{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{p.name}</span>
+                    <span className="muted" style={{ fontSize: "var(--t-xs)", marginLeft: 8 }}>{q.label}</span>
+                  </div>
+                  {isFacil && <Button size="sm" variant={isChosen ? "primary" : "secondary"} onClick={() => { const cur = new Set((resultRef.current.ifChosen as string[]) ?? [...chosen2]); if (cur.has(p.id)) cur.delete(p.id); else if (cur.size < 2) cur.add(p.id); patchResult({ ifChosen: [...cur] }); }}>{isChosen ? "Elegida" : "Elegir"}</Button>}
+                </div>
+              );
+            })}
+          </div>
+          {isFacil && (
+            <Card pad={14} style={{ marginTop: 12 }}>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>Para el debate (zona grave y frecuente)</div>
+              <div style={{ fontSize: "var(--t-sm)", display: "flex", flexDirection: "column", gap: 4 }}>
+                <span>· “¿Hay algo que la matriz no está capturando?”</span>
+                <span>· “¿Algún problema tiene urgencia externa que no se ve?”</span>
+              </div>
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || chosen2.size === 0} onClick={ifFinish}>{busy ? "Guardando…" : `Cerrar con ${chosen2.size === 2 ? "estas 2 trabas" : "esta traba"}`}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo elige una o dos para trabajar. El facilitador registra.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 760 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

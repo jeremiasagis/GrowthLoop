@@ -291,7 +291,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Debate de los candidatos alto-alto", minutes: 7 },
       { name: "Elección (1-2 problemas)", minutes: 2 },
     ],
-    sessionType: "impactfreq", implemented: false,
+    sessionType: "impactfreq", entryStep: "iflist", implemented: true,
   },
   {
     id: "focus-client-voice", name: "La voz del cliente", stage: "focus", category: "growthloop",
