@@ -2282,6 +2282,60 @@ export default function SalaPage() {
   const addExploreCard = async (colKey: string) => { const text = (cardDraft[colKey] ?? "").trim(); if (!text) return; await addCard(sessionId, colKey, text, anon); setCardDraft((d) => ({ ...d, [colKey]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
   const voteCluster = (clusterId: string, delta: number) => castVote(clusterId, delta, remaining);
 
+  // ── Tablero-escena: la retro como dibujo, cada pregunta en su zona ──
+  // (sailboat por ahora; sumar acá las próximas escenas).
+  const SCENES: Record<string, { bg: string; center: string; horizon?: number; order: string[] }> = {
+    sailboat: {
+      bg: "linear-gradient(180deg, color-mix(in srgb, #38bdf8 18%, var(--bg-2)) 0%, color-mix(in srgb, #38bdf8 9%, var(--bg-2)) 54%, color-mix(in srgb, #0ea5e9 24%, var(--bg-2)) 54.2%, color-mix(in srgb, #0c4a6e 30%, var(--bg-2)) 100%)",
+      center: "⛵", horizon: 54, order: ["wind", "island", "anchor", "rocks"],
+    },
+  };
+  const scene = SCENES[session.type];
+  const SceneBoard = (editable: boolean, reveal: boolean) => {
+    if (!scene) return null;
+    const Panel = (col: { key: string; label: string; color: string; icon: string }) => {
+      const mine = myCards.filter((c) => c.columnKey === col.key);
+      const revealed = allCards.filter((c) => c.columnKey === col.key);
+      const list = reveal ? revealed : mine;
+      const n = counts[col.key] ?? 0;
+      const [title, q] = col.label.split(" · ");
+      return (
+        <div key={col.key} style={{ background: "color-mix(in srgb, var(--bg-2) 86%, transparent)", backdropFilter: "blur(3px)", border: `1px solid color-mix(in srgb, ${col.color} 45%, var(--line))`, borderRadius: "var(--r-lg)", padding: 12, display: "flex", flexDirection: "column", minHeight: 150 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+            <span style={{ fontWeight: 800, fontSize: "var(--t-sm)" }}>{title}</span>
+            {!reveal && <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "1px 7px" }} title="escritas · ocultas">🔒 {n}</span>}
+            {reveal && <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: col.color, fontWeight: 800 }}>{revealed.length}</span>}
+          </div>
+          {q && <div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 8 }}>{q}</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+            {list.map((c, i) => (
+              <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-md)", padding: "8px 10px", fontSize: "var(--t-xs)", lineHeight: 1.4, animation: reveal ? `pop-in .4s var(--spring) ${i * 0.04}s both` : undefined }}>
+                {c.text}
+                {!reveal && <span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· tuya</span>}
+              </div>
+            ))}
+            {!list.length && <div style={{ color: "var(--ink-3)", fontSize: "var(--t-xs)", textAlign: "center", padding: 8 }}>{reveal ? "Sin tarjetas" : editable ? "Sumá lo tuyo · queda oculto" : "Ocultas hasta revelar"}</div>}
+          </div>
+          {editable && !reveal && (
+            <div style={{ marginTop: 8, display: "flex", gap: 5 }}>
+              <input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addExploreCard(col.key)} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none" }} />
+              <button onClick={() => addExploreCard(col.key)} style={{ background: col.color, color: "#06121f", borderRadius: "var(--r-sm)", padding: "0 10px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button>
+            </div>
+          )}
+        </div>
+      );
+    };
+    return (
+      <div style={{ position: "relative", borderRadius: "var(--r-lg)", border: "1px solid var(--line)", overflow: "hidden", background: scene.bg }}>
+        {scene.horizon != null && <div aria-hidden style={{ position: "absolute", left: 0, right: 0, top: `${scene.horizon}%`, borderTop: "2px solid color-mix(in srgb, #7dd3fc 30%, transparent)" }} />}
+        <div className="scene-center" aria-hidden style={{ position: "absolute", left: "50%", top: "52%", fontSize: 80, animation: "gl-float 4.5s ease-in-out infinite", pointerEvents: "none", zIndex: 0, filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.3))" }}>{scene.center}</div>
+        <div className="scene-grid" style={{ zIndex: 1 }}>
+          {scene.order.map((k) => { const col = RCOLS.find((c) => c.key === k); return col ? Panel(col) : null; })}
+        </div>
+      </div>
+    );
+  };
+
   let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
   if (step === "pulse") {
     sub = "Cinco señales, anónimas. Cada uno responde; el facilitador revela el promedio.";
@@ -2309,7 +2363,7 @@ export default function SalaPage() {
           </div>
         )}
         <HiddenDots n={totalCards} label="cosas dichas · ocultas hasta revelar" color="var(--st-explore)" />
-        <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: `repeat(${RCOLS.length}, 1fr)`, gap: 14 }}>{RCOLS.map((col) => { const mine = myCards.filter((c) => c.columnKey === col.key); const n = counts[col.key] ?? 0; return (
+        {scene ? SceneBoard(!isFacil, false) : <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: `repeat(${RCOLS.length}, 1fr)`, gap: 14 }}>{RCOLS.map((col) => { const mine = myCards.filter((c) => c.columnKey === col.key); const n = counts[col.key] ?? 0; return (
           <div key={col.key} style={{ background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: 14, display: "flex", flexDirection: "column", minHeight: 240 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><span style={{ color: col.color }}><Icon name={col.icon} size={16} /></span><span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{col.label}</span><span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", color: "var(--ink-2)", background: "var(--card)", borderRadius: 99, padding: "2px 8px" }} title="escritas · ocultas">🔒 {n}</span></div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
@@ -2318,13 +2372,13 @@ export default function SalaPage() {
             </div>
             {!isFacil && <div style={{ marginTop: 10, display: "flex", gap: 6 }}><input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addExploreCard(col.key)} placeholder="Sumar tarjeta…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} /><button onClick={() => addExploreCard(col.key)} style={{ background: col.color, color: "#06121f", borderRadius: "var(--r-sm)", padding: "0 11px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={16} /></button></div>}
           </div>
-        ); })}</div>
+        ); })}</div>}
       </>
     );
     controls = isFacil ? <Button full size="lg" icon="Eye" disabled={busy || totalCards === 0} onClick={goNext}>Revelar tarjetas ({totalCards})</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá tus tarjetas. El facilitador las revela cuando todos terminen.</p>;
   } else if (step === "cards_reveal") {
     wide = true; sub = "Todas las tarjetas a la vista. Las anónimas no muestran autor.";
-    content = <><RevealHeader n={totalCards} label="cosas que estaban en el aire" color="var(--st-explore)" /><RevealPop>{RevealedCards}</RevealPop></>;
+    content = <><RevealHeader n={totalCards} label="cosas que estaban en el aire" color="var(--st-explore)" /><RevealPop>{scene ? SceneBoard(false, true) : RevealedCards}</RevealPop></>;
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: agrupar</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador agrupa las tarjetas en tensiones.</p>;
   } else if (step === "cluster") {
     wide = true; sub = isFacil ? "Juntá las tarjetas que hablan de lo mismo. Seleccioná varias y armá una tensión." : "El facilitador agrupa las tarjetas en tensiones. Mirá cómo se arman.";

@@ -184,6 +184,15 @@ a { color: inherit; text-decoration: none; }
 /* suspenso: las burbujas anónimas "respiran" mientras se escribe */
 @keyframes gl-breathe { 0%, 100% { transform: scale(1); opacity: 0.55; } 50% { transform: scale(1.3); opacity: 1; } }
 
+/* retros con escena: el elemento central flota suavemente */
+@keyframes gl-float { 0%, 100% { transform: translate(-50%, -55%) rotate(-2deg); } 50% { transform: translate(-50%, -62%) rotate(2deg); } }
+/* tablero-escena: 4 zonas en las esquinas con el centro libre para el dibujo */
+.scene-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: clamp(70px, 14vw, 160px); row-gap: 56px; padding: 18px; position: relative; }
+@media (max-width: 720px) {
+  .scene-grid { grid-template-columns: 1fr; column-gap: 0; row-gap: 14px; }
+  .scene-center { display: none; }
+}
+
 /* Mad-Libs de la apuesta: en pantallas chicas la frase se apila (los inputs inline se rompen) */
 @media (max-width: 720px) {
   .betml { line-height: 1.7 !important; }
