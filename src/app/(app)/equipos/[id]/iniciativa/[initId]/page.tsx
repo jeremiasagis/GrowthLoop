@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
   AvatarStack, Bar, Button, Card, EmptyState, Pill, ProgressRing,
-  PulseChart, SectionTitle, StageBadge, Stat,
+  PulseRadar, SectionTitle, StageBadge, Stat,
 } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
@@ -493,8 +493,8 @@ export default function InitiativeDetailPage() {
         {/* columna lateral */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <Card pad={20}>
-            <SectionTitle icon="Activity" sub="Evolución a lo largo de las sesiones">Pulso del equipo</SectionTitle>
-            <PulseChart data={team.pulse} dims={PULSE_DIMS} height={200} />
+            <SectionTitle icon="Radar" sub="El radar de la última medición (1-5)">Pulso del equipo</SectionTitle>
+            <PulseRadar values={team.pulse.length ? (team.pulse[team.pulse.length - 1].dims ?? {}) : {}} size={300} />
           </Card>
 
           <Card pad={20}>

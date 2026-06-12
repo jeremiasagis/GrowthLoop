@@ -4,17 +4,16 @@ import { Icon } from "@/components/icon";
 import { AvatarStack, Card, EmptyState, Pill, Sparkline, StageBadge, Stat } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getOrg, getTeams } from "@/lib/repository";
-import { teamLiveStage, type Team } from "@/lib/data";
+import { overallOf, teamLiveStage, to5, type Team } from "@/lib/data";
 
 function avgPulse(t: Team): number | null {
   if (!t.pulse.length) return null;
-  const p = t.pulse[t.pulse.length - 1];
-  return Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5);
+  return overallOf(t.pulse[t.pulse.length - 1]);
 }
 
 function ReadTeamCard({ team }: { team: Team }) {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
-  const series = team.pulse.map((p) => Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5));
+  const series = team.pulse.map(overallOf);
   const focusInit = (team.initiatives ?? []).find((i) => i.status === "active");
   return (
     <Card pad={18} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -35,9 +34,9 @@ function ReadTeamCard({ team }: { team: Team }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div>
-            <div className="muted" style={{ fontSize: 10, marginBottom: 2 }}>Seguridad ψ</div>
+            <div className="muted" style={{ fontSize: 10, marginBottom: 2 }}>Confianza</div>
             <span className="num" style={{ fontWeight: 700, fontSize: "var(--t-base)", color: team.psychSafety === 0 ? "var(--ink-3)" : lowSafety ? "var(--warning)" : "var(--success)" }}>
-              {team.psychSafety === 0 ? "—" : `${team.psychSafety}%`}
+              {team.psychSafety === 0 ? "—" : `${to5(team.psychSafety).toFixed(1)}/5`}
             </span>
           </div>
           {series.length > 0 && (

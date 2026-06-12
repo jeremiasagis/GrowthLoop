@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Logo } from "@/components/AppShell";
-import { Avatar, Bar, Button, Card, Pill } from "@/components/ui";
+import { Avatar, Bar, Button, Card, Pill, PulseRadar } from "@/components/ui";
 import { SessionTimer } from "@/components/session/Timer";
 import { JoinModal } from "@/components/session/JoinModal";
 import { HiddenDots, Cascade, RevealHeader, RevealPop } from "@/components/session/RevealFx";
@@ -12,9 +12,9 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { getInitiatives, getTeam } from "@/lib/repository";
 import { retroByKey } from "@/lib/retros";
 import { useToast } from "@/components/Toast";
-import { PULSE_DIMS, FOUNDING_QUESTIONS } from "@/lib/data";
+import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
-  addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster,
+  addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster, pulseOverall,
   finalizeSession, getCardCounts, getCards, getClusters, getInitiativeSessions, getInputs, getMyCards, getParticipants, getSessionContent,
   getPulseResponses, getSession, getVotes, hasResponded, joinSession, removeVote,
   renameCluster, setMyInput, setResult, setStep, submitPulse, subscribeSession, touchPresence,
@@ -97,7 +97,8 @@ export default function SalaPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
-  const [draft, setDraft] = useState<PulseResponse>({ confianza: 60, comunic: 60, claridad: 60, foco: 60, seguridad: 60 });
+  // Pulso: cada dimensión se puntúa 1-5 (se convierte a 0-100 al enviar).
+  const [draft, setDraft] = useState<Record<string, number>>(() => Object.fromEntries(PULSE_DIMS.map((d) => [d.key, 3])));
   const [cardDraft, setCardDraft] = useState<Record<string, string>>({ works: "", blocks: "", unsaid: "" });
   const [anon, setAnon] = useState(true);
   const [sel, setSel] = useState<string[]>([]);
@@ -197,7 +198,7 @@ export default function SalaPage() {
   const team = getTeam(session.teamId);
   // Atmósfera de la sala: el último pulso del equipo tiñe sutilmente el fondo.
   const lastPulsePt = team?.pulse?.length ? team.pulse[team.pulse.length - 1] : undefined;
-  const teamMood = lastPulsePt ? Math.round((lastPulsePt.confianza + lastPulsePt.comunic + lastPulsePt.claridad + lastPulsePt.foco + lastPulsePt.seguridad) / 5) : null;
+  const teamMood = lastPulsePt ? overallOf(lastPulsePt) : null;
   const initiative = session.initiativeId ? getInitiatives(session.teamId).find((i) => i.id === session.initiativeId) : undefined;
   const focusPriority = (initiative?.data?.focus as { priority?: string } | undefined)?.priority;
   const subject = focusPriority || (initiative?.data?.explore?.priority as string) || initiative?.title || "la tensión priorizada";
@@ -205,7 +206,7 @@ export default function SalaPage() {
   const step = session.stepKey ?? "pulse";
   const closed = session.status === "closed";
   const avg = averagePulse(responses);
-  const overall = Math.round((avg.confianza + avg.comunic + avg.claridad + avg.foco + avg.seguridad) / 5);
+  const overall = pulseOverall(avg);
   // Presentes reales: vistos hace menos de ~25s (heartbeat). Evita contar fantasmas.
   const activeParticipants = participants.filter((p) => !p.lastSeen || Date.now() - new Date(p.lastSeen).getTime() < 25000);
   const totalInRoom = activeParticipants.length;
@@ -318,17 +319,18 @@ export default function SalaPage() {
     </div>
   );
 
+  // El radar promedio del equipo + el detalle por dimensión (escala 1-5).
   const Averages = (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {PULSE_DIMS.map((d) => (
-        <div key={d.key}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
-            <span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span>
-            <span className="num" style={{ fontWeight: 700, color: d.color }}>{avg[d.key]}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <PulseRadar values={avg} size={320} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "8px 18px" }}>
+        {PULSE_DIMS.map((d) => (
+          <div key={d.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: "var(--t-xs)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, flexShrink: 0 }} />{d.label}</span>
+            <span className="num" style={{ fontWeight: 700, color: d.color }}>{avg[d.key] != null ? to5(avg[d.key]).toFixed(1) : "—"}</span>
           </div>
-          <Bar value={avg[d.key]} color={d.color} glow />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 
@@ -458,25 +460,40 @@ export default function SalaPage() {
     const goAfterPulse = async () => { setBusy(true); await setStep(sessionId, afterPulse, 0); setBusy(false); };
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "pulse") {
-      sub = "Pulso semanal del equipo. Cinco señales, anónimas — una vez por semana.";
-      // Tablero compartido: todos ven los mismos sliders + el contador. El miembro arrastra y envía; el facilitador los ve y revela.
+      sub = "Pulso del equipo. Ocho dimensiones, del 1 al 5, en anónimo.";
+      // Tablero compartido: el miembro puntúa cada dimensión 1-5 y envía; el facilitador ve el contador y revela el radar.
       content = isFacil ? (
-        <Card pad={24}><div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{responses.length}/{totalInRoom || team?.members.length || 0}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respondieron el pulso</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10 }}>El equipo responde en anónimo. Vos revelás el promedio.</p></div></Card>
+        <Card pad={24}><div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{responses.length}/{totalInRoom || team?.members.length || 0}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respondieron el pulso</div><p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10 }}>El equipo puntúa en anónimo. Vos revelás el radar promedio.</p></div></Card>
       ) : (
         <Card pad={24}>
           {submitted && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 14 }}><Icon name="Check" size={16} /> Tu pulso quedó guardado (anónimo).</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, opacity: submitted ? 0.85 : 1 }}>{PULSE_DIMS.map((d) => (<div key={d.key}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span><span className="num" style={{ fontWeight: 700, color: d.color }}>{draft[d.key]}</span></div><input type="range" min={0} max={100} value={draft[d.key]} disabled={submitted} onChange={(e) => setDraft((s) => ({ ...s, [d.key]: Number(e.target.value) }))} style={{ width: "100%", accentColor: d.color }} /></div>))}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, opacity: submitted ? 0.85 : 1 }}>{PULSE_DIMS.map((d) => (
+            <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ flex: 1, minWidth: 150, fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, flexShrink: 0 }} />{d.label}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[1, 2, 3, 4, 5].map((v) => {
+                  const on = draft[d.key] === v;
+                  return (
+                    <button key={v} disabled={submitted} onClick={() => setDraft((s) => ({ ...s, [d.key]: v }))} className="num"
+                      style={{ width: 34, height: 34, borderRadius: 99, fontWeight: 800, fontSize: "var(--t-sm)", border: `1.5px solid ${on ? d.color : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${d.color} 22%, transparent)` : "var(--card)", color: on ? d.color : "var(--ink-2)", cursor: submitted ? "default" : "pointer", transition: "all .15s var(--ease)" }}>
+                      {v}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}</div>
           <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="Lock" size={13} /> Anónimo · {responses.length} de {totalInRoom} respondieron</p>
         </Card>
       );
       controls = isFacil
-        ? <Button full size="lg" icon="Eye" disabled={busy || responses.length === 0} onClick={toReveal}>Revelar promedio ({responses.length})</Button>
+        ? <Button full size="lg" icon="Eye" disabled={busy || responses.length === 0} onClick={toReveal}>Revelar radar del equipo ({responses.length})</Button>
         : submitted
-          ? <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá a que el facilitador revele el promedio.</p>
-          : <Button full size="lg" icon="Send" disabled={busy} onClick={async () => { setBusy(true); const res = await submitPulse(sessionId, draft); setBusy(false); if (!res.error) setSubmitted(true); }}>{busy ? "Enviando…" : "Enviar mi pulso"}</Button>;
+          ? <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá a que el facilitador revele el radar del equipo.</p>
+          : <Button full size="lg" icon="Send" disabled={busy} onClick={async () => { setBusy(true); const res = await submitPulse(sessionId, Object.fromEntries(PULSE_DIMS.map((d) => [d.key, to100(draft[d.key] ?? 3)]))); setBusy(false); if (!res.error) setSubmitted(true); }}>{busy ? "Enviando…" : "Enviar mi pulso"}</Button>;
     } else {
       sub = "El pulso del equipo, revelado para todos.";
-      content = <Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>Promedio del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{overall}/100</Pill></div>{Averages}</Card>;
+      content = <Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>El radar del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{to5(overall).toFixed(1)}/5</Pill></div>{Averages}</Card>;
       controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goAfterPulse}>Continuar con la sesión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador continúa con la sesión.</p>;
     }
     return (
@@ -1115,7 +1132,7 @@ export default function SalaPage() {
     const learnBets = (proofD?.bets?.length ? proofD.bets : [{ name: "", betThen: proofD?.betThen, signalMetric: proofD?.signalMetric, signalTarget: proofD?.signalTarget }]);
     // Resultado de equipo (co-igual al de tarea): tendencia del pulso del equipo.
     const lpts = team?.pulse ?? [];
-    const ovOf = (p: { confianza: number; comunic: number; claridad: number; foco: number; seguridad: number }) => Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5);
+    const ovOf = overallOf;
     const lpCur = lpts.length ? ovOf(lpts[lpts.length - 1]) : null;
     const lpDelta = lpts.length > 1 ? lpCur! - ovOf(lpts[lpts.length - 2]) : null;
     const hasBet = !!(proofD?.betThen || proofD?.bets?.length);
@@ -1435,7 +1452,7 @@ export default function SalaPage() {
     }
   } else if (step === "pulse_reveal") {
     sub = "El pulso del equipo, revelado para todos.";
-    content = <Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>Promedio del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{overall}/100</Pill></div>{Averages}</Card>;
+    content = <Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>El radar del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{to5(overall).toFixed(1)}/5</Pill></div>{Averages}</Card>;
     controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goNext}>Siguiente: tarjetas</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá el siguiente paso.</p>;
   } else if (step === "cards") {
     wide = true; sub = "Escriban en silencio. Las tarjetas quedan ocultas hasta que el facilitador revele.";

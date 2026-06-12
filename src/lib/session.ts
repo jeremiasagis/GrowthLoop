@@ -24,9 +24,8 @@ export interface LiveSession {
   result: Record<string, unknown>;  // resultado vivo del paso (causa raíz, etc.)
 }
 
-export interface PulseResponse {
-  confianza: number; comunic: number; claridad: number; foco: number; seguridad: number;
-}
+// Pulso: dimensión → valor 0-100 (la gente puntúa 1-5; se convierte con to100).
+export type PulseResponse = Record<string, number>;
 export interface Participant { userId: string; name: string; initials: string; lastSeen?: string; }
 export interface SessionCard { id: string; columnKey: string; text: string; anonymous: boolean; authorId?: string; clusterId?: string; }
 export interface SessionCluster { id: string; name: string; }
@@ -127,8 +126,11 @@ export async function touchPresence(sessionId: string): Promise<void> {
 export async function getPulseResponses(sessionId: string): Promise<PulseResponse[]> {
   const supabase = getSupabaseBrowserClient();
   const { data } = await supabase.from("session_pulse_view")
-    .select("confianza,comunic,claridad,foco,seguridad").eq("session_id", sessionId);
-  return (data ?? []) as PulseResponse[];
+    .select("confianza,comunic,claridad,foco,seguridad,dims").eq("session_id", sessionId);
+  // Pulso nuevo: jsonb dims; respuestas viejas: las 5 columnas legacy.
+  return (data ?? []).map((r: any) =>
+    (r.dims as PulseResponse) ?? { confianza: r.confianza, comunic: r.comunic, claridad: r.claridad, foco: r.foco, seguridad: r.seguridad },
+  );
 }
 
 export async function hasResponded(sessionId: string, userId: string): Promise<boolean> {
@@ -184,8 +186,14 @@ export async function submitPulse(sessionId: string, r: PulseResponse): Promise<
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { error: "Sesión expirada." };
+  const overall = pulseOverall(r);
   const { error } = await supabase.from("session_pulse_responses").upsert(
-    { session_id: sessionId, user_id: auth.user.id, ...r },
+    {
+      session_id: sessionId, user_id: auth.user.id, dims: r,
+      // Columnas legacy (por compatibilidad con datos/vistas viejas).
+      confianza: r.confianza ?? overall, comunic: r.comunic ?? overall, claridad: r.claridad ?? overall,
+      foco: overall, seguridad: r.confianza ?? overall,
+    },
     { onConflict: "session_id,user_id" },
   );
   return { error: error?.message };
@@ -324,13 +332,14 @@ export async function finalizeSession(session: LiveSession, opts: {
   const supabase = getSupabaseBrowserClient();
   const date = new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
   const avg = opts.pulseAvg;
-  const hasPulse = !!avg && (avg.confianza + avg.comunic + avg.claridad + avg.foco + avg.seguridad) > 0;
-  const overall = hasPulse ? Math.round((avg!.confianza + avg!.comunic + avg!.claridad + avg!.foco + avg!.seguridad) / 5) : 0;
+  const hasPulse = !!avg && Object.values(avg).some((v) => v > 0);
+  const overall = hasPulse ? pulseOverall(avg!) : 0;
 
   if (hasPulse) {
     await supabase.from("pulse_points").insert({
-      team_id: session.teamId, label: date, date,
-      confianza: avg!.confianza, comunic: avg!.comunic, claridad: avg!.claridad, foco: avg!.foco, seguridad: avg!.seguridad,
+      team_id: session.teamId, label: date, date, dims: avg,
+      confianza: avg!.confianza ?? overall, comunic: avg!.comunic ?? overall, claridad: avg!.claridad ?? overall,
+      foco: overall, seguridad: avg!.confianza ?? overall,
     });
   }
   const parts: string[] = [];
@@ -373,7 +382,11 @@ export async function finalizeSession(session: LiveSession, opts: {
     const prev = (teamRow?.data as Record<string, unknown>) ?? {};
     const now = new Date().toISOString();
     const patch = { ...prev, ...(opts.teamData ?? {}), ...(hasPulse ? { lastPulseAt: now } : {}), lastSessionAt: now };
-    await supabase.from("teams").update({ data: patch }).eq("id", session.teamId);
+    // psych_safety alimenta las alertas de clima: ahora es la Confianza entre miembros del último pulso.
+    await supabase.from("teams").update({
+      data: patch,
+      ...(hasPulse ? { psych_safety: avg!.confianza ?? overall } : {}),
+    }).eq("id", session.teamId);
   }
 
   const { error } = await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", session.id);
@@ -411,16 +424,20 @@ export function subscribeTeamSessions(teamId: string, onChange: () => void): () 
   return () => { supabase.removeChannel(channel); };
 }
 
-/** Promedio (redondeado) de un conjunto de respuestas de pulso. */
+/** Promedio (redondeado) por dimensión de un conjunto de respuestas de pulso. */
 export function averagePulse(responses: PulseResponse[]): PulseResponse {
-  if (!responses.length) return { confianza: 0, comunic: 0, claridad: 0, foco: 0, seguridad: 0 };
-  const sum = responses.reduce((a, r) => ({
-    confianza: a.confianza + r.confianza, comunic: a.comunic + r.comunic, claridad: a.claridad + r.claridad,
-    foco: a.foco + r.foco, seguridad: a.seguridad + r.seguridad,
-  }), { confianza: 0, comunic: 0, claridad: 0, foco: 0, seguridad: 0 });
-  const n = responses.length;
-  return {
-    confianza: Math.round(sum.confianza / n), comunic: Math.round(sum.comunic / n), claridad: Math.round(sum.claridad / n),
-    foco: Math.round(sum.foco / n), seguridad: Math.round(sum.seguridad / n),
-  };
+  const out: PulseResponse = {};
+  if (!responses.length) return out;
+  const keys = new Set(responses.flatMap((r) => Object.keys(r)));
+  for (const k of keys) {
+    const vals = responses.map((r) => r[k]).filter((v) => typeof v === "number");
+    if (vals.length) out[k] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  }
+  return out;
+}
+
+/** Promedio general 0-100 de una respuesta/promedio de pulso. */
+export function pulseOverall(r: PulseResponse): number {
+  const vals = Object.values(r).filter((v) => typeof v === "number");
+  return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
 }

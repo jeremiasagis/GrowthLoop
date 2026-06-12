@@ -81,6 +81,7 @@ function mapTeam(t: any, initiatives: Initiative[] = []): Team {
     .map((p: any): PulsePoint => ({
       label: p.label, date: p.date, confianza: p.confianza, comunic: p.comunic,
       claridad: p.claridad, foco: p.foco, seguridad: p.seguridad,
+      dims: (p.dims as Record<string, number>) ?? undefined,
     }))
     .sort((a: PulsePoint, b: PulsePoint) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   const sessions: SessionLog[] = (t.session_logs ?? [])

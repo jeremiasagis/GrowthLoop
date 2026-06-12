@@ -2,7 +2,7 @@
 
 import { useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./icon";
-import { STAGES, type StageKey, type Person, type PulseDim, type PulsePoint } from "@/lib/data";
+import { PULSE_DIMS, STAGES, overallOf, to5, type StageKey, type Person, type PulseDim, type PulsePoint } from "@/lib/data";
 
 /* ── Button ───────────────────────────────────────────────── */
 type Variant = "primary" | "secondary" | "ghost" | "violet" | "danger" | "dark";
@@ -305,69 +305,72 @@ export function ProgressRing({
   );
 }
 
-/* ── Pulse multi-line chart (5 dimensions over sessions) ──── */
-export function PulseChart({
-  data, dims, height = 280, showLegend = true,
-}: { data: PulsePoint[]; dims: PulseDim[]; height?: number; showLegend?: boolean }) {
-  const W = 760, padL = 38, padR = 16, padT = 18, padB = 34;
+/* ── Pulse radar (8 dimensiones, escala 1-5) ─────────────────
+   values: dimensión → 0-100 interno; se muestra 1-5. */
+export function PulseRadar({
+  values, dims = PULSE_DIMS, size = 300, showValues = true,
+}: { values: Record<string, number>; dims?: PulseDim[]; size?: number; showValues?: boolean }) {
+  const n = dims.length;
+  const cx = size / 2, cy = size / 2, R = size / 2 - (showValues ? 52 : 16);
+  const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
+  const pt = (i: number, r: number) => [cx + r * Math.cos(angle(i)), cy + r * Math.sin(angle(i))] as const;
+  const ring = (frac: number) => dims.map((_, i) => pt(i, R * frac).map((v) => v.toFixed(1)).join(",")).join(" ");
+  const has = dims.some((d) => values[d.key] != null);
+  if (!has) {
+    return <div className="muted" style={{ textAlign: "center", padding: "28px 12px", fontSize: "var(--t-sm)" }}>Todavía no hay pulso con las 8 dimensiones. Aparece con la próxima sesión.</div>;
+  }
+  const shape = dims.map((d, i) => pt(i, R * Math.max(0.04, (values[d.key] ?? 0) / 100)).map((v) => v.toFixed(1)).join(",")).join(" ");
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+      {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" stroke="var(--line)" strokeWidth="1" />)}
+      {dims.map((d, i) => { const [x2, y2] = pt(i, R); return <line key={d.key} x1={cx} y1={cy} x2={x2} y2={y2} stroke="var(--line)" strokeWidth="1" />; })}
+      <polygon points={shape} fill="color-mix(in srgb, var(--green) 22%, transparent)" stroke="var(--green)" strokeWidth="2" strokeLinejoin="round" />
+      {dims.map((d, i) => {
+        const v = values[d.key];
+        const [px, py] = pt(i, R * Math.max(0.04, (v ?? 0) / 100));
+        const [lx, ly] = pt(i, R + (showValues ? 26 : 10));
+        const anchor = Math.abs(Math.cos(angle(i))) < 0.3 ? "middle" : Math.cos(angle(i)) > 0 ? "start" : "end";
+        return (
+          <g key={d.key}>
+            {v != null && <circle cx={px} cy={py} r={3.4} fill="var(--bg-1)" stroke={d.color} strokeWidth="2" />}
+            {showValues && (
+              <text x={lx} y={ly} textAnchor={anchor} fontSize="10.5" fill="var(--ink-2)" fontWeight="600">
+                {d.label.split(" ")[0]}
+                <tspan x={lx} dy="12" fontFamily="var(--mono)" fontWeight="800" fill={d.color}>{v != null ? to5(v).toFixed(1) : "—"}</tspan>
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/* ── Evolución del pulso: una línea con el promedio general (mostrado 1-5) ── */
+export function PulseTrend({ data, height = 180 }: { data: PulsePoint[]; height?: number }) {
+  const W = 760, padL = 30, padR = 16, padT = 14, padB = 30;
   const H = height;
   const innerW = W - padL - padR, innerH = H - padT - padB;
   const n = data.length;
+  if (!n) {
+    return <div className="muted" style={{ textAlign: "center", padding: "28px 12px", fontSize: "var(--t-sm)" }}>Todavía no hay datos de pulso. Aparecen cuando el equipo hace su primera sesión.</div>;
+  }
   const x = (i: number) => padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
   const y = (v: number) => padT + innerH - (v / 100) * innerH;
-  const grid = [0, 25, 50, 75, 100];
-  const [hi, setHi] = useState<string | null>(null);
-  if (!data || data.length === 0) {
-    return (
-      <div className="muted" style={{ textAlign: "center", padding: "32px 12px", fontSize: "var(--t-sm)" }}>
-        Todavía no hay datos de pulso. Aparecen cuando el equipo hace su primera sesión.
-      </div>
-    );
-  }
+  const pts = data.map((d, i) => [x(i), y(overallOf(d))] as [number, number]);
+  const path = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
   return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
-        {grid.map((g) => (
-          <g key={g}>
-            <line x1={padL} x2={W - padR} y1={y(g)} y2={y(g)} stroke="var(--line)" strokeWidth="1" />
-            <text x={padL - 8} y={y(g) + 4} textAnchor="end" fontSize="11" fill="var(--ink-3)" fontFamily="var(--mono)">{g}</text>
-          </g>
-        ))}
-        {data.map((d, i) => (
-          <text key={i} x={x(i)} y={H - 12} textAnchor="middle" fontSize="11.5" fill="var(--ink-2)" fontWeight="600">{d.label}</text>
-        ))}
-        {dims.map((dim) => {
-          const pts = data.map((d, i) => [x(i), y(d[dim.key])] as [number, number]);
-          const path = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
-          const dim2 = hi && hi !== dim.key;
-          return (
-            <g key={dim.key} style={{ opacity: dim2 ? 0.16 : 1, transition: "opacity .2s" }}
-              onMouseEnter={() => setHi(dim.key)} onMouseLeave={() => setHi(null)}>
-              <path d={path} fill="none" stroke={dim.color} strokeWidth={hi === dim.key ? 3.2 : 2.4} strokeLinecap="round" strokeLinejoin="round" />
-              {pts.map((p, i) => (
-                <circle key={i} cx={p[0]} cy={p[1]} r={i === pts.length - 1 ? 3.6 : 2.6} fill="var(--bg-1)" stroke={dim.color} strokeWidth="2" />
-              ))}
-            </g>
-          );
-        })}
-      </svg>
-      {showLegend && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8, justifyContent: "center" }}>
-          {dims.map((dim) => {
-            const last = data[data.length - 1][dim.key];
-            const dim2 = hi && hi !== dim.key;
-            return (
-              <div key={dim.key} onMouseEnter={() => setHi(dim.key)} onMouseLeave={() => setHi(null)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 7, cursor: "default", opacity: dim2 ? 0.4 : 1, transition: "opacity .2s" }}>
-                <span style={{ width: 11, height: 3, borderRadius: 2, background: dim.color }} />
-                <span style={{ fontSize: "var(--t-sm)", color: "var(--ink-1)" }}>{dim.label}</span>
-                <span className="num" style={{ fontSize: "var(--t-sm)", color: dim.color, fontWeight: 700 }}>{last}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+      {[0, 25, 50, 75, 100].map((g) => (
+        <g key={g}>
+          <line x1={padL} x2={W - padR} y1={y(g)} y2={y(g)} stroke="var(--line)" strokeWidth="1" />
+          <text x={padL - 8} y={y(g) + 4} textAnchor="end" fontSize="11" fill="var(--ink-3)" fontFamily="var(--mono)">{to5(g).toFixed(0)}</text>
+        </g>
+      ))}
+      {data.map((d, i) => <text key={i} x={x(i)} y={H - 10} textAnchor="middle" fontSize="11" fill="var(--ink-2)" fontWeight="600">{d.label}</text>)}
+      <path d={path} fill="none" stroke="var(--green)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r={i === pts.length - 1 ? 4 : 2.8} fill="var(--bg-1)" stroke="var(--green)" strokeWidth="2" />)}
+    </svg>
   );
 }
 

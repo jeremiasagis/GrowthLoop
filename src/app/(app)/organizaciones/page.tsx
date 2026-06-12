@@ -10,13 +10,13 @@ import {
 } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
-import { teamLiveStage, type Facilitator, type Org, type Team } from "@/lib/data";
+import { overallOf, teamLiveStage, to5, type Facilitator, type Org, type Team } from "@/lib/data";
 
 /* ── Tarjeta rica de equipo (vista del facilitador) ───────── */
 function TeamRichCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
   const isNew = team.sessions.length === 0 && team.pulse.length === 0;
-  const pulseSeries = team.pulse.map((p) => Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5));
+  const pulseSeries = team.pulse.map(overallOf);
   const activeInits = (team.initiatives ?? []).filter((i) => i.status === "active");
   const focusInit = activeInits[0];
   return (
@@ -50,9 +50,9 @@ function TeamRichCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div>
-            <div className="muted" style={{ fontSize: 10, marginBottom: 2 }}>Seguridad ψ</div>
+            <div className="muted" style={{ fontSize: 10, marginBottom: 2 }}>Confianza</div>
             <span className="num" style={{ fontWeight: 700, fontSize: "var(--t-base)", color: team.psychSafety === 0 ? "var(--ink-3)" : lowSafety ? "var(--warning)" : "var(--success)" }}>
-              {team.psychSafety === 0 ? "—" : `${team.psychSafety}%`}
+              {team.psychSafety === 0 ? "—" : `${to5(team.psychSafety).toFixed(1)}/5`}
             </span>
           </div>
           <div style={{ width: 1, height: 30, background: "var(--line)" }} />

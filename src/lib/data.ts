@@ -45,19 +45,38 @@ export function teamLiveStage(t: { initiatives?: { stage: StageKey; status: stri
   return act.reduce((best, i) => (CYCLE_STAGES.indexOf(i.stage) > CYCLE_STAGES.indexOf(best.stage) ? i : best)).stage;
 }
 
-// 5 health-pulse dimensions
+// Pulso del equipo: 8 dimensiones. Cada miembro puntúa 1-5 en anónimo;
+// internamente se guarda 0-100 (1→0, 5→100) para promediar y graficar.
 export interface PulseDim {
-  key: "confianza" | "comunic" | "claridad" | "foco" | "seguridad";
+  key: string;
   label: string;
   color: string;
 }
 export const PULSE_DIMS: PulseDim[] = [
-  { key: "confianza", label: "Confianza",    color: "#00E87A" },
-  { key: "comunic",   label: "Comunicación", color: "#3B82F6" },
-  { key: "claridad",  label: "Claridad",     color: "#7C3AED" },
-  { key: "foco",      label: "Foco",         color: "#06B6D4" },
-  { key: "seguridad", label: "Seguridad ψ",  color: "#F59E0B" },
+  { key: "comunic",        label: "Comunicación interna",     color: "#3B82F6" },
+  { key: "claridad",       label: "Claridad de objetivos",    color: "#7C3AED" },
+  { key: "confianza",      label: "Confianza entre miembros", color: "#00E87A" },
+  { key: "entregas",       label: "Calidad de las entregas",  color: "#06B6D4" },
+  { key: "cliente",        label: "Relación con el cliente",  color: "#F59E0B" },
+  { key: "carga",          label: "Carga de trabajo",         color: "#EF4444" },
+  { key: "decisiones",     label: "Toma de decisiones",       color: "#EC4899" },
+  { key: "reconocimiento", label: "Reconocimiento",           color: "#A3E635" },
 ];
+// Conversión entre la escala interna (0-100) y la que ve la gente (1-5).
+export const to5 = (v: number) => 1 + (v / 100) * 4;
+export const to100 = (v5: number) => Math.round(((v5 - 1) / 4) * 100);
+/** Valor 0-100 de una dimensión en un punto de pulso (nuevo jsonb o columnas legacy). */
+export function dimVal(p: PulsePoint, key: string): number | undefined {
+  if (p.dims && p.dims[key] != null) return p.dims[key];
+  const legacy = p as unknown as Record<string, number | undefined>;
+  return ["confianza", "comunic", "claridad", "foco", "seguridad"].includes(key) ? legacy[key] : undefined;
+}
+/** Promedio general 0-100 de un punto de pulso (sobre las dimensiones que tenga). */
+export function overallOf(p: PulsePoint): number {
+  const vals = p.dims ? Object.values(p.dims) : [p.confianza, p.comunic, p.claridad, p.foco, p.seguridad];
+  const nums = vals.filter((v): v is number => typeof v === "number");
+  return nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0;
+}
 
 // ── People ──
 export interface Person {
@@ -89,6 +108,7 @@ export interface PulsePoint {
   claridad: number;
   foco: number;
   seguridad: number;
+  dims?: Record<string, number>; // pulso nuevo: 8 dimensiones, 0-100
 }
 
 export interface SessionLog {

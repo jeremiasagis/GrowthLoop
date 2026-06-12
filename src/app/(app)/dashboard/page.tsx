@@ -5,16 +5,14 @@ import { Icon } from "@/components/icon";
 import {
   Avatar, AvatarStack, Button, Card, EmptyState, SectionTitle, Sparkline, StageBadge, Stat,
 } from "@/components/ui";
-import { STAGES, teamLiveStage, type Team } from "@/lib/data";
+import { STAGES, overallOf, teamLiveStage, to5, type Team } from "@/lib/data";
 import { getFacilitators, getTeams } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ── Team card ────────────────────────────────────────────── */
 function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
   const st = STAGES[teamLiveStage(team) ?? "queue"];
-  const pulseSeries = team.pulse.map((p) =>
-    Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5)
-  );
+  const pulseSeries = team.pulse.map(overallOf);
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
   const activeInits = (team.initiatives ?? []).filter((i) => i.status === "active");
   const focusInit = activeInits[0];
@@ -51,10 +49,10 @@ function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div>
-            <div className="muted" style={{ fontSize: 10, marginBottom: 2 }}>Seguridad ψ</div>
+            <div className="muted" style={{ fontSize: 10, marginBottom: 2 }}>Confianza</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span className="num" style={{ fontWeight: 700, fontSize: "var(--t-base)", color: lowSafety ? "var(--warning)" : "var(--success)" }}>
-                {team.psychSafety}%
+                {team.psychSafety === 0 ? "—" : `${to5(team.psychSafety).toFixed(1)}/5`}
               </span>
               {lowSafety && (
                 <span style={{ color: "var(--warning)", display: "inline-flex" }} title="Bajo umbral">
@@ -132,7 +130,7 @@ export default function DashboardPage() {
   const alerts: DashAlert[] = [];
   for (const t of teams) {
     if (t.psychSafety > 0 && t.psychSafety < 70)
-      alerts.push({ type: "warning", icon: "HeartPulse", text: "Seguridad psicológica baja", team: t.name, sub: `pulso ${t.psychSafety}%`, teamId: t.id });
+      alerts.push({ type: "warning", icon: "HeartPulse", text: "Confianza baja en el equipo", team: t.name, sub: `confianza ${to5(t.psychSafety).toFixed(1)}/5`, teamId: t.id });
     const paused = (t.initiatives ?? []).filter((i) => i.status === "paused").length;
     if (paused) alerts.push({ type: "info", icon: "CirclePause", text: `${paused} ${paused === 1 ? "iniciativa en pausa" : "iniciativas en pausa"}`, team: t.name, sub: "para retomar", teamId: t.id });
     if ((t.sessions?.length ?? 0) === 0 && (t.initiatives?.length ?? 0) === 0)

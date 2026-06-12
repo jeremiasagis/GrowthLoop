@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { getFacilitators, getTeam } from "@/lib/repository";
-import { PULSE_DIMS, STAGES, type Initiative } from "@/lib/data";
+import { PULSE_DIMS, STAGES, dimVal, overallOf, to5, type Initiative } from "@/lib/data";
 
 const C = {
   page: "#eef1f5", doc: "#ffffff", ink: "#0f172a", soft: "#475569", faint: "#94a3b8",
@@ -31,16 +31,16 @@ export default function ReportePage() {
   const pulse = team.pulse;
   const last = pulse[pulse.length - 1];
   const first = pulse[0];
-  const overall = last ? Math.round((last.confianza + last.comunic + last.claridad + last.foco + last.seguridad) / 5) : 0;
-  const overallFirst = first ? Math.round((first.confianza + first.comunic + first.claridad + first.foco + first.seguridad) / 5) : null;
-  const pulseDelta = last && overallFirst !== null ? overall - overallFirst : null;
+  const overall = last ? overallOf(last) : 0;
+  const overallFirst = first ? overallOf(first) : null;
+  const pulseDelta = last && overallFirst !== null ? to5(overall) - to5(overallFirst) : null;
   const sessions = team.sessions.slice(0, 12);
 
   const kpis = [
     { label: "Iniciativas en curso", value: activeInits, icon: "Target" },
     { label: "Sesiones realizadas", value: team.sessions.length, icon: "History" },
-    { label: "Pulso actual", value: last ? `${overall}/100` : "—", icon: "Activity" },
-    { label: "Seguridad ψ", value: team.psychSafety ? `${team.psychSafety}%` : "—", icon: "HeartPulse" },
+    { label: "Pulso actual", value: last ? `${to5(overall).toFixed(1)}/5` : "—", icon: "Activity" },
+    { label: "Confianza", value: team.psychSafety ? `${to5(team.psychSafety).toFixed(1)}/5` : "—", icon: "HeartPulse" },
   ];
 
   const box: React.CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 12, padding: 18, background: C.doc };
@@ -100,12 +100,12 @@ export default function ReportePage() {
         {/* pulso (salud del equipo) */}
         <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 12 }}>
           Salud del equipo
-          {pulseDelta !== null && <span style={{ fontSize: 13, fontWeight: 700, color: pulseDelta >= 0 ? C.green : "#dc2626", marginLeft: 10 }}>{pulseDelta >= 0 ? "+" : ""}{pulseDelta} pts desde el inicio</span>}
+          {pulseDelta !== null && <span style={{ fontSize: 13, fontWeight: 700, color: pulseDelta >= 0 ? C.green : "#dc2626", marginLeft: 10 }}>{pulseDelta >= 0 ? "+" : ""}{pulseDelta.toFixed(1)} pts desde el inicio</span>}
         </h2>
         <div style={{ ...box, marginBottom: 28 }}>
           {pulse.length > 1 && (() => {
             // Evolución del pulso general a lo largo de las sesiones (print-friendly).
-            const ov = pulse.map((p) => Math.round((p.confianza + p.comunic + p.claridad + p.foco + p.seguridad) / 5));
+            const ov = pulse.map(overallOf);
             const w = 700, h = 70;
             const pts = ov.map((v, i) => `${((i / (ov.length - 1)) * w).toFixed(1)},${(h - (v / 100) * h).toFixed(1)}`).join(" ");
             return (
@@ -121,13 +121,15 @@ export default function ReportePage() {
           {last ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {PULSE_DIMS.map((d) => {
-                const v = last[d.key];
-                const delta = first ? v - first[d.key] : 0;
+                const v = dimVal(last, d.key);
+                if (v == null) return null;
+                const f = first ? dimVal(first, d.key) : undefined;
+                const delta = f != null ? to5(v) - to5(f) : 0;
                 return (
                   <div key={d.key}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 13 }}>
                       <span style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, display: "inline-block" }} />{d.label}</span>
-                      <span style={{ fontWeight: 700 }}>{v}{delta !== 0 && <span style={{ color: delta > 0 ? C.green : "#dc2626", fontWeight: 600, marginLeft: 6 }}>{delta > 0 ? "+" : ""}{delta}</span>}</span>
+                      <span style={{ fontWeight: 700 }}>{to5(v).toFixed(1)}{delta !== 0 && <span style={{ color: delta > 0 ? C.green : "#dc2626", fontWeight: 600, marginLeft: 6 }}>{delta > 0 ? "+" : ""}{delta.toFixed(1)}</span>}</span>
                     </div>
                     <div style={{ height: 8, borderRadius: 99, background: C.chip, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${v}%`, background: d.color, borderRadius: 99 }} />

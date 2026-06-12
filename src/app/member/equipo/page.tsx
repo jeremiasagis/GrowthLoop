@@ -1,10 +1,10 @@
 "use client";
 
 import { Icon } from "@/components/icon";
-import { Avatar, Bar, Card, Pill, StageBadge } from "@/components/ui";
+import { Avatar, Bar, Card, Pill, PulseRadar, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getTeam } from "@/lib/repository";
-import { PULSE_DIMS, teamLiveStage } from "@/lib/data";
+import { PULSE_DIMS, dimVal, teamLiveStage, to5 } from "@/lib/data";
 
 export default function MemberEquipo() {
   const { user } = useAuth();
@@ -36,7 +36,7 @@ export default function MemberEquipo() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 12, marginBottom: 22 }}>
         <Card pad={14}><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{team.members.length}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>Integrantes</div></Card>
         <Card pad={14}><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{team.sessions.length}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>Sesiones</div></Card>
-        <Card pad={14}><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, color: team.psychSafety === 0 ? "var(--ink-3)" : lowSafety ? "var(--warning)" : "var(--success)" }}>{team.psychSafety === 0 ? "—" : `${team.psychSafety}%`}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>Seguridad ψ</div></Card>
+        <Card pad={14}><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, color: team.psychSafety === 0 ? "var(--ink-3)" : lowSafety ? "var(--warning)" : "var(--success)" }}>{team.psychSafety === 0 ? "—" : `${to5(team.psychSafety).toFixed(1)}/5`}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>Confianza</div></Card>
       </div>
 
       <div className="team-grid">
@@ -45,13 +45,14 @@ export default function MemberEquipo() {
             <div style={{ fontWeight: 800, fontSize: "var(--t-md)", marginBottom: 14 }}>Pulso del equipo</div>
             {lastPulse ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {PULSE_DIMS.map((d) => { const delta = first ? lastPulse[d.key] - first[d.key] : 0; return (
+                <PulseRadar values={lastPulse.dims ?? {}} size={300} />
+                {PULSE_DIMS.map((d) => { const v = dimVal(lastPulse, d.key); if (v == null) return null; const f = first ? dimVal(first, d.key) : undefined; const delta = f != null ? to5(v) - to5(f) : 0; return (
                   <div key={d.key}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
                       <span style={{ fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color }} />{d.label}</span>
-                      <span className="num" style={{ fontWeight: 700, color: d.color }}>{lastPulse[d.key]}{delta !== 0 && <span style={{ color: delta > 0 ? "var(--success)" : "var(--risk)", marginLeft: 6, fontSize: "var(--t-xs)" }}>{delta > 0 ? "+" : ""}{delta}</span>}</span>
+                      <span className="num" style={{ fontWeight: 700, color: d.color }}>{to5(v).toFixed(1)}{delta !== 0 && <span style={{ color: delta > 0 ? "var(--success)" : "var(--risk)", marginLeft: 6, fontSize: "var(--t-xs)" }}>{delta > 0 ? "+" : ""}{delta.toFixed(1)}</span>}</span>
                     </div>
-                    <Bar value={lastPulse[d.key]} color={d.color} />
+                    <Bar value={v} color={d.color} />
                   </div>
                 ); })}
               </div>

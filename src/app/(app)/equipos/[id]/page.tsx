@@ -5,13 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
   AlertBanner, Avatar, AvatarStack, Bar, Button, Card, CopyLink, EmptyState, Pill,
-  PulseChart, SectionTitle, StageBadge, Trend,
+  PulseRadar, PulseTrend, SectionTitle, StageBadge, Trend,
 } from "@/components/ui";
 import {
   createInitiative, createObjective, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
   removeTeamMember, setInitiativeObjective, setInitiativeStage, setInitiativeStatus, setObjectiveStatus, setTeamCadence, setTeamObjective, updateInitiative,
 } from "@/lib/repository";
-import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, teamLiveStage, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
+import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, teamLiveStage, to5, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { createLiveSession } from "@/lib/session";
@@ -97,12 +97,18 @@ function PulseDetail({ team }: { team: Team }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <Card pad={20}>
-        <SectionTitle icon="Activity" sub="5 dimensiones a lo largo de las sesiones">Pulso del equipo</SectionTitle>
-        <PulseChart data={team.pulse} dims={PULSE_DIMS} height={300} />
+        <SectionTitle icon="Radar" sub="El radar promedio de la última medición (escala 1-5)">Radar del equipo</SectionTitle>
+        <div style={{ maxWidth: 460, margin: "0 auto" }}><PulseRadar values={last.dims ?? {}} size={380} /></div>
+      </Card>
+      <Card pad={20}>
+        <SectionTitle icon="Activity" sub="Promedio general a lo largo de las sesiones">Evolución del pulso</SectionTitle>
+        <PulseTrend data={team.pulse} height={220} />
       </Card>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 14 }}>
         {PULSE_DIMS.map((d) => {
-          const delta = last[d.key] - first[d.key];
+          const lastV = dimVal(last, d.key), firstV = dimVal(first, d.key);
+          if (lastV == null) return null;
+          const delta = firstV != null ? to5(lastV) - to5(firstV) : 0;
           return (
             <Card key={d.key} pad={16}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -110,8 +116,8 @@ function PulseDetail({ team }: { team: Team }) {
                 <span style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{d.label}</span>
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 700 }}>{last[d.key]}</span>
-                <Trend dir={delta >= 0 ? "up" : "down"} value={(delta >= 0 ? "+" : "") + delta} />
+                <span className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 700 }}>{to5(lastV).toFixed(1)}</span>
+                <Trend dir={delta >= 0 ? "up" : "down"} value={(delta >= 0 ? "+" : "") + delta.toFixed(1)} />
               </div>
             </Card>
           );
@@ -518,16 +524,16 @@ function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; is
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <Card pad={20}>
-        <SectionTitle icon="Activity" sub="Promedio de las dimensiones"
+        <SectionTitle icon="Radar" sub="El radar de la última medición (1-5)"
           right={<button onClick={onOpenPulse} style={{ color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}>Detalle</button>}>
           Pulso del equipo
         </SectionTitle>
-        <PulseChart data={team.pulse} dims={PULSE_DIMS} height={200} />
+        <PulseRadar values={team.pulse.length ? (team.pulse[team.pulse.length - 1].dims ?? {}) : {}} size={300} />
       </Card>
       <Card pad={20}>
         <SectionTitle icon="HeartPulse">Salud rápida</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Row label="Seguridad ψ" value={team.psychSafety + "%"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
+          <Row label="Confianza" value={team.psychSafety ? to5(team.psychSafety).toFixed(1) + "/5" : "—"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
           <Row label="Iniciativas en curso" value={inits.filter((i) => i.status === "active").length} />
           <Row label="Ideación en curso" value={inits.filter((i) => i.stage === "proof" && i.status === "active").length} />
           <Row label="Sesiones realizadas" value={team.sessions.length} />
@@ -885,9 +891,9 @@ export default function TeamPage() {
 
       {lowSafety && (
         <div style={{ marginBottom: 18 }}>
-          <AlertBanner type="warning" icon="ShieldAlert" title="Seguridad psicológica baja"
-            action={<Button size="sm" variant="secondary" onClick={() => show("Abriendo el protocolo de seguridad psicológica…", "ShieldAlert")}>Ver protocolo</Button>}>
-            El puntaje del equipo es <b className="num">{team.psychSafety}%</b>, por debajo del umbral de 70%. Cuidá el clima antes de profundizar en causas.
+          <AlertBanner type="warning" icon="ShieldAlert" title="Confianza baja en el equipo"
+            action={<Button size="sm" variant="secondary" onClick={() => show("Abriendo el protocolo de clima del equipo…", "ShieldAlert")}>Ver protocolo</Button>}>
+            La confianza entre miembros está en <b className="num">{to5(team.psychSafety).toFixed(1)}/5</b>, por debajo del umbral. Cuidá el clima antes de profundizar en causas.
           </AlertBanner>
         </div>
       )}

@@ -7,7 +7,7 @@ import { AvatarStack, Button, Card, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getInitiatives, getTeam } from "@/lib/repository";
 import { getOpenSessionForTeam, subscribeTeamSessions, type LiveSession } from "@/lib/session";
-import { teamLiveStage } from "@/lib/data";
+import { overallOf, teamLiveStage } from "@/lib/data";
 
 export default function MemberHome() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function MemberHome() {
   const inits = getInitiatives(team.id);
   const activeInits = inits.filter((i) => i.status === "active").length;
   const lastPulse = team.pulse[team.pulse.length - 1];
-  const overall = lastPulse ? Math.round((lastPulse.confianza + lastPulse.comunic + lastPulse.claridad + lastPulse.foco + lastPulse.seguridad) / 5) : 0;
+  const overall = lastPulse ? overallOf(lastPulse) : 0;
   const links = [
     { href: "/member/equipo", label: "Mi equipo", icon: "Users", desc: "Organización, facilitador e integrantes" },
     { href: "/member/iniciativas", label: "Iniciativas", icon: "Target", desc: "En qué trabaja el equipo" },
