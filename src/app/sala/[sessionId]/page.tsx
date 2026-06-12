@@ -2284,10 +2284,20 @@ export default function SalaPage() {
 
   // ── Tablero-escena: la retro como dibujo, cada pregunta en su zona ──
   // (sailboat por ahora; sumar acá las próximas escenas).
-  const SCENES: Record<string, { bg: string; center: string; horizon?: number; order: string[] }> = {
+  const SCENES: Record<string, { bg: string; center: string; centerTop?: number; horizon?: number; order: string[]; fullLast?: boolean; deco?: { e: string; left: string; top: string; size: number }[] }> = {
     sailboat: {
       bg: "linear-gradient(180deg, color-mix(in srgb, #38bdf8 18%, var(--bg-2)) 0%, color-mix(in srgb, #38bdf8 9%, var(--bg-2)) 54%, color-mix(in srgb, #0ea5e9 24%, var(--bg-2)) 54.2%, color-mix(in srgb, #0c4a6e 30%, var(--bg-2)) 100%)",
       center: "⛵", horizon: 54, order: ["wind", "island", "anchor", "rocks"],
+      deco: [{ e: "☁️", left: "38%", top: "8%", size: 26 }, { e: "🌅", left: "62%", top: "12%", size: 22 }],
+    },
+    balloon: {
+      bg: "linear-gradient(180deg, color-mix(in srgb, #7dd3fc 22%, var(--bg-2)) 0%, color-mix(in srgb, #38bdf8 12%, var(--bg-2)) 60%, color-mix(in srgb, #86efac 14%, var(--bg-2)) 100%)",
+      center: "🎈", centerTop: 44, order: ["fire", "storm", "sand"], fullLast: true,
+      deco: [{ e: "☁️", left: "30%", top: "10%", size: 24 }, { e: "☁️", left: "66%", top: "16%", size: 20 }, { e: "🌄", left: "48%", top: "84%", size: 24 }],
+    },
+    madsadglad: {
+      bg: "linear-gradient(135deg, color-mix(in srgb, #EF4444 9%, var(--bg-2)) 0%, color-mix(in srgb, #3B82F6 9%, var(--bg-2)) 50%, color-mix(in srgb, #22C55E 10%, var(--bg-2)) 100%)",
+      center: "🎭", centerTop: 44, order: ["mad", "sad", "glad"], fullLast: true,
     },
   };
   const scene = SCENES[session.type];
@@ -2328,9 +2338,21 @@ export default function SalaPage() {
     return (
       <div style={{ position: "relative", borderRadius: "var(--r-lg)", border: "1px solid var(--line)", overflow: "hidden", background: scene.bg }}>
         {scene.horizon != null && <div aria-hidden style={{ position: "absolute", left: 0, right: 0, top: `${scene.horizon}%`, borderTop: "2px solid color-mix(in srgb, #7dd3fc 30%, transparent)" }} />}
-        <div className="scene-center" aria-hidden style={{ position: "absolute", left: "50%", top: "52%", fontSize: 80, animation: "gl-float 4.5s ease-in-out infinite", pointerEvents: "none", zIndex: 0, filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.3))" }}>{scene.center}</div>
+        {(scene.deco ?? []).map((d, i) => (
+          <span key={i} className="scene-center" aria-hidden style={{ position: "absolute", left: d.left, top: d.top, fontSize: d.size, opacity: 0.7, pointerEvents: "none", zIndex: 0 }}>{d.e}</span>
+        ))}
+        <div className="scene-center" aria-hidden style={{ position: "absolute", left: "50%", top: `${scene.centerTop ?? 52}%`, fontSize: 80, animation: "gl-float 4.5s ease-in-out infinite", pointerEvents: "none", zIndex: 0, filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.3))" }}>{scene.center}</div>
         <div className="scene-grid" style={{ zIndex: 1 }}>
-          {scene.order.map((k) => { const col = RCOLS.find((c) => c.key === k); return col ? Panel(col) : null; })}
+          {scene.order.map((k, i) => {
+            const col = RCOLS.find((c) => c.key === k);
+            if (!col) return null;
+            const isFull = scene.fullLast && i === scene.order.length - 1;
+            return (
+              <div key={col.key} style={isFull ? { gridColumn: "1 / -1", maxWidth: 480, width: "100%", justifySelf: "center" } : undefined}>
+                {Panel(col)}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
