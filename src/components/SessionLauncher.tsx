@@ -16,13 +16,13 @@ import { createLiveSession } from "@/lib/session";
 import { retrosForStage, type RetroDefinition } from "@/lib/retros/registry";
 import { CYCLE_STAGES, STAGES, normalizeStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
-export function SessionLauncher({ team, initiative, onClose }: { team: Team; initiative?: Initiative; onClose: () => void }) {
+export function SessionLauncher({ team, initiative, initialStage, onClose }: { team: Team; initiative?: Initiative; initialStage?: StageKey; onClose: () => void }) {
   const router = useRouter();
   const { show } = useToast();
   const curIdx = initiative ? CYCLE_STAGES.indexOf(normalizeStage(initiative.stage)) : -1;
-  const [stage, setStage] = useState<StageKey | null>(initiative ? normalizeStage(initiative.stage) : null);
+  const [stage, setStage] = useState<StageKey | null>(initialStage ?? (initiative ? normalizeStage(initiative.stage) : null));
   const [retro, setRetro] = useState<RetroDefinition | null>(null);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(initialStage ? 2 : 1);
   const [busy, setBusy] = useState(false);
 
   // Retros ya hechas por el equipo (por nombre en el historial de sesiones).

@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { createLiveSession } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
+import { retrosForStage } from "@/lib/retros/registry";
 
 function SessionsLog({ team }: { team: Team }) {
   const [n, setN] = useState(8);
@@ -550,6 +551,82 @@ function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; is
   );
 }
 
+/** Módulo de Exploración: diagnóstico del equipo, fuera del ciclo. */
+function ExploracionSection({ team, isFacil }: { team: Team; isFacil: boolean }) {
+  const [launcherOpen, setLauncherOpen] = useState(false);
+  const EXPLORE_TYPES = ["explore", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "sailboat", "circles", "relationships", "expclose"];
+  const expSessions = team.sessions.filter((s) => EXPLORE_TYPES.includes(s.stage));
+  const closedAt = (team.data as { explorationClosedAt?: string } | undefined)?.explorationClosedAt;
+  const catalog = retrosForStage("exploration").filter((r) => r.id !== "exploration-close");
+  const doneNames = new Set(expSessions.map((s) => s.retro));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {launcherOpen && <SessionLauncher team={team} initialStage="exploration" onClose={() => setLauncherOpen(false)} />}
+      <Card pad={20} style={{ border: "1.5px dashed color-mix(in srgb, var(--st-explore) 55%, var(--line))", background: "color-mix(in srgb, var(--st-explore) 6%, transparent)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ width: 42, height: 42, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 16%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Telescope" size={21} /></span>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Exploración <span className="muted" style={{ fontWeight: 500, fontSize: "var(--t-xs)" }}>· módulo de diagnóstico, fuera del ciclo</span></div>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Para descubrir qué trabajar. Hagan las retros que necesiten y cierren con el mapa de mejoras. Si ya saben qué mejorar, pueden arrancar directo en Objetivos.</p>
+          </div>
+          {closedAt && <Pill color="var(--success)" bg="var(--success-bg)" icon="Map">Mapa generado · {new Date(closedAt).toLocaleDateString("es", { day: "2-digit", month: "short" })}</Pill>}
+        </div>
+        {isFacil && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+            <Button size="sm" icon="Users" onClick={() => setLauncherOpen(true)}>Abrir sesión de Exploración</Button>
+          </div>
+        )}
+      </Card>
+
+      <Card pad={20}>
+        <SectionTitle icon="Layers" sub="El equipo elige cuáles hacer y en qué orden">Retros del módulo ({catalog.length})</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 10 }}>
+          {catalog.map((r) => {
+            const done = doneNames.has(r.name);
+            return (
+              <div key={r.id} style={{ display: "flex", gap: 10, padding: "11px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", opacity: 1 }}>
+                <span style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-2)", flexShrink: 0, marginTop: 2 }}><Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={15} /></span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
+                    {done && <Pill color="var(--success)" bg="var(--success-bg)" icon="Check">hecha</Pill>}
+                    {r.sensitive && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="ShieldAlert">sensible</Pill>}
+                  </div>
+                  <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{r.description}</div>
+                </div>
+                <span className="num muted" style={{ fontSize: "var(--t-xs)", flexShrink: 0 }}>{r.duration}′</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card pad={20}>
+        <SectionTitle icon="History" sub="Lo que el equipo ya exploró">Sesiones de Exploración ({expSessions.length})</SectionTitle>
+        {expSessions.length === 0
+          ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Todavía no hicieron ninguna retro de Exploración.</p>
+          : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {expSessions.map((s) => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-sm)", flexWrap: "wrap" }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 99, border: "2px solid var(--st-explore)", flexShrink: 0 }} />
+                  <span style={{ fontWeight: 600 }}>{s.retro}</span>
+                  <span className="muted" style={{ flex: 1, minWidth: 120, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.out}</span>
+                  <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{s.date}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        {isFacil && !closedAt && expSessions.length > 0 && (
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name="Map" size={13} style={{ color: "var(--st-explore)" }} /> ¿Ya exploraron suficiente? Abran la retro <b>Cierre de Exploración</b> para votar prioridades y generar el mapa de mejoras.
+          </p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 /** Objetivos del equipo (varios): cada uno agrupa iniciativas. */
 function ObjetivosSection({ team, isFacil, onChanged, onGoIniciativas }: { team: Team; isFacil: boolean; onChanged: () => void; onGoIniciativas?: () => void }) {
   const router = useRouter();
@@ -846,6 +923,7 @@ export default function TeamPage() {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
 
   const TABS = [
+    { key: "exploracion", label: "Exploración", icon: "Telescope" },
     { key: "objetivos", label: "Objetivos", icon: "Compass" },
     { key: "seguimiento", label: "Iniciativas", icon: "Target" },
     { key: "pulso", label: "Pulso", icon: "Activity" },
@@ -900,6 +978,15 @@ export default function TeamPage() {
 
       <PrimerosPasos team={team} isFacil={isFacil} onInvite={() => setInviteOpen(true)} onGoTab={setTab} />
       <div style={{ marginBottom: 20 }}><Tabs tabs={TABS} active={tab} onChange={setTab} /></div>
+
+      {tab === "exploracion" && (
+        <div className="team-grid">
+          <div style={{ minWidth: 0 }}>
+            <ExploracionSection team={getTeam(team.id) ?? team} isFacil={isFacil} />
+          </div>
+          <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onChanged={() => setTeamNonce((n) => n + 1)} />
+        </div>
+      )}
 
       {tab === "objetivos" && (
         <div className="team-grid">
