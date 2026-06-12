@@ -13,6 +13,8 @@ import { getInitiatives, getTeam } from "@/lib/repository";
 import { retroByKey } from "@/lib/retros";
 import { retroById } from "@/lib/retros/registry";
 import { WordCloud } from "@/components/WordCloud";
+import { TimelineBoard, TL_EMO, type TlEvent } from "@/components/TimelineBoard";
+import { CirclesDiagram, CIRCLE_META, type CircleKey } from "@/components/CirclesDiagram";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -81,6 +83,8 @@ const STEP_SEQ: Record<string, string[]> = {
   sailboat: ["cards", "cards_reveal", "cluster", "vote", "close"],
   oneword: ["word", "word_reveal", "close"],
   teamradar: ["setup", "rate", "radar_reveal"],
+  timeline: ["build", "tload", "timeline_reveal"],
+  circles: ["brain", "classify", "soup_close"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -139,6 +143,8 @@ export default function SalaPage() {
   const [afterClose, setAfterClose] = useState<string | null>(null);
   // Foco: qué causa está "en la mano" para ubicar en el mapa único.
   const [focusSel, setFocusSel] = useState<string | null>(null);
+  // Timeline: hito y emoción elegidos para el próximo evento del miembro.
+  const [tlPick, setTlPick] = useState<{ m: number; emo: "pos" | "neu" | "neg" }>({ m: 0, emo: "pos" });
   const sessionId = params.sessionId;
   // Resultado "más fresco que el poll": evita que dos ediciones seguidas (< 2s) se pisen
   // entre sí — cada patch local se acumula acá y los setters leen de este ref, no del estado.
@@ -873,6 +879,237 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 640 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ TIMELINE · hitos + eventos con emoción ════════
+  if (session.type === "timeline") {
+    const milestones = (session.result.tlMilestones as string[]) ?? [];
+    const evCards = allCards.filter((c) => c.columnKey.startsWith("ev:"));
+    const events: TlEvent[] = evCards.map((c) => {
+      const [, mi, emo] = c.columnKey.split(":");
+      return { mIdx: Number(mi) || 0, emo: (["pos", "neu", "neg"].includes(emo) ? emo : "neu") as TlEvent["emo"], text: c.text, author: c.authorId ? participants.find((p) => p.userId === c.authorId)?.name : undefined };
+    });
+    const myEvents = myCards.filter((c) => c.columnKey.startsWith("ev:"));
+    const patterns = (session.result.tlPatterns as string[]) ?? [];
+    const addMilestone = () => { const t = (cardDraft.mile ?? "").trim(); if (!t) return; patchResult({ tlMilestones: [...milestones, t] }); setCardDraft((d) => ({ ...d, mile: "" })); };
+    const addEvent = async () => {
+      const t = (cardDraft.tlev ?? "").trim(); if (!t) return;
+      await addCard(sessionId, `ev:${tlPick.m}:${tlPick.emo}`, t, false);
+      setCardDraft((d) => ({ ...d, tlev: "" }));
+      if (user) setMyCards(await getMyCards(sessionId, user.id));
+    };
+    const addPattern = () => { const t = (cardDraft.tlpat ?? "").trim(); if (!t) return; patchResult({ tlPatterns: [...patterns, t] }); setCardDraft((d) => ({ ...d, tlpat: "" })); };
+    const tlFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, { pulseAvg: avg, cardCount: evCards.length, summaryText: `Timeline: ${evCards.length} eventos${patterns.length ? ` · ${patterns.length} patrones` : ""}` });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "build") {
+      sub = isFacil ? "Armá el eje: los hitos del período (entregas, cambios, eventos)." : "El facilitador arma la línea de tiempo del período.";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {milestones.map((m, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="num" style={{ width: 22, color: "var(--green)", fontWeight: 800 }}>{i + 1}</span>
+                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{m}</span>
+                {isFacil && <button onClick={() => patchResult({ tlMilestones: milestones.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
+              </div>
+            ))}
+            {!milestones.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Ej: “Lanzamiento v2”, “Cambio de líder”, “Cierre de trimestre”…</p>}
+          </div>
+          {isFacil && (
+            <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+              <input value={cardDraft.mile ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, mile: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addMilestone()} placeholder="Agregar hito…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={addMilestone}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || milestones.length < 2} onClick={async () => { setBusy(true); await setStep(sessionId, "tload", 1); setBusy(false); }}>Cargar eventos ({milestones.length} hitos)</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>En un momento van a cargar sus eventos.</p>;
+    } else if (step === "tload") {
+      sub = "Sumá eventos que recuerdes del período y cómo te sentiste en cada uno.";
+      content = (
+        <Card pad={20}>
+          {isFacil ? (
+            <div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{evCards.length}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>eventos cargados · ocultos hasta revelar</div></div>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+                <select value={tlPick.m} onChange={(e) => setTlPick((s) => ({ ...s, m: Number(e.target.value) }))} style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 10px", fontSize: "var(--t-sm)", outline: "none" }}>
+                  {milestones.map((m, i) => <option key={i} value={i}>Cerca de: {m}</option>)}
+                </select>
+                <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                  {(Object.entries(TL_EMO) as [TlEvent["emo"], typeof TL_EMO[keyof typeof TL_EMO]][]).map(([k, e]) => (
+                    <button key={k} onClick={() => setTlPick((s) => ({ ...s, emo: k }))} style={{ padding: "7px 14px", borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 700, border: `1.5px solid ${tlPick.emo === k ? e.color : "var(--line-2)"}`, background: tlPick.emo === k ? `color-mix(in srgb, ${e.color} 16%, var(--card))` : "var(--card)" }}>{e.emoji} {e.label}</button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input value={cardDraft.tlev ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, tlev: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addEvent()} placeholder="¿Qué pasó?" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+                  <Button size="sm" icon="Plus" onClick={addEvent}>Sumar</Button>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {myEvents.map((c) => { const [, mi, emo] = c.columnKey.split(":"); const e = TL_EMO[(emo as TlEvent["emo"])] ?? TL_EMO.neu; return (
+                  <div key={c.id} style={{ fontSize: "var(--t-xs)", padding: "7px 9px", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${e.color}`, borderRadius: "var(--r-sm)" }}>{e.emoji} {c.text} <span className="faint">· {milestones[Number(mi)] ?? ""}</span></div>
+                ); })}
+              </div>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>{evCards.length} eventos del equipo · se revelan todos juntos</p>
+            </>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || evCards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "timeline_reveal", 2); setBusy(false); }}>Revelar timeline ({evCards.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador revela el timeline completo.</p>;
+    } else {
+      wide = true;
+      sub = "El timeline del equipo, de izquierda a derecha. ¿Dónde vivieron cosas distintas?";
+      content = (
+        <>
+          <Card pad={20} style={{ marginBottom: 14 }}>
+            <TimelineBoard milestones={milestones} events={events} />
+          </Card>
+          <Card pad={16}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Patrones del período ({patterns.length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {patterns.map((p, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name="Sparkles" size={13} style={{ color: "var(--green)" }} /><span style={{ flex: 1 }}>{p}</span>{isFacil && <button onClick={() => patchResult({ tlPatterns: patterns.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={13} /></button>}</div>)}
+              {!patterns.length && <p className="muted" style={{ fontSize: "var(--t-xs)", fontStyle: "italic" }}>“¿Qué momento fue el más difícil? ¿Qué hizo tan bueno al mejor?” — el facilitador registra 2-3 patrones.</p>}
+            </div>
+            {isFacil && (
+              <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+                <input value={cardDraft.tlpat ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, tlpat: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addPattern()} placeholder="Registrar patrón…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+                <Button size="sm" icon="Plus" onClick={addPattern}>Sumar</Button>
+              </div>
+            )}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={tlFinish}>{busy ? "Guardando…" : "Cerrar y guardar el timeline"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador sintetiza los patrones y cierra.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ CIRCLES & SOUP · control, influencia y sopa ════════
+  if (session.type === "circles") {
+    const worries = allCards.filter((c) => c.columnKey === "worry");
+    const circleMap = (session.result.circleMap as Record<string, CircleKey>) ?? {};
+    const counts3: Record<CircleKey, number> = { control: 0, influence: 0, soup: 0 };
+    for (const w of worries) { const k = circleMap[w.id]; if (k) counts3[k] += 1; }
+    const unclassified = worries.filter((w) => !circleMap[w.id]);
+    const ORDER: CircleKey[] = ["control", "influence", "soup"];
+    const cycleCircle = (id: string) => {
+      const cur = circleMap[id];
+      const next = cur ? ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length] : "control";
+      patchResult({ circleMap: { ...((resultRef.current.circleMap as Record<string, CircleKey>) ?? {}), [id]: next } });
+    };
+    const addWorry = async () => {
+      const t = (cardDraft.worry ?? "").trim(); if (!t) return;
+      await addCard(sessionId, "worry", t, false);
+      setCardDraft((d) => ({ ...d, worry: "" }));
+      if (user) setMyCards(await getMyCards(sessionId, user.id));
+    };
+    const csFinish = async () => {
+      setBusy(true);
+      const candidates = worries.filter((w) => circleMap[w.id] === "control").map((w) => w.text);
+      await setResult(sessionId, { circleCandidates: candidates });
+      await finalizeSession(session, { pulseAvg: avg, cardCount: worries.length, summaryText: `Circles & Soup: ${counts3.control} en control · ${counts3.soup} en la sopa` });
+      setBusy(false); leave();
+    };
+    const WorryCard = ({ w }: { w: SessionCard }) => {
+      const k = circleMap[w.id];
+      const color = k ? CIRCLE_META[k].color : "var(--line-2)";
+      return (
+        <button disabled={!isFacil || step !== "classify"} onClick={() => cycleCircle(w.id)} title={isFacil ? "Tocar para mover de círculo" : undefined}
+          style={{ textAlign: "left", fontSize: "var(--t-xs)", padding: "7px 9px", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${color}`, borderRadius: "var(--r-sm)", lineHeight: 1.4, cursor: isFacil && step === "classify" ? "pointer" : "default" }}>
+          {w.text}
+        </button>
+      );
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "brain") {
+      sub = "Vuelquen todas las trabas y preocupaciones del equipo. Sin clasificar todavía.";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 8 }}>
+            {worries.map((w) => <div key={w.id} style={{ fontSize: "var(--t-xs)", padding: "7px 9px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", lineHeight: 1.4 }}>{w.text}</div>)}
+            {!worries.length && <p className="muted" style={{ gridColumn: "1/-1", fontSize: "var(--t-sm)", fontStyle: "italic", textAlign: "center", padding: 10 }}>Todo lo que traba al equipo, una idea por tarjeta.</p>}
+          </div>
+          {!isFacil && (
+            <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+              <input value={cardDraft.worry ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, worry: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addWorry()} placeholder="Sumar preocupación…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={addWorry}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || worries.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "classify", 1); setBusy(false); }}>Clasificar en círculos ({worries.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Cuando estén todas, las clasifican juntos.</p>;
+    } else if (step === "classify" || step === "soup_close") {
+      wide = true;
+      sub = step === "classify"
+        ? (isFacil ? "Debatan dónde va cada una; tocá una tarjeta para moverla de círculo." : "Debatan dónde va cada una: ¿la controlamos, influimos o es sopa?")
+        : "Foco en el círculo de control: ¿cuáles no estamos atacando aunque podríamos?";
+      content = (
+        <>
+          <CirclesDiagram counts={counts3} size={250} />
+          {unclassified.length > 0 && (
+            <Card pad={14} style={{ margin: "12px 0" }}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Sin clasificar ({unclassified.length})</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 7 }}>{unclassified.map((w) => <WorryCard key={w.id} w={w} />)}</div>
+            </Card>
+          )}
+          <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 12 }}>
+            {ORDER.map((k) => (
+              <div key={k} style={{ background: "var(--bg-2)", border: `1px solid color-mix(in srgb, ${CIRCLE_META[k].color} 35%, var(--line))`, borderRadius: "var(--r-lg)", padding: 12, opacity: step === "soup_close" && k !== "control" ? 0.7 : 1 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", color: CIRCLE_META[k].color, marginBottom: 2 }}>{CIRCLE_META[k].label} · {counts3[k]}</div>
+                <div className="muted" style={{ fontSize: 10, marginBottom: 8 }}>{CIRCLE_META[k].hint}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {worries.filter((w) => circleMap[w.id] === k).map((w) => <WorryCard key={w.id} w={w} />)}
+                </div>
+              </div>
+            ))}
+          </div>
+          {step === "soup_close" && (
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 12, textAlign: "center" }}>
+              Las del círculo de <b style={{ color: "var(--green)" }}>control</b> quedan como variables candidatas. “¿Estamos gastando energía en la sopa?”
+            </p>
+          )}
+        </>
+      );
+      controls = step === "classify"
+        ? (isFacil
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || unclassified.length > 0} onClick={async () => { setBusy(true); await setStep(sessionId, "soup_close", 2); setBusy(false); }}>{unclassified.length > 0 ? `Faltan ${unclassified.length} por clasificar` : "Conversar y cerrar"}</Button>
+          : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador mueve las tarjetas según lo que acuerden.</p>)
+        : (isFacil
+          ? <Button full size="lg" icon="Check" disabled={busy} onClick={csFinish}>{busy ? "Guardando…" : `Cerrar · ${counts3.control} variables candidatas`}</Button>
+          : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra y guarda la clasificación.</p>);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

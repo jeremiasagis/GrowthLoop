@@ -134,7 +134,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Conversación sobre patrones", minutes: 12 },
       { name: "Síntesis del facilitador", minutes: 5 },
     ],
-    sessionType: "timeline", implemented: false,
+    sessionType: "timeline", entryStep: "build", implemented: true,
   },
   {
     id: "exploration-hot-air-balloon", name: "Hot Air Balloon", stage: "exploration", category: "classic",
@@ -194,7 +194,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Conversación sobre el círculo de control", minutes: 7 },
       { name: "Síntesis: variables candidatas", minutes: 5 },
     ],
-    sessionType: "circles", implemented: false,
+    sessionType: "circles", entryStep: "brain", implemented: true,
   },
 
   // ══════════ CICLO DE MEJORA ══════════
