@@ -18,6 +18,7 @@ import { CirclesDiagram, CIRCLE_META, type CircleKey } from "@/components/Circle
 import { CauseTree } from "@/components/CauseTree";
 import { FishboneDiagram } from "@/components/FishboneDiagram";
 import { OpposingScale } from "@/components/OpposingScales";
+import { JourneyBoard, type JourneyCol } from "@/components/JourneyBoard";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -97,6 +98,7 @@ const STEP_SEQ: Record<string, string[]> = {
   fishbone: ["fbsetup", "fbcauses", "fbvote", "fbdeep", "fbmain"],
   perfection: ["pgscore", "pgreveal", "pgfactors", "pgsynth"],
   opposites: ["oppairs", "oprate", "opreveal", "opsynth"],
+  journey: ["sdsetup", "sdanalyze", "sdvote", "sddeep", "sdsynth"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -2670,6 +2672,201 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 760 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ SERVICE DESIGN · el journey del cliente ════════
+  if (session.type === "journey") {
+    const sdClient = (session.result.sdClient as string) || (initiative?.data?.focus?.clientName as string) || "";
+    const sdSteps = (session.result.sdSteps as string[]) ?? [];
+    const sdCur = (session.result.sdCur as number) ?? 0;
+    const TYPES = [
+      { key: "act", label: "¿Qué hace el equipo en este paso?", color: "#3B82F6", icon: "Footprints" },
+      { key: "fri", label: "¿Qué genera fricción o frustración acá?", color: "var(--risk)", icon: "Flame" },
+      { key: "str", label: "¿Qué hace bien el equipo acá?", color: "var(--success)", icon: "ThumbsUp" },
+    ];
+    const cardsAt = (i: number, t: string) => allCards.filter((c) => c.columnKey === `sd:${i}:${t}`);
+    const emoAt = (i: number) => {
+      const xs = inputs.filter((x) => x.key === `sdemo:${i}`).map((x) => (x.value as { e?: string }).e);
+      return { pos: xs.filter((e) => e === "pos").length, neu: xs.filter((e) => e === "neu").length, neg: xs.filter((e) => e === "neg").length };
+    };
+    const myEmoAt = (i: number) => (inputs.find((x) => x.userId === user.id && x.key === `sdemo:${i}`)?.value as { e?: string } | undefined)?.e;
+    const jCols: JourneyCol[] = sdSteps.map((name, i) => ({
+      name, actions: cardsAt(i, "act").map((c) => c.text), frictions: cardsAt(i, "fri").map((c) => c.text), strengths: cardsAt(i, "str").map((c) => c.text), emo: emoAt(i),
+    }));
+    const sdCritVotes: Record<number, number> = {};
+    inputs.filter((i) => i.key === "sdcrit").forEach((i) => { const k = (i.value as { k?: number }).k; if (k != null) sdCritVotes[k] = (sdCritVotes[k] ?? 0) + 1; });
+    const sdTotalCrit = Object.values(sdCritVotes).reduce((a, b) => a + b, 0);
+    const mySdCrit = (inputs.find((i) => i.userId === user.id && i.key === "sdcrit")?.value as { k?: number } | undefined)?.k;
+    const sdWinner = sdSteps.reduce((best, _, i) => ((sdCritVotes[i] ?? 0) > (sdCritVotes[best] ?? 0) ? i : best), 0);
+    const sdSynth = (session.result.sdSynth as string) ?? "";
+    const addStep = () => { const t = (cardDraft.sdstep ?? "").trim(); if (!t || sdSteps.length >= 8) return; patchResult({ sdSteps: [...sdSteps, t] }); setCardDraft((d) => ({ ...d, sdstep: "" })); };
+    const addSd = async (t: string) => { const k = `sd:${sdCur}:${t}`; const v = (cardDraft[k] ?? "").trim(); if (!v) return; await addCard(sessionId, k, v, false); setCardDraft((d) => ({ ...d, [k]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const sdFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: allCards.filter((c) => c.columnKey.startsWith("sd:")).length,
+        summaryText: `Journey: fricción en “${sdSteps[sdWinner] ?? "—"}”`,
+        dataKey: "focus", dataValue: { journeyCritical: sdSteps[sdWinner], journeyFinding: sdSynth, clientName: sdClient || undefined },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "sdsetup") {
+      sub = isFacil ? "Confirmá el cliente y armá el journey con el equipo (4 a 8 pasos, en orden)." : "El facilitador arma el journey del cliente con lo que aporta el equipo.";
+      content = (
+        <Card pad={20}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>El cliente</div>
+          {isFacil
+            ? <input defaultValue={sdClient} onBlur={(e) => patchResult({ sdClient: e.target.value.trim() })} placeholder="¿Quién es el cliente de esta variable?" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", fontWeight: 600, outline: "none", marginBottom: 14 }} />
+            : <p style={{ fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 14 }}>{sdClient || "—"}</p>}
+          <div className="eyebrow" style={{ marginBottom: 6 }}>Los pasos del journey ({sdSteps.length}/8)</div>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 10 }}>“¿Cuáles son los pasos que sigue el cliente desde que necesita algo hasta que lo recibe y lo usa?”</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {sdSteps.map((s, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <span className="num" style={{ width: 20, color: "var(--st-focus)", fontWeight: 800 }}>{i + 1}</span>
+                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{s}</span>
+                {isFacil && <button onClick={() => patchResult({ sdSteps: sdSteps.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={13} /></button>}
+              </div>
+            ))}
+          </div>
+          {isFacil && sdSteps.length < 8 && (
+            <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+              <input value={cardDraft.sdstep ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, sdstep: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addStep()} placeholder="Agregar paso…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={addStep}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || sdSteps.length < 4} onClick={async () => { setBusy(true); await setStep(sessionId, "sdanalyze", 1); setBusy(false); }}>Analizar paso a paso ({sdSteps.length}{sdSteps.length < 4 ? " · mínimo 4" : ""})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Aporten los pasos en voz alta.</p>;
+    } else if (step === "sdanalyze") {
+      wide = true;
+      sub = `Paso ${sdCur + 1} de ${sdSteps.length}: “${sdSteps[sdCur] ?? ""}”. Aporten tarjetas y su emoción.`;
+      content = (
+        <>
+          <Card pad={14} style={{ marginBottom: 14 }}><JourneyBoard cols={jCols} current={sdCur} /></Card>
+          <Card pad={18}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              {isFacil && <Button size="sm" variant="secondary" icon="ChevronLeft" disabled={sdCur === 0} onClick={() => patchResult({ sdCur: sdCur - 1 })}>Anterior</Button>}
+              <span style={{ flex: 1, fontWeight: 800, textAlign: "center" }}>{sdSteps[sdCur]}</span>
+              {isFacil && <Button size="sm" variant="secondary" iconRight="ChevronRight" disabled={sdCur >= sdSteps.length - 1} onClick={() => patchResult({ sdCur: sdCur + 1 })}>Siguiente paso</Button>}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center", marginBottom: 14 }}>
+              <span className="muted" style={{ fontSize: "var(--t-xs)" }}>¿Qué siente el cliente acá?</span>
+              {(["pos", "neu", "neg"] as const).map((e) => {
+                const emoji = e === "pos" ? "😊" : e === "neu" ? "😐" : "😔";
+                const on = myEmoAt(sdCur) === e;
+                return <button key={e} disabled={isFacil} onClick={() => tapInput(`sdemo:${sdCur}`, { e })} style={{ fontSize: 22, padding: "4px 10px", borderRadius: "var(--r-md)", border: `1.5px solid ${on ? "var(--st-focus)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--st-focus) 14%, var(--card))" : "var(--card)", opacity: isFacil ? 0.5 : 1 }}>{emoji}</button>;
+              })}
+            </div>
+            {!isFacil && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {TYPES.map((t) => (
+                  <div key={t.key} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ color: t.color, flexShrink: 0 }} title={t.label}><Icon name={t.icon} size={15} /></span>
+                    <input value={cardDraft[`sd:${sdCur}:${t.key}`] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [`sd:${sdCur}:${t.key}`]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addSd(t.key)} placeholder={t.label} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: `1px solid color-mix(in srgb, ${t.color} 35%, var(--line-2))`, borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-xs)", outline: "none" }} />
+                    <button onClick={() => addSd(t.key)} style={{ background: t.color, color: "#fff", borderRadius: "var(--r-sm)", padding: "5px 9px", display: "grid", placeItems: "center" }}><Icon name="Plus" size={13} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {isFacil && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo aporta tarjetas y emociones para este paso. Avanzá cuando esté maduro.</p>}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sdvote", 2); setBusy(false); }}>Votar el punto crítico</Button>
+        : null;
+    } else if (step === "sdvote") {
+      wide = true;
+      const shown = !!session.result.sdVoteShown;
+      sub = shown ? "El punto crítico del journey." : "¿En qué paso tiene el cliente la peor experiencia? Una elección por persona.";
+      content = (
+        <>
+          <Card pad={14} style={{ marginBottom: 14 }}><JourneyBoard cols={jCols} highlight={shown ? sdWinner : undefined} /></Card>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {sdSteps.map((s, i) => {
+              const v = sdCritVotes[i] ?? 0;
+              const pct = sdTotalCrit ? Math.round((v / sdTotalCrit) * 100) : 0;
+              const isWin = shown && i === sdWinner && sdTotalCrit > 0;
+              const on = mySdCrit === i;
+              const fr = cardsAt(i, "fri").length;
+              return (
+                <button key={i} disabled={isFacil || shown} onClick={() => tapInput("sdcrit", { k: i })}
+                  style={{ width: "100%", textAlign: "left", padding: "11px 13px", background: isWin || (on && !shown) ? "color-mix(in srgb, var(--risk) 8%, var(--card))" : "var(--card)", border: `1px solid ${isWin || (on && !shown) ? "var(--risk)" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil || shown ? "default" : "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ flex: 1, fontWeight: 600, fontSize: "var(--t-sm)" }}>{i + 1}. {s}{fr > 0 && <span className="muted" style={{ fontSize: "var(--t-xs)", marginLeft: 6 }}>🔥 {fr} fricciones</span>}</span>
+                    {!shown && on && <Icon name="CheckCircle2" size={15} style={{ color: "var(--risk)" }} />}
+                    {shown && <span className="num" style={{ fontWeight: 800, color: isWin ? "var(--risk)" : "var(--ink-2)" }}>{pct}%</span>}
+                  </div>
+                  {shown && <div style={{ marginTop: 6 }}><Bar value={pct} color={isWin ? "var(--risk)" : "var(--violet)"} height={6} /></div>}
+                </button>
+              );
+            })}
+          </div>
+          {!shown && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 10 }}><Icon name="EyeOff" size={13} /> {sdTotalCrit} de {totalInRoom} votaron</p>}
+        </>
+      );
+      controls = isFacil
+        ? (shown
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sddeep", 3); setBusy(false); }}>Profundizar en “{sdSteps[sdWinner]}”</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy || sdTotalCrit === 0} onClick={() => setResult(sessionId, { sdVoteShown: true })}>Mostrar resultado ({sdTotalCrit}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Elegí el paso con la peor experiencia.</p>;
+    } else if (step === "sddeep") {
+      sub = `Profundizamos en “${sdSteps[sdWinner] ?? ""}”: ¿qué causa la fricción y qué debería pasar?`;
+      content = (
+        <>
+          <Card pad={18} style={{ marginBottom: 14, border: "1px solid color-mix(in srgb, var(--risk) 40%, var(--line))" }}>
+            <div style={{ fontWeight: 800, marginBottom: 10 }}>🔥 {sdSteps[sdWinner]}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {cardsAt(sdWinner, "fri").map((c, i) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--risk)", borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4, animation: `pop-in .4s var(--spring) ${i * 0.04}s both` }}>{c.text}</div>)}
+              {!cardsAt(sdWinner, "fri").length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin fricciones cargadas en este paso.</p>}
+            </div>
+          </Card>
+          {isFacil && (
+            <Card pad={16}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Preguntas para profundizar</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: "var(--t-sm)" }}>
+                <span>· “¿Qué está causando esta fricción específicamente?”</span>
+                <span>· “¿Qué debería pasar acá para que el cliente tuviera una experiencia positiva?”</span>
+                <span>· “¿Qué necesitaría el equipo para lograrlo?”</span>
+              </div>
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sdsynth", 4); setBusy(false); }}>Formular el hallazgo</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Conversen sobre la causa y el cambio necesario.</p>;
+    } else {
+      sub = "El hallazgo del journey. El equipo valida antes de cerrar.";
+      const emo = emoAt(sdWinner);
+      const mainEmo = emo.neg >= emo.pos && emo.neg >= emo.neu ? "frustración" : emo.pos >= emo.neu ? "satisfacción" : "indiferencia";
+      const tmpl = sdSynth || `El punto de mayor fricción en el journey es “${sdSteps[sdWinner] ?? ""}”. El cliente siente ${mainEmo} porque … Para mejorarlo necesitaríamos …`;
+      content = (
+        <Card pad={20}>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>El hallazgo</div>
+          {isFacil
+            ? <textarea defaultValue={tmpl} onBlur={(e) => patchResult({ sdSynth: e.target.value.trim() })} rows={4} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+            : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.55, color: sdSynth ? "var(--ink-0)" : "var(--ink-3)" }}>{sdSynth || "El facilitador está redactando…"}</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !sdSynth.trim()} onClick={sdFinish}>{busy ? "Guardando…" : "Cerrar con este hallazgo"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Validen el hallazgo en voz alta.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 980 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

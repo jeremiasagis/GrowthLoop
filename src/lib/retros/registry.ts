@@ -362,7 +362,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Profundización en el punto crítico", minutes: 10 },
       { name: "Síntesis del hallazgo + validación", minutes: 5 },
     ],
-    sessionType: "journey", implemented: false,
+    sessionType: "journey", entryStep: "sdsetup", implemented: true,
   },
   {
     id: "focus-stacey-matrix", name: "Matriz de Stacey", stage: "focus", category: "classic",
