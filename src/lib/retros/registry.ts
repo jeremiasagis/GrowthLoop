@@ -426,3 +426,12 @@ export function retrosForStage(stage: string): RetroDefinition[] {
 export function retroById(id: string | undefined): RetroDefinition | undefined {
   return RETRO_REGISTRY.find((r) => r.id === id);
 }
+
+/** Etapa a la que pertenece un tipo de sesión (para historiales y cierres).
+ *  Los tipos legacy atados a iniciativas mapean al ciclo nuevo. */
+const LEGACY_TYPE_STAGE: Record<string, string> = {
+  explore: "objectives", focus: "focus", proof: "ideation", learn: "learn", follow: "follow",
+};
+export function stageOfSessionType(type: string): string {
+  return LEGACY_TYPE_STAGE[type] ?? RETRO_REGISTRY.find((r) => r.sessionType === type)?.stage ?? type;
+}

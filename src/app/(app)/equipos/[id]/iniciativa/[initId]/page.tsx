@@ -14,7 +14,7 @@ import {
 } from "@/lib/repository";
 import { getInitiativeSessions, getSessionContent, type SessionCard, type SessionCluster, type SessionVote } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
-import { retrosForStage } from "@/lib/retros/registry";
+import { retrosForStage, stageOfSessionType } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; result?: Record<string, unknown> };
@@ -351,8 +351,8 @@ export default function InitiativeDetailPage() {
       const out: Record<string, StageContent> = {};
       for (const [type, info] of Object.entries(byType)) {
         const c = await getSessionContent(info.id);
-        // El contenido se indexa por etapa del ciclo nuevo (tipos de sesión legacy → etapa).
-        const stKey = type === "explore" ? "objectives" : type === "proof" ? "ideation" : type;
+        // El contenido se indexa por etapa del ciclo nuevo (cada tipo de retro → su etapa).
+        const stKey = stageOfSessionType(type);
         out[stKey] = { cards: c.cards, clusters: c.clusters, votes: c.votes, result: info.result };
       }
       if (active) setStageContent(out);
@@ -404,10 +404,7 @@ export default function InitiativeDetailPage() {
   const [closeStageOpen, setCloseStageOpen] = useState(false);
   const [closeBusy, setCloseBusy] = useState(false);
   const nextSt = nextCycleStage(init.stage);
-  const stageSessions = sessions.filter((s) => {
-    const sSt = s.stage === "explore" ? "objectives" : s.stage === "proof" ? "ideation" : s.stage;
-    return sSt === init.stage;
-  });
+  const stageSessions = sessions.filter((s) => stageOfSessionType(s.stage) === init.stage);
   const doCloseStage = async () => {
     setCloseBusy(true);
     const res = nextSt ? await setInitiativeStage(init.id, nextSt) : await setInitiativeStatus(init.id, "done");

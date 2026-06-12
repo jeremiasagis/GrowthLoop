@@ -193,7 +193,13 @@ export default function SalaPage() {
       if (user) { touchPresence(sessionId); setSubmitted(await hasResponded(sessionId, user.id)); setMyCards(await getMyCards(sessionId, user.id)); }
       // Pasos que necesitan TODAS las tarjetas reveladas ("bet"/"commit" incluidos: el editor
       // de la apuesta usa los riesgos del pre-mortem para las mitigaciones).
-      const needsAll = ["cards_reveal", "cluster", "vote", "close", "group", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "learnings_reveal", "ice", "bet", "commit"].includes(s.stepKey ?? "");
+      const needsAll = [
+        "cards_reveal", "cluster", "vote", "close", "group", "purpose_reveal", "purpose_decide", "flow", "flow_reveal", "flow_vote", "premortem_reveal", "causes_reveal", "ideas_reveal", "learnings_reveal", "ice", "bet", "commit",
+        // retros nuevas: pasos donde las tarjetas de todos deben verse
+        "word_reveal", "timeline_reveal", "brain", "classify", "soup_close", "read", "rel_close", "whcluster",
+        "cvcontrast", "fbcauses", "fbvote", "fbdeep", "fbmain", "pgfactors", "pgsynth",
+        "sdanalyze", "sdvote", "sddeep", "sdsynth", "wbdeep",
+      ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
     setLoading(false);
@@ -527,7 +533,7 @@ export default function SalaPage() {
     if (stepIdx <= 0) return;
     setBusy(true);
     // Al volver atrás, re-ocultar votaciones/revelados y limpiar el timer del paso.
-    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, timer: null });
+    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, matrixShown: false, whVoteShown: false, fbVoteShown: false, sdVoteShown: false, wbVoteShown: false, timer: null });
     await setStep(sessionId, seq[stepIdx - 1], stepIdx - 1);
     setBusy(false);
   };
@@ -700,7 +706,7 @@ export default function SalaPage() {
 
   // ════════ FODA · diagnóstico inicial del equipo (4 cuadrantes) ════════
   if (session.type === "foda") {
-    const total = allCards.length;
+    const total = totalCards; // de counts: disponible aunque las tarjetas sigan ocultas
     const fFinish = async () => {
       setBusy(true);
       const get = (k: string) => allCards.filter((c) => c.columnKey === k).map((c) => c.text);
@@ -985,6 +991,9 @@ export default function SalaPage() {
   if (session.type === "timeline") {
     const milestones = (session.result.tlMilestones as string[]) ?? [];
     const evCards = allCards.filter((c) => c.columnKey.startsWith("ev:"));
+    // Contador por counts (sirve con tarjetas ocultas) y guarda: con eventos
+    // cargados no se pueden borrar hitos (desplazaría los índices).
+    const evCount = Object.entries(counts).reduce((a, [k, v]) => (k.startsWith("ev:") ? a + v : a), 0);
     const events: TlEvent[] = evCards.map((c) => {
       const [, mi, emo] = c.columnKey.split(":");
       return { mIdx: Number(mi) || 0, emo: (["pos", "neu", "neg"].includes(emo) ? emo : "neu") as TlEvent["emo"], text: c.text, author: c.authorId ? participants.find((p) => p.userId === c.authorId)?.name : undefined };
@@ -1001,7 +1010,7 @@ export default function SalaPage() {
     const addPattern = () => { const t = (cardDraft.tlpat ?? "").trim(); if (!t) return; patchResult({ tlPatterns: [...patterns, t] }); setCardDraft((d) => ({ ...d, tlpat: "" })); };
     const tlFinish = async () => {
       setBusy(true);
-      await finalizeSession(session, { pulseAvg: avg, cardCount: evCards.length, summaryText: `Timeline: ${evCards.length} eventos${patterns.length ? ` · ${patterns.length} patrones` : ""}` });
+      await finalizeSession(session, { pulseAvg: avg, cardCount: evCount, summaryText: `Timeline: ${evCount} eventos${patterns.length ? ` · ${patterns.length} patrones` : ""}` });
       setBusy(false); leave();
     };
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
@@ -1014,7 +1023,7 @@ export default function SalaPage() {
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span className="num" style={{ width: 22, color: "var(--green)", fontWeight: 800 }}>{i + 1}</span>
                 <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{m}</span>
-                {isFacil && <button onClick={() => patchResult({ tlMilestones: milestones.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
+                {isFacil && <button disabled={evCount > 0} title={evCount > 0 ? "Con eventos cargados no se pueden borrar hitos" : "Quitar"} onClick={() => patchResult({ tlMilestones: milestones.filter((_, k) => k !== i) })} style={{ color: evCount > 0 ? "var(--line-2)" : "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
               </div>
             ))}
             {!milestones.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Ej: “Lanzamiento v2”, “Cambio de líder”, “Cierre de trimestre”…</p>}
@@ -1035,7 +1044,7 @@ export default function SalaPage() {
       content = (
         <Card pad={20}>
           {isFacil ? (
-            <div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{evCards.length}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>eventos cargados · ocultos hasta revelar</div></div>
+            <div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{evCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>eventos cargados · ocultos hasta revelar</div></div>
           ) : (
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
@@ -1057,13 +1066,13 @@ export default function SalaPage() {
                   <div key={c.id} style={{ fontSize: "var(--t-xs)", padding: "7px 9px", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${e.color}`, borderRadius: "var(--r-sm)" }}>{e.emoji} {c.text} <span className="faint">· {milestones[Number(mi)] ?? ""}</span></div>
                 ); })}
               </div>
-              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>{evCards.length} eventos del equipo · se revelan todos juntos</p>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>{evCount} eventos del equipo · se revelan todos juntos</p>
             </>
           )}
         </Card>
       );
       controls = isFacil
-        ? <Button full size="lg" icon="Eye" disabled={busy || evCards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "timeline_reveal", 2); setBusy(false); }}>Revelar timeline ({evCards.length})</Button>
+        ? <Button full size="lg" icon="Eye" disabled={busy || evCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "timeline_reveal", 2); setBusy(false); }}>Revelar timeline ({evCount})</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador revela el timeline completo.</p>;
     } else {
       wide = true;
@@ -1219,7 +1228,8 @@ export default function SalaPage() {
       { key: "rq2", label: "¿Qué te cuesta decir o pedir en este equipo?" },
       { key: "rq3", label: "¿Qué vínculo o dinámica te gustaría que cambie?" },
     ];
-    const relCards = allCards.filter((c) => REL_COLS.some((q) => q.key === c.columnKey));
+    const relCount = REL_COLS.reduce((a, q) => a + (counts[q.key] ?? 0), 0); // contador con tarjetas ocultas
+    const relWordCount = counts["relword"] ?? 0;
     const relWords = allCards.filter((c) => c.columnKey === "relword");
     const myRelWord = myCards.find((c) => c.columnKey === "relword");
     const relPatterns = (session.result.relPatterns as string[]) ?? [];
@@ -1236,7 +1246,7 @@ export default function SalaPage() {
     };
     const relFinish = async () => {
       setBusy(true);
-      await finalizeSession(session, { cardCount: relCards.length, summaryText: `Relaciones: ${relCards.length} aportes${relPatterns.length ? ` · ${relPatterns.length} patrones` : ""}` });
+      await finalizeSession(session, { cardCount: relCount, summaryText: `Relaciones: ${relCount} aportes${relPatterns.length ? ` · ${relPatterns.length} patrones` : ""}` });
       setBusy(false); leave();
     };
     // Botón de emergencia: el facilitador pausa y gestiona en privado.
@@ -1288,7 +1298,7 @@ export default function SalaPage() {
       sub = "Tres preguntas sobre vínculos. Anónimo de verdad: nadie ve quién escribió qué.";
       content = <>{EmergencyBar}{MultiWrite(REL_COLS, "var(--warning)", !isFacil, true)}</>;
       controls = isFacil
-        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || relCards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "read", 2); setBusy(false); }}>Pasar a la lectura ({relCards.length})</Button>
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || relCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "read", 2); setBusy(false); }}>Pasar a la lectura ({relCount})</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escribí con honestidad. El facilitador va a leer sin mostrar pantalla.</p>;
     } else if (step === "read") {
       wide = isFacil;
@@ -1328,7 +1338,7 @@ export default function SalaPage() {
       content = (
         <Card pad={28} style={{ textAlign: "center" }}>
           {isFacil ? (
-            <div><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{relWords.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>palabras de cierre</div></div>
+            <div><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{relWordCount}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>palabras de cierre</div></div>
           ) : myRelWord ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--green)", fontWeight: 700 }}><Icon name="Check" size={18} /> Tu palabra: “{myRelWord.text}”</div>
           ) : (
@@ -1340,7 +1350,7 @@ export default function SalaPage() {
         </Card>
       );
       controls = isFacil
-        ? <Button full size="lg" icon="Eye" disabled={busy || relWords.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "rel_close", 4); setBusy(false); }}>Revelar palabras ({relWords.length})</Button>
+        ? <Button full size="lg" icon="Eye" disabled={busy || relWordCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "rel_close", 4); setBusy(false); }}>Revelar palabras ({relWordCount})</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador revela las palabras de cierre.</p>;
     } else {
       sub = "Las palabras del equipo. Gracias por la honestidad.";
@@ -1525,7 +1535,7 @@ export default function SalaPage() {
   // ════════ ¿POR QUÉ ESTÁ PASANDO? · causas → árbol → causa raíz ════════
   if (session.type === "whyhappening") {
     const whTrouble = (session.result.whTrouble as string) || (initiative?.data?.focus?.blockFormulation as string) || "";
-    const whCards = allCards.filter((c) => c.columnKey === "whc");
+    const whCount = counts["whc"] ?? 0; // contador aunque las tarjetas sigan ocultas
     const tree = (session.result.whTree as { id: string; text: string; parent?: string }[]) ?? [];
     const whRoot = (session.result.whRoot as string) ?? "";
     const whVoteShown = !!session.result.whVoteShown;
@@ -1554,7 +1564,7 @@ export default function SalaPage() {
       const total = vVals.length || 1;
       const agreement = Math.round((vCount("yes") / total) * 100);
       await finalizeSession(session, {
-        pulseAvg: avg, cardCount: whCards.length,
+        pulseAvg: avg, cardCount: whCount,
         summaryText: `Causa raíz: ${whRoot.slice(0, 70)}${whRoot.length > 70 ? "…" : ""} · acuerdo ${agreement}%`,
         dataKey: "focus", dataValue: { rootCause: whRoot, cause: whRoot, secondaryCauses: ranked.slice(2).map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })) },
       });
@@ -1585,7 +1595,7 @@ export default function SalaPage() {
         <>
           {TroubleChip}
           <Card pad={20}>
-            <HiddenDots n={whCards.length} label="causas escritas · ocultas hasta agrupar" color="var(--st-focus)" />
+            <HiddenDots n={whCount} label="causas escritas · ocultas hasta agrupar" color="var(--st-focus)" />
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
               {myCards.filter((c) => c.columnKey === "whc").map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-focus)", borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· tuya</span></div>)}
             </div>
@@ -1599,7 +1609,7 @@ export default function SalaPage() {
         </>
       );
       controls = isFacil
-        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || whCards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "whcluster", 2); setBusy(false); }}>Agrupar causas ({whCards.length})</Button>
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || whCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "whcluster", 2); setBusy(false); }}>Agrupar causas ({whCount})</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Una causa por tarjeta. El facilitador agrupa después.</p>;
     } else if (step === "whcluster") {
       wide = true;
@@ -1968,7 +1978,7 @@ export default function SalaPage() {
       { key: "cv3", label: "¿Qué creés que piensa pero nunca nos dijo?" },
     ];
     const cvClient = (session.result.cvClient as string) || (initiative?.data?.focus?.clientName as string) || "";
-    const cvCards = allCards.filter((c) => CV_COLS.some((q) => q.key === c.columnKey));
+    const cvCount = CV_COLS.reduce((a, q) => a + (counts[q.key] ?? 0), 0); // contador con tarjetas aún ocultas
     const cvHasFb = session.result.cvHasFb as boolean | undefined;
     const cvFeedback = (session.result.cvFeedback as string) ?? "";
     const cvMarks = (session.result.cvMarks as Record<string, string>) ?? {};
@@ -1997,7 +2007,7 @@ export default function SalaPage() {
         ? { how: (session.result.cvHow as string) ?? "", who: (session.result.cvWho as string) ?? "", due: (session.result.cvWhen as string) ?? "" }
         : undefined;
       await finalizeSession(session, {
-        pulseAvg: avg, cardCount: cvCards.length,
+        pulseAvg: avg, cardCount: cvCount,
         summaryText: `Voz del cliente (${cvClient || "—"})${task ? " · queda tarea de conseguir feedback" : ""}`,
         dataKey: "focus", dataValue: { clientName: cvClient, clientGap: cvSynth, ...(task ? { clientFbTask: task } : {}) },
       });
@@ -2023,7 +2033,7 @@ export default function SalaPage() {
       sub = "Lo que el equipo CREE del cliente. Anónimo, oculto hasta contrastar.";
       content = <>{ClientChip}{MultiWrite(CV_COLS, "var(--st-focus)", !isFacil, true)}</>;
       controls = isFacil
-        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || cvCards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "cvcontrast", 2); setBusy(false); }}>Contrastar con la realidad ({cvCards.length})</Button>
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || cvCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "cvcontrast", 2); setBusy(false); }}>Contrastar con la realidad ({cvCount})</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé las tres con honestidad.</p>;
     } else if (step === "cvcontrast") {
       wide = true;
@@ -2190,7 +2200,7 @@ export default function SalaPage() {
                   </div>
                 ))}
               </div>
-              {fbCats.length < 6 && <Button size="sm" variant="secondary" icon="Plus" style={{ marginTop: 10 }} onClick={() => patchResult({ fbCats: [...fbCats, { key: `fb_x${fbCats.length}`, label: `Categoría ${fbCats.length + 1}`, color: EXTRA_COLORS[fbCats.length - 4] ?? "#A3E635" }] })}>Agregar categoría</Button>}
+              {fbCats.length < 6 && <Button size="sm" variant="secondary" icon="Plus" style={{ marginTop: 10 }} onClick={() => patchResult({ fbCats: [...fbCats, { key: `fb_x${Date.now().toString(36)}`, label: `Categoría ${fbCats.length + 1}`, color: EXTRA_COLORS[fbCats.length - 4] ?? "#A3E635" }] })}>Agregar categoría</Button>}
             </Card>
           )}
         </>
@@ -2735,7 +2745,7 @@ export default function SalaPage() {
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <span className="num" style={{ width: 20, color: "var(--st-focus)", fontWeight: 800 }}>{i + 1}</span>
                 <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{s}</span>
-                {isFacil && <button onClick={() => patchResult({ sdSteps: sdSteps.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={13} /></button>}
+                {isFacil && <button disabled={Object.keys(counts).some((k) => k.startsWith("sd:"))} title={Object.keys(counts).some((k) => k.startsWith("sd:")) ? "Con tarjetas cargadas no se pueden borrar pasos" : "Quitar"} onClick={() => patchResult({ sdSteps: sdSteps.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={13} /></button>}
               </div>
             ))}
           </div>

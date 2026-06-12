@@ -555,7 +555,7 @@ function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; is
 /** Módulo de Exploración: diagnóstico del equipo, fuera del ciclo. */
 function ExploracionSection({ team, isFacil }: { team: Team; isFacil: boolean }) {
   const [launcherOpen, setLauncherOpen] = useState(false);
-  const EXPLORE_TYPES = ["explore", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "sailboat", "circles", "relationships", "expclose"];
+  const EXPLORE_TYPES = ["explore", "foda", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "sailboat", "circles", "relationships", "expclose"];
   const expSessions = team.sessions.filter((s) => EXPLORE_TYPES.includes(s.stage));
   const closedAt = (team.data as { explorationClosedAt?: string } | undefined)?.explorationClosedAt;
   const catalog = retrosForStage("exploration").filter((r) => r.id !== "exploration-close");

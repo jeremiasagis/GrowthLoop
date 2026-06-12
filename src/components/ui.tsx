@@ -3,6 +3,7 @@
 import { useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./icon";
 import { PULSE_DIMS, STAGES, overallOf, to5, type StageKey, type Person, type PulseDim, type PulsePoint } from "@/lib/data";
+import { stageOfSessionType } from "@/lib/retros/registry";
 
 /* ── Button ───────────────────────────────────────────────── */
 type Variant = "primary" | "secondary" | "ghost" | "violet" | "danger" | "dark";
@@ -83,7 +84,8 @@ export function Card({
 
 /* ── Stage badge ──────────────────────────────────────────── */
 export function StageBadge({ stage, size = "md" }: { stage: StageKey; size?: "sm" | "md" }) {
-  const s = STAGES[stage];
+  // Los logs viejos guardan tipos de retro (ej: "whereblock") — mapear a su etapa.
+  const s = STAGES[stage] ?? STAGES[stageOfSessionType(stage) as StageKey];
   if (!s) return null;
   const pad = size === "sm" ? "3px 8px" : "4px 11px";
   const fs = size === "sm" ? "var(--t-xs)" : "var(--t-sm)";

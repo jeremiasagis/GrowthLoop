@@ -8,6 +8,7 @@
 
 import { getSupabaseBrowserClient } from "./supabase/client";
 import { reloadData } from "./store";
+import { retroById } from "./retros/registry";
 
 export interface LiveSession {
   id: string;
@@ -387,7 +388,7 @@ export async function finalizeSession(session: LiveSession, opts: {
   if (hasPulse) parts.push(`pulso ${overall}/100`);
   await supabase.from("session_logs").insert({
     id: newId("s"), team_id: session.teamId, initiative_id: session.initiativeId ?? null,
-    date, stage: session.type, retro: RETRO_NAME[session.type] ?? "Sesión en vivo",
+    date, stage: session.type, retro: retroById(session.retro)?.name ?? RETRO_NAME[session.type] ?? "Sesión en vivo",
     out_text: parts.join(" · ") || "Sesión realizada", pulse: overall, delta: 0,
   });
 
