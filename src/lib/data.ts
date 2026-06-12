@@ -51,6 +51,12 @@ export const STAGE_ORDER: StageKey[] = [
 // Las etapas que recorre una iniciativa (el ciclo de mejora, en orden).
 export const CYCLE_STAGES: StageKey[] = ["objectives", "focus", "ideation", "follow", "learn"];
 
+/** La etapa siguiente del ciclo (undefined si es la última o no es del ciclo). */
+export function nextCycleStage(s: StageKey): StageKey | undefined {
+  const i = CYCLE_STAGES.indexOf(normalizeStage(s));
+  return i >= 0 && i < CYCLE_STAGES.length - 1 ? CYCLE_STAGES[i + 1] : undefined;
+}
+
 /** Normaliza valores de etapa viejos guardados en DB al modelo nuevo. */
 export function normalizeStage(s: string | null | undefined): StageKey {
   if (s === "explore") return "objectives"; // arranque del ciclo viejo → arranque del nuevo

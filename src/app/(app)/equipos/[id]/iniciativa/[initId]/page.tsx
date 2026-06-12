@@ -13,7 +13,7 @@ import {
   deleteInitiative, getFacilitators, getInitiatives, getTeam, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
 import { createLiveSession, getInitiativeSessions, getSessionContent, type SessionCard, type SessionCluster, type SessionVote } from "@/lib/session";
-import { CYCLE_STAGES, PULSE_DIMS, STAGES, type Initiative, type StageKey, type Team } from "@/lib/data";
+import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; result?: Record<string, unknown> };
 
@@ -379,6 +379,23 @@ export default function InitiativeDetailPage() {
   const scrollTo = (st: StageKey) => document.getElementById(`stage-${st}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   const [delOpen, setDelOpen] = useState(false);
   const [delBusy, setDelBusy] = useState(false);
+  // Cierre explícito de etapa (modo libre): resumen + confirmación.
+  const [closeStageOpen, setCloseStageOpen] = useState(false);
+  const [closeBusy, setCloseBusy] = useState(false);
+  const nextSt = nextCycleStage(init.stage);
+  const stageSessions = sessions.filter((s) => {
+    const sSt = s.stage === "explore" ? "objectives" : s.stage === "proof" ? "ideation" : s.stage;
+    return sSt === init.stage;
+  });
+  const doCloseStage = async () => {
+    setCloseBusy(true);
+    const res = nextSt ? await setInitiativeStage(init.id, nextSt) : await setInitiativeStatus(init.id, "done");
+    setCloseBusy(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setCloseStageOpen(false);
+    show(nextSt ? `Etapa cerrada · ahora en ${STAGES[nextSt].label}` : "Ciclo cerrado 🎉", "Check");
+    refresh();
+  };
   const doDelete = async () => { setDelBusy(true); const res = await deleteInitiative(init.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Iniciativa eliminada", "Trash2"); router.push(`/equipos/${team.id}`); };
 
   return (
@@ -478,10 +495,13 @@ export default function InitiativeDetailPage() {
                   </>
                 ); })()}
                 {current && isFacil && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     {st === "follow"
-                      ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Las retros de Seguimiento llegan en el próximo paso. Podés avanzar la etapa manualmente.</p>
+                      ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic", margin: 0 }}>Las retros de Seguimiento llegan en el próximo paso.</p>
                       : <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>}
+                    <Button size="sm" variant="secondary" icon={nextSt ? "ArrowRight" : "CircleCheck"} onClick={() => setCloseStageOpen(true)}>
+                      {nextSt ? `Cerrar etapa y avanzar` : "Cerrar ciclo"}
+                    </Button>
                   </div>
                 )}
               </Card>
@@ -568,6 +588,42 @@ export default function InitiativeDetailPage() {
           </Card>
         </div>
       </div>
+
+      {closeStageOpen && (
+        <div onClick={() => setCloseStageOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(620px,100%)", maxHeight: "86vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+              <span style={{ width: 44, height: 44, borderRadius: "var(--r-lg)", background: `color-mix(in srgb, ${STAGES[init.stage].color} 18%, transparent)`, color: STAGES[init.stage].color, display: "grid", placeItems: "center", flex: "none" }}><Icon name={nextSt ? "ArrowRight" : "CircleCheck"} size={22} /></span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "var(--t-lg)" }}>{nextSt ? `Cerrar ${STAGES[init.stage].label} y avanzar a ${STAGES[nextSt].label}` : `Cerrar ${STAGES[init.stage].label} y terminar el ciclo`}</div>
+                <div className="muted" style={{ fontSize: "var(--t-sm)" }}>{stageSessions.length} {stageSessions.length === 1 ? "sesión registrada" : "sesiones registradas"} en esta etapa</div>
+              </div>
+            </div>
+            <div style={{ margin: "16px 0", padding: 16, background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Resumen de lo acumulado</div>
+              <StageBody st={init.stage} init={withDerived(init, stageContent)} hasSession={!!stageContent[init.stage]} />
+              {stageSessions.length > 0 && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {stageSessions.map((s) => (
+                    <div key={s.id} className="muted" style={{ fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 6 }}>
+                      <Icon name="History" size={12} /> {s.date} · {s.retro} — {s.out}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 16 }}>
+              {nextSt
+                ? <>La iniciativa pasa a <b style={{ color: STAGES[nextSt].color }}>{STAGES[nextSt].label}</b>. Lo acumulado queda guardado y siempre se puede volver atrás cambiando la etapa.</>
+                : <>El ciclo se cierra y la iniciativa queda marcada como terminada.</>}
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="secondary" full onClick={() => setCloseStageOpen(false)}>Cancelar</Button>
+              <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy} onClick={doCloseStage}>{closeBusy ? "Guardando…" : "Confirmar"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {delOpen && (
         <div onClick={() => setDelOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>

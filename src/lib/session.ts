@@ -377,7 +377,11 @@ export async function finalizeSession(session: LiveSession, opts: {
       const dv = opts.dataValue && typeof opts.dataValue === "object" ? (opts.dataValue as Record<string, unknown>) : {};
       patch.data = { ...prev, [opts.dataKey]: { ...prevK, ...dv } };
     }
-    const ns = opts.stageOverride ?? (opts.noAdvance ? undefined : nextStageForward(initRow?.stage as string, session.type));
+    // Modo libre: cerrar una sesión NO avanza la etapa. La etapa acumula
+    // sesiones y el facilitador la cierra explícitamente desde la iniciativa
+    // ("Cerrar etapa y avanzar"). stageOverride queda para casos puntuales
+    // (ej: Aprendizaje con decisión de iterar vuelve la etapa a Ideación).
+    const ns = opts.stageOverride;
     if (ns && ns !== (initRow?.stage as string)) patch.stage = ns;
     if (opts.status) patch.status = opts.status;
     if (Object.keys(patch).length) await supabase.from("initiatives").update(patch).eq("id", session.initiativeId);
