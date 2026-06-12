@@ -155,7 +155,13 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
     const lastPulseAt = (teamRow?.data as { lastPulseAt?: string } | null)?.lastPulseAt;
     const d = new Date(); const dow = (d.getDay() + 6) % 7;
     const weekStart = new Date(d); weekStart.setHours(0, 0, 0, 0); weekStart.setDate(d.getDate() - dow);
-    const needPulse = !lastPulseAt || new Date(lastPulseAt) < weekStart;
+    let needPulse = !lastPulseAt || new Date(lastPulseAt) < weekStart;
+    if (!needPulse) {
+      // Upgrade: si el equipo nunca midió el pulso de 8 dimensiones, lo pedimos igual.
+      const { data: hasNew } = await supabase.from("pulse_points")
+        .select("dims").eq("team_id", p.teamId).not("dims", "is", null).limit(1);
+      if (!hasNew?.length) needPulse = true;
+    }
     if (needPulse) firstStep = "pulse";
   }
   // Cerrar cualquier sesión anterior que haya quedado abierta en el equipo
