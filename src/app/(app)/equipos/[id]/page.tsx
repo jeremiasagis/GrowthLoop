@@ -506,6 +506,42 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
   );
 }
 
+/** Columna derecha del equipo: pulso, salud, ritmo y contrato (compartida entre pestañas). */
+function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onChanged: () => void }) {
+  const live = getTeam(team.id) ?? team;
+  const inits = getInitiatives(team.id);
+  const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
+  const cadence = live.data?.cadence?.everyDays ?? 14;
+  const hasContract = !!live.data?.contract;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <Card pad={20}>
+        <SectionTitle icon="Activity" sub="Promedio de las dimensiones"
+          right={<button onClick={onOpenPulse} style={{ color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}>Detalle</button>}>
+          Pulso del equipo
+        </SectionTitle>
+        <PulseChart data={team.pulse} dims={PULSE_DIMS} height={200} />
+      </Card>
+      <Card pad={20}>
+        <SectionTitle icon="HeartPulse">Salud rápida</SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Row label="Seguridad ψ" value={team.psychSafety + "%"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
+          <Row label="Iniciativas en curso" value={inits.filter((i) => i.status === "active").length} />
+          <Row label="Ideación en curso" value={inits.filter((i) => i.stage === "proof" && i.status === "active").length} />
+          <Row label="Sesiones realizadas" value={team.sessions.length} />
+          {(() => {
+            const doneOk = inits.filter((i) => i.status === "done" && i.data?.learn?.result).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+            let streak = 0; for (const i of doneOk) { if (i.data?.learn?.result === "yes") streak++; else break; }
+            return streak >= 2 ? <Row label="Racha de mejoras" value={`🔥 ${streak} seguidas`} color="var(--warning)" /> : null;
+          })()}
+        </div>
+      </Card>
+      <RitmoCard teamId={team.id} everyDays={cadence} lastSessionAt={live.data?.lastSessionAt} isFacil={isFacil} onSaved={onChanged} />
+      {hasContract && <ContractCard team={team} />}
+    </div>
+  );
+}
+
 /** Objetivos del equipo (varios): cada uno agrupa iniciativas. */
 function ObjetivosSection({ team, isFacil, onChanged, onGoIniciativas }: { team: Team; isFacil: boolean; onChanged: () => void; onGoIniciativas?: () => void }) {
   const router = useRouter();
@@ -702,31 +738,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
         )}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <Card pad={20}>
-          <SectionTitle icon="Activity" sub="Promedio de las dimensiones"
-            right={<button onClick={onOpenPulse} style={{ color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}>Detalle</button>}>
-            Pulso del equipo
-          </SectionTitle>
-          <PulseChart data={team.pulse} dims={PULSE_DIMS} height={200} />
-        </Card>
-        <Card pad={20}>
-          <SectionTitle icon="HeartPulse">Salud rápida</SectionTitle>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Row label="Seguridad ψ" value={team.psychSafety + "%"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
-            <Row label="Iniciativas en curso" value={counts.active} />
-            <Row label="Ideación en curso" value={(team.initiatives ?? []).filter((i) => i.stage === "proof").length} />
-            <Row label="Sesiones realizadas" value={team.sessions.length} />
-            {(() => {
-              const doneOk = inits.filter((i) => i.status === "done" && i.data?.learn?.result).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-              let streak = 0; for (const i of doneOk) { if (i.data?.learn?.result === "yes") streak++; else break; }
-              return streak >= 2 ? <Row label="Racha de mejoras" value={`🔥 ${streak} seguidas`} color="var(--warning)" /> : null;
-            })()}
-          </div>
-        </Card>
-        <RitmoCard teamId={team.id} everyDays={cadence} lastSessionAt={live.data?.lastSessionAt} isFacil={isFacil} onSaved={refresh} />
-        {hasContract && <ContractCard team={team} />}
-      </div>
+      <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={onOpenPulse} onChanged={refresh} />
 
       {modal && <InitiativeModal teamId={team.id} onClose={() => setModal(false)} onSaved={refresh} />}
       {editing && <InitiativeModal teamId={team.id} editing={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
@@ -882,11 +894,14 @@ export default function TeamPage() {
       <div style={{ marginBottom: 20 }}><Tabs tabs={TABS} active={tab} onChange={setTab} /></div>
 
       {tab === "objetivos" && (
-        <div style={{ maxWidth: 820 }}>
-          <ObjetivosSection team={getTeam(team.id) ?? team} isFacil={isFacil} onChanged={() => setTeamNonce((n) => n + 1)} onGoIniciativas={() => setTab("seguimiento")} />
-          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 14 }}>
-            Las iniciativas de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Iniciativas</button>.
-          </p>
+        <div className="team-grid">
+          <div style={{ minWidth: 0 }}>
+            <ObjetivosSection team={getTeam(team.id) ?? team} isFacil={isFacil} onChanged={() => setTeamNonce((n) => n + 1)} onGoIniciativas={() => setTab("seguimiento")} />
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 14 }}>
+              Las iniciativas de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Iniciativas</button>.
+            </p>
+          </div>
+          <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onChanged={() => setTeamNonce((n) => n + 1)} />
         </div>
       )}
       {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onInvite={() => setInviteOpen(true)} />}
