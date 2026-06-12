@@ -17,6 +17,7 @@ import { TimelineBoard, TL_EMO, type TlEvent } from "@/components/TimelineBoard"
 import { CirclesDiagram, CIRCLE_META, type CircleKey } from "@/components/CirclesDiagram";
 import { CauseTree } from "@/components/CauseTree";
 import { FishboneDiagram } from "@/components/FishboneDiagram";
+import { OpposingScale } from "@/components/OpposingScales";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -95,6 +96,7 @@ const STEP_SEQ: Record<string, string[]> = {
   clientvoice: ["cvclient", "cvperc", "cvcontrast", "cvsynth"],
   fishbone: ["fbsetup", "fbcauses", "fbvote", "fbdeep", "fbmain"],
   perfection: ["pgscore", "pgreveal", "pgfactors", "pgsynth"],
+  opposites: ["oppairs", "oprate", "opreveal", "opsynth"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -2506,6 +2508,168 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 920 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ PARES DE OPUESTOS · tensiones sistémicas hoy vs. ideal ════════
+  if (session.type === "opposites") {
+    const OP_SUGGESTED: [string, string][] = [
+      ["Calidad", "Velocidad"], ["Autonomía", "Alineación"], ["Innovación", "Estabilidad"],
+      ["Foco", "Flexibilidad"], ["Proceso", "Resultado"], ["Individual", "Equipo"], ["Corto plazo", "Largo plazo"],
+    ];
+    type OpPair = { id: string; a: string; b: string };
+    const opPairs = (session.result.opPairs as OpPair[]) ?? [];
+    const myOp = (pid: string) => (inputs.find((i) => i.userId === user.id && i.key === `op:${pid}`)?.value as { t?: number; i?: number } | undefined) ?? {};
+    const opVals = (pid: string) => {
+      const xs = inputs.filter((i) => i.key === `op:${pid}`).map((i) => i.value as { t?: number; i?: number });
+      return { today: xs.map((x) => x.t).filter((v): v is number => v != null), ideal: xs.map((x) => x.i).filter((v): v is number => v != null) };
+    };
+    const opRaters = new Set(inputs.filter((i) => i.key.startsWith("op:")).map((i) => i.voterKey)).size;
+    const gapOf = (pid: string) => {
+      const { today, ideal } = opVals(pid);
+      if (!today.length || !ideal.length) return 0;
+      const t = today.reduce((a, b) => a + b, 0) / today.length;
+      const i = ideal.reduce((a, b) => a + b, 0) / ideal.length;
+      return Math.abs(i - t);
+    };
+    const biggest = opPairs.length ? opPairs.reduce((best, p) => (gapOf(p.id) > gapOf(best.id) ? p : best), opPairs[0]) : undefined;
+    const opSynth = (session.result.opSynth as string) ?? "";
+    const addPair = (a: string, b: string) => {
+      if (!a.trim() || !b.trim() || opPairs.length >= 3) return;
+      patchResult({ opPairs: [...(((resultRef.current.opPairs as OpPair[]) ?? opPairs)), { id: `op${Date.now().toString(36)}`, a: a.trim(), b: b.trim() }] });
+    };
+    const opFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Tensión: ${biggest ? `${biggest.a} ←→ ${biggest.b}` : "—"} · brecha ${biggest ? gapOf(biggest.id).toFixed(1) : "0"}`,
+        dataKey: "focus", dataValue: { tensionPair: biggest ? `${biggest.a} ←→ ${biggest.b}` : undefined, tensionHypothesis: opSynth },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "oppairs") {
+      sub = isFacil ? "Elegí 2 o 3 pares relevantes para la variable (sugeridos o propios)." : "El facilitador define los pares de opuestos.";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {opPairs.map((p) => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)", textAlign: "center" }}>{p.a} <span className="muted" style={{ fontWeight: 400 }}>←————→</span> {p.b}</span>
+                {isFacil && <button onClick={() => patchResult({ opPairs: opPairs.filter((x) => x.id !== p.id) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={14} /></button>}
+              </div>
+            ))}
+            {!opPairs.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic", textAlign: "center" }}>Máximo 3 pares por sesión.</p>}
+          </div>
+          {isFacil && opPairs.length < 3 && (
+            <>
+              <div className="eyebrow" style={{ margin: "14px 0 6px" }}>Sugeridos</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {OP_SUGGESTED.filter(([a, b]) => !opPairs.some((p) => p.a === a && p.b === b)).map(([a, b]) => (
+                  <button key={a} onClick={() => addPair(a, b)} style={{ fontSize: "var(--t-xs)", padding: "5px 11px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px dashed var(--line-2)", color: "var(--ink-1)", fontWeight: 600 }}>+ {a} ←→ {b}</button>
+                ))}
+              </div>
+              <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <input value={cardDraft.opa ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, opa: e.target.value }))} placeholder="Extremo A" style={{ flex: 1, minWidth: 120, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+                <input value={cardDraft.opb ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, opb: e.target.value }))} placeholder="Extremo B" style={{ flex: 1, minWidth: 120, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+                <Button size="sm" icon="Plus" onClick={() => { addPair(cardDraft.opa ?? "", cardDraft.opb ?? ""); setCardDraft((d) => ({ ...d, opa: "", opb: "" })); }}>Sumar</Button>
+              </div>
+            </>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || opPairs.length < 1} onClick={async () => { setBusy(true); await setStep(sessionId, "oprate", 1); setBusy(false); }}>Evaluar ({opPairs.length} {opPairs.length === 1 ? "par" : "pares"})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>En un momento evalúan cada par.</p>;
+    } else if (step === "oprate") {
+      sub = "Para cada par: ¿dónde está el equipo HOY (azul) y dónde debería estar IDEALMENTE (verde)?";
+      content = isFacil ? (
+        <Card pad={24}><div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{opRaters}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>evaluaron</div></div></Card>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {opPairs.map((p) => {
+            const r = myOp(p.id);
+            return (
+              <Card key={p.id} pad={16}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontWeight: 800, fontSize: "var(--t-sm)" }}>{p.a}</span>
+                  <span style={{ fontWeight: 800, fontSize: "var(--t-sm)" }}>{p.b}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: "var(--t-xs)", fontWeight: 700, color: "#3B82F6", width: 38 }}>HOY</span>
+                  <input type="range" min={1} max={10} value={r.t ?? 5} onChange={(e) => tapInput(`op:${p.id}`, { ...r, t: Number(e.target.value) })} style={{ flex: 1, accentColor: "#3B82F6" }} />
+                  <span className="num" style={{ width: 20, fontWeight: 800, color: "#3B82F6" }}>{r.t ?? "—"}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--green)", width: 38 }}>IDEAL</span>
+                  <input type="range" min={1} max={10} value={r.i ?? 5} onChange={(e) => tapInput(`op:${p.id}`, { ...r, i: Number(e.target.value) })} style={{ flex: 1, accentColor: "var(--green)" }} />
+                  <span className="num" style={{ width: 20, fontWeight: 800, color: "var(--green)" }}>{r.i ?? "—"}</span>
+                </div>
+              </Card>
+            );
+          })}
+          <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center" }}>{opRaters} de {totalInRoom} evaluaron · se revela todo junto</p>
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || opRaters === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "opreveal", 2); setBusy(false); }}>Revelar ({opRaters})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Marcá los dos puntos en cada par.</p>;
+    } else if (step === "opreveal") {
+      wide = true;
+      sub = "Todos los puntos superpuestos. ¿Dónde está la brecha más grande entre hoy e ideal?";
+      content = (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {opPairs.map((p) => {
+              const { today, ideal } = opVals(p.id);
+              const isBig = biggest?.id === p.id && opPairs.length > 1;
+              return (
+                <Card key={p.id} pad={18} style={isBig ? { border: "1.5px solid var(--st-focus)" } : undefined}>
+                  {isBig && <Pill color="var(--st-focus)" bg="color-mix(in srgb, var(--st-focus) 14%, transparent)" icon="Zap">mayor brecha</Pill>}
+                  <div style={{ marginTop: isBig ? 8 : 0 }}><OpposingScale a={p.a} b={p.b} today={today} ideal={ideal} /></div>
+                </Card>
+              );
+            })}
+          </div>
+          {isFacil && biggest && (
+            <Card pad={16} style={{ marginTop: 14 }}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Para la conversación ({biggest.a} ←→ {biggest.b})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: "var(--t-sm)" }}>
+                <span>· “¿Por qué estamos tan lejos del extremo que queremos?”</span>
+                <span>· “¿Qué nos lleva a ese extremo?” · “¿Qué costaría movernos?”</span>
+                <span>· <b>“¿Hay algo que nos conviene del extremo donde estamos?”</b> ← la clave: a veces ahí vive la causa raíz</span>
+              </div>
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "opsynth", 3); setBusy(false); }}>Formular la tensión</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>🔵 hoy · 🟢 ideal — conversen sobre la brecha más grande.</p>;
+    } else {
+      sub = "La tensión identificada y la hipótesis de causa. El equipo valida.";
+      const tmpl = opSynth || (biggest ? `El equipo tiende hacia ${(() => { const v = opVals(biggest.id); const t = v.today.length ? v.today.reduce((a, b) => a + b, 0) / v.today.length : 5; return t <= 5 ? biggest.a : biggest.b; })()} cuando en realidad necesita estar más cerca de ${(() => { const v = opVals(biggest.id); const i = v.ideal.length ? v.ideal.reduce((a, b) => a + b, 0) / v.ideal.length : 5; return i <= 5 ? biggest.a : biggest.b; })()}. Esto puede estar causado por ` : "");
+      content = (
+        <Card pad={20}>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>La tensión + hipótesis de causa raíz</div>
+          {isFacil
+            ? <textarea defaultValue={tmpl} onBlur={(e) => patchResult({ opSynth: e.target.value.trim() })} rows={4} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+            : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.55, color: opSynth ? "var(--ink-0)" : "var(--ink-3)" }}>{opSynth || "El facilitador está redactando…"}</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !opSynth.trim()} onClick={opFinish}>{busy ? "Guardando…" : "Cerrar con esta tensión"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Validen o ajusten la formulación en voz alta.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 760 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

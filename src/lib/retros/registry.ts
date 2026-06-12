@@ -348,7 +348,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Conversación sobre la tensión mayor", minutes: 10 },
       { name: "Síntesis: tensión + hipótesis de causa", minutes: 4 },
     ],
-    sessionType: "opposites", implemented: false,
+    sessionType: "opposites", entryStep: "oppairs", implemented: true,
   },
   {
     id: "focus-service-design", name: "Service Design Retro", stage: "focus", category: "classic",
