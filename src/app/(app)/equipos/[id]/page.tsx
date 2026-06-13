@@ -92,16 +92,20 @@ function Row({ label, value, color, pct }: { label: string; value: ReactNode; co
 function PulseDetail({ team }: { team: Team }) {
   if (team.pulse.length === 0) {
     return (
-      <Card pad={0}>
-        <EmptyState icon="Activity" title="Sin datos de pulso todavía">
-          El pulso del equipo se construye con cada sesión. Cuando hagas la primera, vas a ver acá la evolución.
-        </EmptyState>
-      </Card>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <HealthCard team={team} />
+        <Card pad={0}>
+          <EmptyState icon="Activity" title="Sin datos de pulso todavía">
+            El pulso del equipo se construye con cada sesión. Cuando hagas la primera, vas a ver acá la evolución.
+          </EmptyState>
+        </Card>
+      </div>
     );
   }
   const first = team.pulse[0], last = team.pulse[team.pulse.length - 1];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <HealthCard team={team} />
       <Card pad={20}>
         <SectionTitle icon="Radar" sub="El radar promedio de la última medición (escala 1-5)">Radar del equipo</SectionTitle>
         <div style={{ maxWidth: 460, margin: "0 auto" }}><PulseRadar values={last.dims ?? {}} size={380} /></div>
@@ -142,33 +146,42 @@ function fmtDate(iso?: string): string {
   return d.toLocaleDateString("es", { day: "2-digit", month: "short" });
 }
 
-function ContractCard({ team }: { team: Team }) {
+
+/** El contrato del equipo en un modal (accesible desde el header). */
+function ContractModal({ team, onClose }: { team: Team; onClose: () => void }) {
   const c = team.data?.contract;
-  const [open, setOpen] = useState(false);
-  if (!c) return null;
   return (
-    <Card pad={20}>
-      <SectionTitle icon="Handshake" sub={`Firmado · ${c.date}`}
-        right={<button onClick={() => setOpen((o) => !o)} style={{ color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}>{open ? "Ocultar" : "Ver"}</button>}>
-        Contrato del equipo
-      </SectionTitle>
-      {c.answers?.purpose && <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, marginTop: 4 }}>{c.answers.purpose}</p>}
-      {open && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-          {FOUNDING_QUESTIONS.map((q) => (
-            <div key={q.key}>
-              <div className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>{q.q}</div>
-              <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45, color: c.answers?.[q.key] ? "var(--ink-0)" : "var(--ink-3)" }}>{c.answers?.[q.key] || "—"}</div>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(520px,100%)", maxHeight: "86vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 24, animation: "pop-in .25s var(--spring)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span style={{ width: 36, height: 36, borderRadius: "var(--r-md)", background: "var(--green-soft)", color: "var(--green)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Handshake" size={18} /></span>
+          <div><h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>Contrato del equipo</h3>{c?.date && <span className="muted" style={{ fontSize: "var(--t-xs)" }}>Firmado · {c.date}</span>}</div>
+          <button onClick={onClose} style={{ marginLeft: "auto", color: "var(--ink-2)" }}><Icon name="X" size={18} /></button>
+        </div>
+        {!c ? (
+          <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginTop: 12 }}>Todavía no firmaron el contrato. Se crea en la <b style={{ color: "var(--ink-0)" }}>Sesión Fundacional</b> — donde el equipo acuerda cómo va a funcionar.</p>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
+              {FOUNDING_QUESTIONS.map((q) => (
+                <div key={q.key}>
+                  <div className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>{q.q}</div>
+                  <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45, color: c.answers?.[q.key] ? "var(--ink-0)" : "var(--ink-3)" }}>{c.answers?.[q.key] || "—"}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-      {!!(c.signedNames?.length) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-          {c.signedNames!.map((n) => <span key={n} className="num" style={{ fontSize: "var(--t-xs)", color: "var(--green)", background: "var(--success-bg)", borderRadius: 99, padding: "2px 9px", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="PenLine" size={11} />{n}</span>)}
-        </div>
-      )}
-    </Card>
+            {!!(c.signedNames?.length) && (
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Firmado por</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {c.signedNames!.map((n) => <span key={n} className="num" style={{ fontSize: "var(--t-xs)", color: "var(--green)", background: "var(--success-bg)", borderRadius: 99, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="PenLine" size={11} />{n}</span>)}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -592,32 +605,34 @@ function TeamProgressPanel({ team, onGoTab }: { team: Team; onGoTab?: (tab: stri
   );
 }
 
-function TeamSidebar({ team, isFacil, onOpenPulse, onChanged, onGoTab }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onChanged: () => void; onGoTab?: (tab: string) => void }) {
+function TeamSidebar({ team, onGoTab }: { team: Team; onGoTab?: (tab: string) => void }) {
   const live = getTeam(team.id) ?? team;
-  const inits = getInitiatives(team.id);
-  const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
-  const cadence = live.data?.cadence?.everyDays ?? 14;
-  const hasContract = !!live.data?.contract;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <TeamProgressPanel team={live} onGoTab={onGoTab} />
-      <Card pad={20}>
-        <SectionTitle icon="HeartPulse">Salud rápida</SectionTitle>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Row label="Confianza" value={team.psychSafety ? to5(team.psychSafety).toFixed(1) + "/5" : "—"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
-          <Row label="Iniciativas en curso" value={inits.filter((i) => i.status === "active").length} />
-          <Row label="Ideación en curso" value={inits.filter((i) => i.stage === "ideation" && i.status === "active").length} />
-          <Row label="Sesiones realizadas" value={team.sessions.length} />
-          {(() => {
-            const doneOk = inits.filter((i) => i.status === "done" && i.data?.learn?.result).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-            let streak = 0; for (const i of doneOk) { if (i.data?.learn?.result === "yes") streak++; else break; }
-            return streak >= 2 ? <Row label="Racha de mejoras" value={`🔥 ${streak} seguidas`} color="var(--warning)" /> : null;
-          })()}
-        </div>
-      </Card>
-      <RitmoCard teamId={team.id} everyDays={cadence} lastSessionAt={live.data?.lastSessionAt} isFacil={isFacil} onSaved={onChanged} />
-      {hasContract && <ContractCard team={team} />}
     </div>
+  );
+}
+
+/** Salud rápida del equipo (vive dentro de la pestaña Pulso). */
+function HealthCard({ team }: { team: Team }) {
+  const inits = getInitiatives(team.id);
+  const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
+  return (
+    <Card pad={20}>
+      <SectionTitle icon="HeartPulse">Salud rápida</SectionTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Row label="Confianza" value={team.psychSafety ? to5(team.psychSafety).toFixed(1) + "/5" : "—"} color={lowSafety ? "var(--warning)" : "var(--success)"} pct={team.psychSafety} />
+        <Row label="Iniciativas en curso" value={inits.filter((i) => i.status === "active").length} />
+        <Row label="Ideación en curso" value={inits.filter((i) => i.stage === "ideation" && i.status === "active").length} />
+        <Row label="Sesiones realizadas" value={team.sessions.length} />
+        {(() => {
+          const doneOk = inits.filter((i) => i.status === "done" && i.data?.learn?.result).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+          let streak = 0; for (const i of doneOk) { if (i.data?.learn?.result === "yes") streak++; else break; }
+          return streak >= 2 ? <Row label="Racha de mejoras" value={`🔥 ${streak} seguidas`} color="var(--warning)" /> : null;
+        })()}
+      </div>
+    </Card>
   );
 }
 
@@ -901,7 +916,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
         )}
       </div>
 
-      <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={onOpenPulse} onChanged={refresh} onGoTab={onGoTab} />
+      <TeamSidebar team={team} onGoTab={onGoTab} />
 
       {modal && <InitiativeModal teamId={team.id} onClose={() => setModal(false)} onSaved={refresh} />}
       {editing && <InitiativeModal teamId={team.id} editing={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
@@ -994,6 +1009,8 @@ export default function TeamPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delBusy, setDelBusy] = useState(false);
+  const [contractOpen, setContractOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [celeb, setCeleb] = useState<{ title: string; subtitle?: string; emoji: string } | null>(null);
 
   // Celebración: confetti al subir de nivel o cerrar un ciclo (la 1ª vez fija la
@@ -1057,8 +1074,10 @@ export default function TeamPage() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Button variant="secondary" icon="Handshake" onClick={() => setContractOpen(true)}>Contrato</Button>
           <Button variant="secondary" icon="Library" onClick={() => router.push(`/equipos/${team.id}/biblioteca`)}>Biblioteca</Button>
           <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
+          {isFacil && <Button variant="secondary" icon="Settings" onClick={() => setSettingsOpen(true)}>Ajustes</Button>}
           {isFacil && <Button icon="UserPlus" onClick={() => setInviteOpen(true)}>Invitar integrante</Button>}
           {isFacil && <Button variant="ghost" icon="Trash2" onClick={() => setDelOpen(true)} style={{ color: "var(--risk)" }}>Eliminar</Button>}
         </div>
@@ -1081,7 +1100,7 @@ export default function TeamPage() {
           <div style={{ minWidth: 0 }}>
             <ExploracionSection team={getTeam(team.id) ?? team} isFacil={isFacil} />
           </div>
-          <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onChanged={() => setTeamNonce((n) => n + 1)} onGoTab={setTab} />
+          <TeamSidebar team={team} onGoTab={setTab} />
         </div>
       )}
 
@@ -1093,7 +1112,7 @@ export default function TeamPage() {
               Las iniciativas de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Iniciativas</button>.
             </p>
           </div>
-          <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onChanged={() => setTeamNonce((n) => n + 1)} onGoTab={setTab} />
+          <TeamSidebar team={team} onGoTab={setTab} />
         </div>
       )}
       {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onInvite={() => setInviteOpen(true)} onGoTab={setTab} />}
@@ -1111,6 +1130,15 @@ export default function TeamPage() {
       )}
 
       {inviteOpen && <InviteMemberModal team={team} onClose={() => setInviteOpen(false)} />}
+      {contractOpen && <ContractModal team={team} onClose={() => setContractOpen(false)} />}
+      {settingsOpen && (
+        <div onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 24, animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><Icon name="Settings" size={18} style={{ color: "var(--ink-2)" }} /><h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>Ajustes del equipo</h3><button onClick={() => setSettingsOpen(false)} style={{ marginLeft: "auto", color: "var(--ink-2)" }}><Icon name="X" size={18} /></button></div>
+            <RitmoCard teamId={team.id} everyDays={team.data?.cadence?.everyDays ?? 14} lastSessionAt={team.data?.lastSessionAt} isFacil={isFacil} onSaved={() => setTeamNonce((n) => n + 1)} />
+          </div>
+        </div>
+      )}
       {delOpen && (
         <div onClick={() => setDelOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, textAlign: "center", animation: "pop-in .25s var(--spring)" }}>
