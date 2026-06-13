@@ -358,6 +358,19 @@ export async function setInitiativeStage(id: string, stage: StageKey): Promise<{
   return {};
 }
 
+/** Mezcla (shallow) un valor dentro de initiatives.data[dataKey]. */
+export async function patchInitiativeData(id: string, dataKey: string, dataValue: Record<string, unknown>): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: row } = await supabase.from("initiatives").select("data").eq("id", id).maybeSingle();
+  const prev = (row?.data as Record<string, unknown>) ?? {};
+  const prevK = (prev[dataKey] as Record<string, unknown>) ?? {};
+  const next = { ...prev, [dataKey]: { ...prevK, ...dataValue } };
+  const { error } = await supabase.from("initiatives").update({ data: next }).eq("id", id);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
 /** Cambia el estado de una iniciativa (en curso / cerrada / pausada). */
 export async function setInitiativeStatus(id: string, status: Initiative["status"]): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();

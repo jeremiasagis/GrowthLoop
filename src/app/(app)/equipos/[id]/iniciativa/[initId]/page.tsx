@@ -10,7 +10,7 @@ import {
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import {
-  deleteInitiative, getFacilitators, getInitiatives, getTeam, setInitiativeStage, setInitiativeStatus,
+  deleteInitiative, getFacilitators, getInitiatives, getTeam, patchInitiativeData, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
 import { getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
@@ -416,20 +416,32 @@ export default function InitiativeDetailPage() {
   // Cierre explícito de etapa (modo libre): resumen + confirmación.
   const [closeStageOpen, setCloseStageOpen] = useState(false);
   const [closeBusy, setCloseBusy] = useState(false);
+  const [finalHonesty, setFinalHonesty] = useState<"green" | "yellow" | "red" | null>(null);
   const nextSt = nextCycleStage(init.stage);
   const stageSessions = sessions.filter((s) => stageOfSessionType(s.stage) === init.stage);
-  // Bloqueo obligatorio: Ideación no cierra sin "Diseño de la prueba" completo
-  // (apuesta con resultado y señal). Es el único gate del ciclo.
+  // Bloqueos obligatorios del ciclo:
+  //  · Ideación no cierra sin "Diseño de la prueba" completo (apuesta + señal).
+  //  · Seguimiento no cierra sin al menos un check-in de "¿Cómo venimos?".
   const pf = init.data?.proof;
+  const fl = init.data?.follow;
   const betReady = !!((pf?.betThen && pf?.signalMetric) || (pf?.bets?.length && pf.bets[0]?.betThen && pf.bets[0]?.signalMetric));
-  const closeBlocked = normalizeStage(init.stage) === "ideation" && !betReady;
+  const followCheckinDone = !!(fl?.startedAt || fl?.signalLog?.length || fl?.betCheckins?.length || fl?.decision || fl?.honesty);
+  const stageNorm = normalizeStage(init.stage);
+  const closeBlocked = (stageNorm === "ideation" && !betReady) || (stageNorm === "follow" && !followCheckinDone);
+  const needsFinalHonesty = stageNorm === "follow" && followCheckinDone && !finalHonesty;
+  const HON_OPTS = [
+    { k: "green" as const, emoji: "🟢", label: "La prueba funcionó", color: "var(--success)" },
+    { k: "yellow" as const, emoji: "🟡", label: "Resultados mixtos", color: "var(--warning)" },
+    { k: "red" as const, emoji: "🔴", label: "No funcionó como esperábamos", color: "var(--risk)" },
+  ];
   const doCloseStage = async () => {
-    if (closeBlocked) return;
+    if (closeBlocked || needsFinalHonesty) return;
     setCloseBusy(true);
+    if (stageNorm === "follow" && finalHonesty) await patchInitiativeData(init.id, "follow", { finalHonesty });
     const res = nextSt ? await setInitiativeStage(init.id, nextSt) : await setInitiativeStatus(init.id, "done");
     setCloseBusy(false);
     if (res.error) { show(res.error, "TriangleAlert"); return; }
-    setCloseStageOpen(false);
+    setCloseStageOpen(false); setFinalHonesty(null);
     show(nextSt ? `Etapa cerrada · ahora en ${STAGES[nextSt].label}` : "Ciclo cerrado 🎉", "Check");
     refresh();
   };
@@ -672,7 +684,7 @@ export default function InitiativeDetailPage() {
                 </div>
               ) : null;
             })()}
-            {closeBlocked && (
+            {closeBlocked && stageNorm === "ideation" && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 14, background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 45%, transparent)", borderRadius: "var(--r-md)" }}>
                 <Icon name="TriangleAlert" size={18} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
                 <div style={{ flex: 1, fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
@@ -681,9 +693,33 @@ export default function InitiativeDetailPage() {
                 </div>
               </div>
             )}
+            {closeBlocked && stageNorm === "follow" && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 14, background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 45%, transparent)", borderRadius: "var(--r-md)" }}>
+                <Icon name="TriangleAlert" size={18} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1, fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+                  <b>Todavía no hiciste ningún check-in.</b> No se puede cerrar Seguimiento sin haber mirado la prueba al menos una vez. Hacé la retro <b>¿Cómo venimos?</b> antes de avanzar a Aprendizaje.
+                  {isFacil && <div style={{ marginTop: 10 }}><Button size="sm" icon="Activity" onClick={() => { setCloseStageOpen(false); setLauncherOpen(true); }}>Hacer un check-in</Button></div>}
+                </div>
+              </div>
+            )}
+            {stageNorm === "follow" && followCheckinDone && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Honestidad final · ¿cómo cerramos la prueba?</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {HON_OPTS.map((o) => { const on = finalHonesty === o.k; return (
+                    <button key={o.k} onClick={() => setFinalHonesty(o.k)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: "var(--r-md)", textAlign: "left", border: `1.5px solid ${on ? o.color : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${o.color} 13%, var(--card))` : "var(--card)", cursor: "pointer" }}>
+                      <span style={{ fontSize: 20 }}>{o.emoji}</span>
+                      <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{o.label}</span>
+                      {on && <Icon name="CheckCircle2" size={16} style={{ color: o.color }} />}
+                    </button>
+                  ); })}
+                </div>
+                <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 8 }}>Queda guardado y abre la conversación de Aprendizaje.</p>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="secondary" full onClick={() => setCloseStageOpen(false)}>Cancelar</Button>
-              <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy || closeBlocked} onClick={doCloseStage}>{closeBusy ? "Guardando…" : closeBlocked ? "Falta la prueba" : "Confirmar"}</Button>
+              <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy || closeBlocked || needsFinalHonesty} onClick={doCloseStage}>{closeBusy ? "Guardando…" : closeBlocked ? (stageNorm === "follow" ? "Falta un check-in" : "Falta la prueba") : needsFinalHonesty ? "Elegí cómo cerramos" : "Confirmar"}</Button>
             </div>
           </div>
         </div>
