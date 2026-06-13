@@ -90,14 +90,37 @@ function Row({ label, value, color, pct }: { label: string; value: ReactNode; co
   );
 }
 
-function PulseDetail({ team }: { team: Team }) {
+function PulseDetail({ team, isFacil }: { team: Team; isFacil: boolean }) {
+  const router = useRouter();
+  const { show } = useToast();
+  const [pulsing, setPulsing] = useState(false);
+  const takePulse = async () => {
+    if (pulsing) return;
+    setPulsing(true);
+    const res = await createLiveSession({ teamId: team.id, type: "pulse", firstStep: "pulse" });
+    setPulsing(false);
+    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir el pulso", "TriangleAlert"); return; }
+    router.push(`/sala/${res.session.id}`);
+  };
+  const TakePulseBtn = isFacil ? <Button icon="Activity" disabled={pulsing} onClick={takePulse}>Tomar el pulso</Button> : null;
+  const PulseHeader = (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div>
+        <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, letterSpacing: "-0.02em" }}>Pulso del equipo</h2>
+        <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Una medición anónima de la salud del equipo. La tomás cuando quieras, en vivo.</p>
+      </div>
+      {TakePulseBtn}
+    </div>
+  );
   if (team.pulse.length === 0) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {PulseHeader}
         <HealthCard team={team} />
         <Card pad={0}>
-          <EmptyState icon="Activity" title="Sin datos de pulso todavía">
-            El pulso del equipo se construye con cada sesión. Cuando hagas la primera, vas a ver acá la evolución.
+          <EmptyState icon="Activity" title="Sin datos de pulso todavía"
+            action={TakePulseBtn ?? undefined}>
+            El pulso es una sesión en vivo aparte: el equipo puntúa 8 dimensiones del 1 al 5 en anónimo y ves el radar promedio. Tomalo cuando quieras.
           </EmptyState>
         </Card>
       </div>
@@ -106,6 +129,7 @@ function PulseDetail({ team }: { team: Team }) {
   const first = team.pulse[0], last = team.pulse[team.pulse.length - 1];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {PulseHeader}
       <HealthCard team={team} />
       <Card pad={20}>
         <SectionTitle icon="Radar" sub="El radar promedio de la última medición (escala 1-5)">Radar del equipo</SectionTitle>
@@ -1196,7 +1220,7 @@ export default function TeamPage() {
       )}
       {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onInvite={() => setInviteOpen(true)} onGoTab={setTab} />}
 
-      {tab === "pulso" && <PulseDetail team={team} />}
+      {tab === "pulso" && <PulseDetail team={team} isFacil={isFacil} />}
 
       {tab === "sesiones" && (
         team.sessions.length ? <SessionsLog team={team} /> : (

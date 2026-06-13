@@ -39,7 +39,7 @@ export interface SessionInput { userId: string | null; key: string; value: Recor
 const RETRO_NAME: Record<string, string> = {
   founding: "Sesión Fundacional", foda: "FODA del equipo",
   explore: "Exploración", focus: "Foco · impacto/esfuerzo", proof: "Ideación",
-  learn: "Aprendizaje",
+  learn: "Aprendizaje", pulse: "Pulso del equipo",
 };
 
 // Ciclo de mejora nuevo. Exploración es un módulo aparte (no avanza el ciclo).
@@ -217,28 +217,10 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string; firstStep?: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
-  // Primer paso "real" de cada tipo (sin pulso). El pulso se antepone abajo si toca.
-  const NORMAL_FIRST: Record<string, string> = { founding: "welcome", explore: "cards", focus: "matrix", proof: "ideas", learn: "result" };
-  const normalFirst = p.firstStep ?? (NORMAL_FIRST[p.type] || "cards");
-  // Pulso semanal: si el equipo no hizo pulso esta semana (lun–dom), la sesión arranca con el pulso.
-  // La Sesión Fundacional nunca lleva pulso (es el contrato inicial).
-  let firstStep = normalFirst;
-  // founding/foda: arranque del equipo. teamradar: ya es una medición.
-  // relationships: retro sensible, el encuadre va primero.
-  if (!["founding", "foda", "teamradar", "relationships", "expclose"].includes(p.type)) {
-    const { data: teamRow } = await supabase.from("teams").select("data").eq("id", p.teamId).maybeSingle();
-    const lastPulseAt = (teamRow?.data as { lastPulseAt?: string } | null)?.lastPulseAt;
-    const d = new Date(); const dow = (d.getDay() + 6) % 7;
-    const weekStart = new Date(d); weekStart.setHours(0, 0, 0, 0); weekStart.setDate(d.getDate() - dow);
-    let needPulse = !lastPulseAt || new Date(lastPulseAt) < weekStart;
-    if (!needPulse) {
-      // Upgrade: si el equipo nunca midió el pulso de 8 dimensiones, lo pedimos igual.
-      const { data: hasNew } = await supabase.from("pulse_points")
-        .select("dims").eq("team_id", p.teamId).not("dims", "is", null).limit(1);
-      if (!hasNew?.length) needPulse = true;
-    }
-    if (needPulse) firstStep = "pulse";
-  }
+  // Primer paso "real" de cada tipo. El pulso es una sesión aparte (type "pulse"),
+  // que el facilitador toma cuando quiere — ya no se antepone a las retros.
+  const NORMAL_FIRST: Record<string, string> = { founding: "welcome", explore: "cards", focus: "matrix", proof: "ideas", learn: "result", pulse: "pulse" };
+  const firstStep = p.firstStep ?? (NORMAL_FIRST[p.type] || "cards");
   // Cerrar cualquier sesión anterior que haya quedado abierta en el equipo
   // (evita "fantasmas" en vivo y garantiza una sola sesión activa por equipo).
   await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() })

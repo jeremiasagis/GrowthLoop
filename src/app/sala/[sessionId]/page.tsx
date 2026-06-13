@@ -150,6 +150,7 @@ const STEP_SEQ: Record<string, string[]> = {
   letter: ["ltframe", "ltwrite", "ltread", "lttheme", "ltclose"],
   speeddating: ["sdwarn", "sdframe", "sdpairs", "sdrounds", "sdplenary", "sdclose"],
   consolidation: ["concheck", "conresult"],
+  pulse: ["pulse", "pulse_reveal"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -669,8 +670,13 @@ export default function SalaPage() {
   if (step === "pulse" || step === "pulse_reveal") {
     const NORMAL_FIRST: Record<string, string> = { explore: "cards", focus: "matrix", proof: "ideas", learn: "result" };
     const afterPulse = (session.result.entryStep as string) ?? NORMAL_FIRST[session.type] ?? "cards";
+    const standalonePulse = session.type === "pulse";
     const toReveal = async () => { setBusy(true); await setStep(sessionId, "pulse_reveal", 1); setBusy(false); };
-    const goAfterPulse = async () => { setBusy(true); await setStep(sessionId, afterPulse, 0); setBusy(false); };
+    const goAfterPulse = async () => {
+      setBusy(true);
+      if (standalonePulse) { await finalizeSession(session, { pulseAvg: avg, summaryText: `Pulso del equipo: ${to5(overall).toFixed(1)}/5` }); setBusy(false); leave(); return; }
+      await setStep(sessionId, afterPulse, 0); setBusy(false);
+    };
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
     if (step === "pulse") {
       sub = "Pulso del equipo. Ocho dimensiones, del 1 al 5, en anónimo.";
@@ -707,7 +713,7 @@ export default function SalaPage() {
     } else {
       sub = "El pulso del equipo, revelado para todos.";
       content = <Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>El radar del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{to5(overall).toFixed(1)}/5</Pill></div>{Averages}</Card>;
-      controls = isFacil ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={goAfterPulse}>Continuar con la sesión</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador continúa con la sesión.</p>;
+      controls = isFacil ? <Button full size="lg" icon={standalonePulse ? "Check" : "ArrowRight"} iconRight={standalonePulse ? undefined : "ArrowRight"} disabled={busy} onClick={goAfterPulse}>{busy ? "Guardando…" : standalonePulse ? "Cerrar el pulso" : "Continuar con la sesión"}</Button> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>{standalonePulse ? "El facilitador cierra el pulso." : "El facilitador continúa con la sesión."}</p>;
     }
     return (
       <Shell onExit={exit} mood={teamMood}>
