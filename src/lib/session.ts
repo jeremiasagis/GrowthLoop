@@ -127,6 +127,16 @@ export async function getLastClosedTeamSession(teamId: string, type: string, exc
   return data ? mapSession(data) : null;
 }
 
+/** La sesión en vivo abierta en CUALQUIER equipo visible para el usuario
+ *  (para miembros: sus equipos según RLS — perfil o ficha vinculada). */
+export async function getMyOpenSession(): Promise<LiveSession | null> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.from("sessions").select("*")
+    .eq("status", "live")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data ? mapSession(data) : null;
+}
+
 /** La sesión en vivo abierta de un equipo (si hay). */
 export async function getOpenSessionForTeam(teamId: string): Promise<LiveSession | null> {
   const supabase = getSupabaseBrowserClient();

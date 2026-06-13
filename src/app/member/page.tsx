@@ -6,7 +6,7 @@ import { Icon } from "@/components/icon";
 import { AvatarStack, Button, Card, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getFacilitators, getInitiatives, getMyTeam } from "@/lib/repository";
-import { getOpenSessionForTeam, subscribeTeamSessions, type LiveSession } from "@/lib/session";
+import { getMyOpenSession, subscribeTeamSessions, type LiveSession } from "@/lib/session";
 import { overallOf, teamLiveStage } from "@/lib/data";
 
 export default function MemberHome() {
@@ -19,7 +19,7 @@ export default function MemberHome() {
   useEffect(() => {
     if (!team?.id) return; const tid = team.id;
     let active = true;
-    const load = async () => { const s = await getOpenSessionForTeam(tid); if (active) setLive(s); };
+    const load = async () => { const s = await getMyOpenSession(); if (active) setLive(s); };
     load();
     const unsub = subscribeTeamSessions(tid, load);
     const poll = setInterval(load, 3000);

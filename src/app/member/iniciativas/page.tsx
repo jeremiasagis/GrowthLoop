@@ -6,7 +6,7 @@ import { Icon } from "@/components/icon";
 import { Button, Card, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getInitiatives, getMyTeam } from "@/lib/repository";
-import { getOpenSessionForTeam, subscribeTeamSessions, type LiveSession } from "@/lib/session";
+import { getMyOpenSession, subscribeTeamSessions, type LiveSession } from "@/lib/session";
 import { CYCLE_STAGES, STAGES, type Initiative } from "@/lib/data";
 
 function fmtDate(iso?: string) {
@@ -44,7 +44,7 @@ export default function MemberIniciativas() {
   useEffect(() => {
     if (!team?.id) return; const tid = team.id;
     let active = true;
-    const load = async () => { const s = await getOpenSessionForTeam(tid); if (active) setLive(s); };
+    const load = async () => { const s = await getMyOpenSession(); if (active) setLive(s); };
     load();
     const unsub = subscribeTeamSessions(tid, load);
     const poll = setInterval(load, 3000);
