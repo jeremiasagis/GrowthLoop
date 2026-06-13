@@ -142,6 +142,7 @@ const STEP_SEQ: Record<string, string[]> = {
   starfish: ["cards", "cards_reveal", "cluster", "vote", "close"],
   lwhappened: ["lwresult", "lwsilence", "lwreact", "lwreveal", "lwnarrative", "lwclose"],
   lwlearned: ["lwldistinct", "lwlwrite", "lwlread", "lwlclassify", "lwlhighlight", "lwlclose"],
+  lwnext: ["lwnopts", "lwndebate", "lwndecide", "lwnclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -5935,6 +5936,135 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 640 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿QUÉ SIGUE? · decisión de cierre + destino de la variable (Aprendizaje C) ════════
+  if (session.type === "lwnext") {
+    const r = session.result;
+    const NOPTS = [
+      { k: "implement", t: "Implementar", emoji: "🟢", color: "var(--success)", desc: "La prueba funcionó y queremos que sea la nueva forma de trabajar.", q: "¿Qué necesitamos para que se sostenga sin que nadie lo monitoree?", conseq: "La variable entra en Consolidación por 30 días." },
+      { k: "iterate", t: "Iterar", emoji: "🔄", color: "var(--st-proof)", desc: "Funcionó parcialmente o aprendimos algo que nos hace querer probar una variante.", q: "¿Qué ajustamos en la apuesta o en la acción?", conseq: "La variable vuelve a Ideación con la apuesta ajustada precargada." },
+      { k: "pivot", t: "Pivotar", emoji: "🔀", color: "var(--warning)", desc: "No funcionó pero entendemos mejor el problema.", q: "¿Qué prueba diferente diseñamos con lo que aprendimos?", conseq: "La variable vuelve a Foco con los aprendizajes como contexto." },
+      { k: "pause", t: "Pausar", emoji: "⏸️", color: "var(--ink-2)", desc: "No es el momento de seguir con esta variable.", q: "¿Qué la bloquea? ¿Cuándo la retomamos?", conseq: "La variable queda Pausada en el mapa, con fecha tentativa de revisión." },
+    ];
+    const decision = (r.lnDecision as string) ?? "";
+    const reason = (r.lnReason as string) ?? "";
+    const pauseDate = (r.lnPauseDate as string) ?? "";
+    const dl = NOPTS.find((o) => o.k === decision);
+    const lnArgs = (r.lnArgs as Record<string, { pro?: string; con?: string }>) ?? {};
+    const setArg = (k: string, patch: Record<string, string>) => patchResult({ lnArgs: { ...((resultRef.current.lnArgs as Record<string, unknown>) ?? {}), [k]: { ...(lnArgs[k] ?? {}), ...patch } } });
+    const decOks = new Set(inputs.filter((i) => i.key === "lndecok").map((i) => i.userId));
+    const lnFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Decisión: ${dl?.t ?? "—"}`,
+        dataKey: "learn",
+        dataValue: { decision, decisionReason: reason, ...(decision === "pause" && pauseDate ? { pauseReviewAt: pauseDate } : {}), closeWords },
+        noAdvance: true,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "lwnopts") {
+      wide = true;
+      sub = "¿Qué hacemos con esta variable? Cuatro caminos, cada uno con su consecuencia.";
+      content = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))", gap: 12 }}>
+          {NOPTS.map((o) => (
+            <Card key={o.k} pad={16} style={{ borderTop: `3px solid ${o.color}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><span style={{ fontSize: 22 }}>{o.emoji}</span><b style={{ fontSize: "var(--t-md)", color: o.color }}>{o.t}</b></div>
+              <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.45, marginBottom: 8 }}>{o.desc}</p>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", fontStyle: "italic", marginBottom: 8 }}>{o.q}</p>
+              <div style={{ fontSize: "var(--t-xs)", padding: "7px 10px", borderRadius: "var(--r-sm)", background: `color-mix(in srgb, ${o.color} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${o.color} 28%, transparent)` }}><Icon name="ArrowRight" size={12} style={{ color: o.color }} /> {o.conseq}</div>
+            </Card>
+          ))}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwndebate", 1); setBusy(false); }}>Abrir el debate</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador presenta las opciones.</p>;
+    } else if (step === "lwndebate") {
+      wide = true;
+      sub = isFacil ? "Facilitá sin tomar partido. Un argumento a favor y uno en contra de cada camino." : "Debatamos cada camino: a favor y en contra.";
+      content = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))", gap: 12 }}>
+          {NOPTS.map((o) => { const a = lnArgs[o.k] ?? {}; return (
+            <Card key={o.k} pad={14} style={{ borderTop: `3px solid ${o.color}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}><span style={{ fontSize: 18 }}>{o.emoji}</span><b style={{ fontSize: "var(--t-sm)", color: o.color }}>{o.t}</b></div>
+              <div style={{ marginBottom: 8 }}>
+                <div className="eyebrow" style={{ marginBottom: 4, color: "var(--success)" }}>A favor</div>
+                {isFacil ? <textarea defaultValue={a.pro} onBlur={(e) => setArg(o.k, { pro: e.target.value })} rows={2} placeholder="Un argumento a favor…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none", resize: "vertical" }} /> : <p style={{ fontSize: "var(--t-xs)", minHeight: 16 }}>{a.pro || "—"}</p>}
+              </div>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 4, color: "var(--risk)" }}>En contra</div>
+                {isFacil ? <textarea defaultValue={a.con} onBlur={(e) => setArg(o.k, { con: e.target.value })} rows={2} placeholder="Un argumento en contra…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none", resize: "vertical" }} /> : <p style={{ fontSize: "var(--t-xs)", minHeight: 16 }}>{a.con || "—"}</p>}
+              </div>
+            </Card>
+          ); })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwndecide", 2); setBusy(false); }}>Tomar la decisión</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El equipo converge naturalmente.</p>;
+    } else if (step === "lwndecide") {
+      sub = "Decidimos [opción] porque [razón].";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px,1fr))", gap: 10, marginBottom: 16 }}>
+            {NOPTS.map((o) => { const on = decision === o.k; const dim = !!decision && !on; return (
+              <button key={o.k} disabled={!isFacil} onClick={() => patchResult({ lnDecision: o.k })} style={{ textAlign: "center", padding: "16px 10px", borderRadius: "var(--r-lg)", background: on ? `color-mix(in srgb, ${o.color} 14%, var(--card))` : "var(--card)", border: `1.5px solid ${on ? o.color : "var(--line-2)"}`, opacity: dim ? 0.5 : 1, cursor: isFacil ? "pointer" : "default", boxShadow: on ? `0 0 14px color-mix(in srgb, ${o.color} 30%, transparent)` : "none", transition: "all .2s" }}>
+                <div style={{ fontSize: 26, transform: on ? "scale(1.15)" : "scale(1)", transition: "transform .2s" }}>{o.emoji}</div>
+                <div style={{ fontWeight: 800, fontSize: "var(--t-sm)", marginTop: 4 }}>{o.t}</div>
+              </button>
+            ); })}
+          </div>
+          {dl && (
+            <>
+              <div style={{ fontSize: "var(--t-xs)", padding: "8px 11px", borderRadius: "var(--r-sm)", background: `color-mix(in srgb, ${dl.color} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${dl.color} 28%, transparent)`, marginBottom: 12 }}><Icon name="ArrowRight" size={12} style={{ color: dl.color }} /> {dl.conseq}</div>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>¿Por qué? (obligatorio)</div>
+              {isFacil
+                ? <textarea defaultValue={reason} onBlur={(e) => patchResult({ lnReason: e.target.value })} rows={2} placeholder={`Elegimos ${dl.t.toLowerCase()} porque…`} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+                : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, color: reason ? "var(--ink-0)" : "var(--ink-3)" }}>{reason || "El facilitador registra la razón…"}</p>}
+              {decision === "pause" && isFacil && (
+                <div style={{ marginTop: 10 }}>
+                  <div className="eyebrow" style={{ marginBottom: 5 }}>¿Cuándo la revisamos?</div>
+                  <input type="date" defaultValue={pauseDate} onBlur={(e) => patchResult({ lnPauseDate: e.target.value })} style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+                </div>
+              )}
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {!isFacil
+                  ? (decOks.has(user.id) ? <span style={{ color: "var(--green)", fontWeight: 700, fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="CircleCheck" size={16} /> Confirmaste</span> : <Button size="sm" icon="ThumbsUp" disabled={!decision || !reason} onClick={() => tapInput("lndecok", { ok: true })}>Confirmo la decisión</Button>)
+                  : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>El equipo confirma con un clic.</span>}
+                <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--green)" }}>{decOks.size}/{totalInRoom} confirmaron</span>
+              </div>
+            </>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !decision || !reason.trim() || (decision === "pause" && !pauseDate)} onClick={async () => { setBusy(true); await setStep(sessionId, "lwnclose", 3); setBusy(false); }}>Cerrar con una palabra</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador registra la decisión y su razón.</p>;
+    } else {
+      sub = "El ritual de cierre del ciclo.";
+      content = (
+        <>
+          {dl && <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: "var(--r-md)", background: `color-mix(in srgb, ${dl.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${dl.color} 30%, transparent)`, fontSize: "var(--t-sm)", lineHeight: 1.5 }}><b style={{ color: dl.color }}>{dl.emoji} {dl.t}.</b> {dl.conseq} <span className="muted">Se aplica al cerrar la etapa de Aprendizaje.</span></div>}
+          {learnClosing()}
+        </>
+      );
+      controls = learnCloseControls(lnFinish);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 820 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

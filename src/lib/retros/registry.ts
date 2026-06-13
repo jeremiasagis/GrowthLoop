@@ -659,7 +659,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Decisión con justificación", minutes: 5 },
       { name: "Movimiento automático de la variable", minutes: 2 },
     ],
-    sessionType: "lwnext", entryStep: "lwnopts", implemented: false,
+    sessionType: "lwnext", entryStep: "lwnopts", implemented: true,
   },
   {
     id: "learn-how-are-we-as-a-team", name: "¿Cómo estamos como equipo?", stage: "learn", category: "growthloop",

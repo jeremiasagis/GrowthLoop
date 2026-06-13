@@ -163,7 +163,7 @@ export interface InitiativeData {
   learn?: { result?: string; results?: string[]; achieved?: string[]; learnings?: string[]; highlights?: { name: string; votes: number }[]; decision?: string; decisions?: string[];
     narrative?: string; executed?: string; highlightedLearning?: string; decisionReason?: string;
     processAdjustments?: string[]; desires?: string[]; commitments?: string[]; letterDate?: string;
-    closeWords?: string[]; };
+    pauseReviewAt?: string; closeWords?: string[]; };
   consolidate?: { outcome?: string; note?: string; date?: string };
 }
 
