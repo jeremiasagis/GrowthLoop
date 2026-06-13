@@ -159,6 +159,8 @@ export default function SalaPage() {
   const [afterClose, setAfterClose] = useState<string | null>(null);
   // Foco: qué causa está "en la mano" para ubicar en el mapa único.
   const [focusSel, setFocusSel] = useState<string | null>(null);
+  // Foco: ficha que se está arrastrando en el mapa (posición local en fracción 0-1).
+  const [ieDrag, setIeDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   // Timeline: hito y emoción elegidos para el próximo evento del miembro.
   const [tlPick, setTlPick] = useState<{ m: number; emo: "pos" | "neu" | "neg" }>({ m: 0, emo: "pos" });
   const sessionId = params.sessionId;
@@ -3298,21 +3300,38 @@ export default function SalaPage() {
     // Cada uno ve solo SUS fichas hasta que el facilitador revela (ahí se ven las coincidencias).
     const placedIds = causes.filter((c) => { const m = myIE(c.id); return m?.impact != null && m?.effort != null; }).map((c) => c.id);
     const activeCause = causes.find((c) => c.id === focusSel) ?? causes.find((c) => !placedIds.includes(c.id)) ?? causes[0];
-    const placeOnBoard = (e: React.MouseEvent<HTMLDivElement>) => {
-      if (isFacil || !activeCause) return; // el facilitador no participa
-      const r = e.currentTarget.getBoundingClientRect();
-      const fx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-      const fy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
-      const effort = Math.round((fx * 4 + 1) * 2) / 2;
-      const impact = Math.round(((1 - fy) * 4 + 1) * 2) / 2;
-      setMyIE(activeCause.id, { impact, effort });
-      // Pasa solo a la siguiente causa sin ubicar.
-      const next = causes.find((c) => c.id !== activeCause.id && !placedIds.includes(c.id));
+    const padCoords = (el: HTMLElement, clientX: number, clientY: number) => {
+      const r = el.getBoundingClientRect();
+      return { x: Math.min(1, Math.max(0, (clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (clientY - r.top) / r.height)) };
+    };
+    const commitDrag = (id: string, x: number, y: number) => {
+      const effort = Math.round((x * 4 + 1) * 2) / 2;
+      const impact = Math.round(((1 - y) * 4 + 1) * 2) / 2;
+      setMyIE(id, { impact, effort });
+      const next = causes.find((c) => c.id !== id && !placedIds.includes(c.id));
       setFocusSel(next?.id ?? null);
+    };
+    // pointerdown en el pad vacío: agarra la causa "en la mano" y empieza a arrastrarla.
+    const padDown = (e: React.PointerEvent<HTMLDivElement>) => {
+      if (isFacil || !activeCause) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const c = padCoords(e.currentTarget, e.clientX, e.clientY);
+      setIeDrag({ id: activeCause.id, ...c });
+    };
+    const padMove = (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!ieDrag) return;
+      const c = padCoords(e.currentTarget, e.clientX, e.clientY);
+      setIeDrag({ id: ieDrag.id, ...c });
+    };
+    const padUp = (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!ieDrag) return;
+      const c = padCoords(e.currentTarget, e.clientX, e.clientY);
+      commitDrag(ieDrag.id, c.x, c.y);
+      setIeDrag(null);
     };
     const SingleBoard = (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {/* fichas: tocá una para tenerla "en la mano", después tocá el mapa */}
+        {/* fichas: tocá una para tenerla "en la mano", después arrastrala al mapa */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
           {causes.map((c, i) => { const placed = placedIds.includes(c.id); const on = !isFacil && activeCause?.id === c.id; return (
             <button key={c.id} disabled={isFacil} onClick={() => setFocusSel(c.id)}
@@ -3323,20 +3342,28 @@ export default function SalaPage() {
             </button>
           ); })}
         </div>
-        <div onClick={placeOnBoard} style={{ ...padBase, aspectRatio: "3 / 2", cursor: isFacil ? "default" : "crosshair" }}>
+        <div onPointerDown={padDown} onPointerMove={padMove} onPointerUp={padUp} style={{ ...padBase, aspectRatio: "3 / 2", cursor: isFacil ? "default" : "grab", touchAction: isFacil ? "auto" : "none" }}>
           {CrossLines}{QuadLabels}
-          {/* tus fichas ya ubicadas */}
-          {causes.map((c, i) => { const m = myIE(c.id); if (m?.impact == null || m?.effort == null) return null; return (
-            <span key={c.id} title={c.text} onClick={(e) => { e.stopPropagation(); if (!isFacil) setFocusSel(c.id); }}
-              style={{ position: "absolute", left: `${((m.effort - 1) / 4) * 100}%`, top: `${(1 - (m.impact - 1) / 4) * 100}%`, transform: "translate(-50%,-50%)", width: 24, height: 24, borderRadius: 99, background: cColor(c.id), color: "#06121f", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 11, border: "2px solid var(--bg-1)", boxShadow: `0 0 10px ${cColor(c.id)}`, animation: "pop-in .3s var(--spring)", cursor: "pointer", zIndex: 1 }} className="num">{i + 1}</span>
-          ); })}
-          {placedIds.length === 0 && (
-            <span className="faint" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 6, pointerEvents: "none" }}>
-              <Icon name={isFacil ? "EyeOff" : "Hand"} size={15} /> {isFacil ? "El equipo ubica las causas en privado" : "Tocá el mapa para ubicar la causa seleccionada"}
+          {/* tus fichas ya ubicadas (o la que se está arrastrando, en su posición local) */}
+          {causes.map((c, i) => {
+            const dragging = ieDrag?.id === c.id;
+            const m = myIE(c.id);
+            const placed = m?.impact != null && m?.effort != null;
+            if (!dragging && !placed) return null;
+            const left = dragging ? ieDrag!.x * 100 : (((m?.effort ?? 3) - 1) / 4) * 100;
+            const top = dragging ? ieDrag!.y * 100 : (1 - ((m?.impact ?? 3) - 1) / 4) * 100;
+            return (
+              <span key={c.id} title={c.text} onPointerDown={(e) => { if (isFacil) return; e.stopPropagation(); (e.currentTarget.parentElement as HTMLElement)?.setPointerCapture(e.pointerId); setFocusSel(c.id); const cc = padCoords(e.currentTarget.parentElement as HTMLElement, e.clientX, e.clientY); setIeDrag({ id: c.id, ...cc }); }}
+                style={{ position: "absolute", left: `${left}%`, top: `${top}%`, transform: "translate(-50%,-50%)", width: dragging ? 28 : 24, height: dragging ? 28 : 24, borderRadius: 99, background: cColor(c.id), color: "#06121f", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 11, border: "2px solid var(--bg-1)", boxShadow: `0 0 ${dragging ? 16 : 10}px ${cColor(c.id)}`, animation: dragging ? "none" : "pop-in .3s var(--spring)", cursor: "grab", touchAction: "none", zIndex: dragging ? 3 : 1 }} className="num">{i + 1}</span>
+            );
+          })}
+          {placedIds.length === 0 && !ieDrag && (
+            <span className="faint" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 6, pointerEvents: "none", textAlign: "center" }}>
+              <Icon name={isFacil ? "EyeOff" : "Hand"} size={15} /> {isFacil ? "El equipo ubica las causas en privado" : "Arrastrá la causa al mapa donde cae"}
             </span>
           )}
         </div>
-        {!isFacil && activeCause && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}>En la mano: <b style={{ color: cColor(activeCause.id) }}>{activeCause.text}</b> · tocá el mapa donde cae (↑ impacto · ← menos esfuerzo). Tocá una ficha para re-ubicarla.</p>}
+        {!isFacil && activeCause && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-xs)" }}>En la mano: <b style={{ color: cColor(activeCause.id) }}>{activeCause.text}</b> · arrastrala al mapa (↑ impacto · ← menos esfuerzo). Podés arrastrar una ficha ya puesta para re-ubicarla.</p>}
       </div>
     );
     // Mapa revelado: cada causa plotteada en su posición promedio; los votos individuales como "calor"; la ganadora brilla.
