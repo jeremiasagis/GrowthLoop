@@ -431,7 +431,13 @@ export async function inviteMember(input: { teamId: string; orgId: string; email
   const supabase = getSupabaseBrowserClient();
   const name = input.name?.trim()
     || input.email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  const { error } = await supabase.from("team_members").insert({ team_id: input.teamId, name, initials: initialsOf(name) });
+  // La ficha guarda el email para que accept_invitation la vincule al usuario real.
+  const email = input.email.trim().toLowerCase();
+  const { data: existing } = await supabase.from("team_members").select("id")
+    .eq("team_id", input.teamId).eq("email", email).limit(1).maybeSingle();
+  const { error } = existing
+    ? { error: null } // re-invitación: la ficha ya existe, no duplicar
+    : await supabase.from("team_members").insert({ team_id: input.teamId, name, initials: initialsOf(name), email });
   if (error) return { error: error.message };
   const inv = await createInvitation({ email: input.email, name, role: "member", orgId: input.orgId, teamId: input.teamId });
   await reloadData();

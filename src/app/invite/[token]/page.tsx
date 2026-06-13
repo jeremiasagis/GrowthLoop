@@ -23,7 +23,7 @@ function Field({ label, type = "text", value, onChange, readOnly }: { label: str
 export default function InvitePage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
-  const { acceptInvite } = useAuth();
+  const { acceptInvite, login, user } = useAuth();
 
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   const [loadingInv, setLoadingInv] = useState(true);
@@ -32,6 +32,8 @@ export default function InvitePage() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // "signup": crear cuenta nueva · "login": ya tiene cuenta, entra y se une
+  const [mode, setMode] = useState<"signup" | "login">("signup");
 
   useEffect(() => {
     getInvitation(params.token).then((inv) => {
@@ -67,8 +69,24 @@ export default function InvitePage() {
   }
 
   const role = ROLES[invitation.role];
+  const sameAccount = !!user && user.email.toLowerCase() === invitation.email.toLowerCase();
+
+  // Acepta la invitación con la sesión ya activa: la RPC (security definer)
+  // re-vincula perfil + ficha del equipo, y recargamos para reconstruir el rol.
+  const acceptWithSession = async () => {
+    await markInvitationAccepted(invitation.token);
+    window.location.href = homeFor(invitation.role);
+  };
 
   const submit = async () => {
+    if (mode === "login") {
+      if (pass.length < 6) { setError("Ingresá tu contraseña."); return; }
+      setBusy(true);
+      const u = await login(invitation.email, pass);
+      if (!u) { setBusy(false); setError("Email o contraseña incorrectos."); return; }
+      await acceptWithSession();
+      return;
+    }
     if (name.trim().length < 2) { setError("Ingresá tu nombre completo."); return; }
     if (pass.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
     if (pass !== confirm) { setError("Las contraseñas no coinciden."); return; }
@@ -78,10 +96,30 @@ export default function InvitePage() {
       email: invitation.email, password: pass, name: name.trim(),
       role: invitation.role, orgId: invitation.orgId, orgName: invitation.orgName, teamId: invitation.teamId,
     });
-    if (res.error) { setBusy(false); setError(res.error); return; }
+    if (res.error) {
+      setBusy(false);
+      if (/already|registered|exists/i.test(res.error)) {
+        setMode("login"); setPass(""); setError("Ese correo ya tiene cuenta. Ingresá tu contraseña para unirte.");
+      } else setError(res.error);
+      return;
+    }
     await markInvitationAccepted(invitation.token);
     router.replace(homeFor(invitation.role));
   };
+
+  // Ya logueado con el mismo email: unirse directo, sin formulario.
+  if (sameAccount) {
+    return (
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "var(--bg-1)" }}>
+        <Card pad={28} style={{ maxWidth: 440, textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--violet-soft)", color: "var(--violet)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="MailOpen" size={28} /></div>
+          <h1 style={{ fontSize: "var(--t-lg)", fontWeight: 800, marginBottom: 6 }}>Te invitaron{invitation.orgName ? ` a ${invitation.orgName}` : ""}</h1>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 20 }}>Ya estás logueado como <b style={{ color: "var(--ink-0)" }}>{user!.name}</b> ({invitation.email}). Un clic y quedás vinculado.</p>
+          <Button full size="lg" icon="UserCheck" disabled={busy} onClick={async () => { setBusy(true); await acceptWithSession(); }}>{busy ? "Vinculando…" : "Unirme con esta cuenta"}</Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 20px", background: "radial-gradient(900px 460px at 50% -120px, rgba(124,58,237,0.12), transparent), var(--bg-1)" }}>
@@ -103,9 +141,9 @@ export default function InvitePage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Field label="Tu correo" value={invitation.email} readOnly />
-          <Field label="Nombre completo" value={name} onChange={(v) => { setName(v); setError(null); }} />
+          {mode === "signup" && <Field label="Nombre completo" value={name} onChange={(v) => { setName(v); setError(null); }} />}
           <Field label="Contraseña" type="password" value={pass} onChange={(v) => { setPass(v); setError(null); }} />
-          <Field label="Confirmar contraseña" type="password" value={confirm} onChange={(v) => { setConfirm(v); setError(null); }} />
+          {mode === "signup" && <Field label="Confirmar contraseña" type="password" value={confirm} onChange={(v) => { setConfirm(v); setError(null); }} />}
         </div>
 
         {error && (
@@ -115,8 +153,12 @@ export default function InvitePage() {
         )}
 
         <Button full size="lg" icon="UserCheck" onClick={submit} disabled={busy} style={{ marginTop: 22 }}>
-          {busy ? "Creando tu cuenta…" : "Crear mi cuenta y unirme"}
+          {busy ? (mode === "login" ? "Entrando…" : "Creando tu cuenta…") : (mode === "login" ? "Entrar y unirme" : "Crear mi cuenta y unirme")}
         </Button>
+        <button onClick={() => { setMode((m) => (m === "signup" ? "login" : "signup")); setError(null); setPass(""); setConfirm(""); }}
+          style={{ width: "100%", marginTop: 14, fontSize: "var(--t-sm)", color: "var(--green)", fontWeight: 600 }}>
+          {mode === "signup" ? "¿Ya tenés cuenta? Entrá y unite con ella" : "¿No tenés cuenta? Creá una nueva"}
+        </button>
       </Card>
     </div>
   );
