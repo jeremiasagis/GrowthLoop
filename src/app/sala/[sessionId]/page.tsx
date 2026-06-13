@@ -69,6 +69,17 @@ const RETRO_COLS: Record<string, { key: string; label: string; color: string; ic
     { key: "rocks",  label: "🪨 Rocas · ¿qué riesgos vemos?",  color: "var(--risk)",    icon: "TriangleAlert" },
     { key: "island", label: "🏝️ Isla · ¿hacia dónde vamos?",   color: "var(--green)",   icon: "Flag" },
   ],
+  startstop: [
+    { key: "start",    label: "🟢 Start · ¿qué empezar?",   color: "var(--success)", icon: "Play" },
+    { key: "stop",     label: "🔴 Stop · ¿qué dejar?",      color: "var(--risk)",    icon: "CircleStop" },
+    { key: "continue", label: "🔵 Continue · ¿qué mantener?", color: "#3B82F6",      icon: "Repeat" },
+  ],
+  daki: [
+    { key: "drop",    label: "🗑️ Drop · eliminar",   color: "var(--risk)",    icon: "Trash2" },
+    { key: "add",     label: "➕ Add · incorporar",  color: "var(--success)", icon: "Plus" },
+    { key: "keep",    label: "✅ Keep · preservar",  color: "#3B82F6",        icon: "Check" },
+    { key: "improve", label: "🔧 Improve · mejorar", color: "var(--warning)", icon: "Wrench" },
+  ],
 };
 
 // FODA del equipo: matriz 2×2 (internas arriba, externas abajo), anónimo hasta revelar.
@@ -87,6 +98,8 @@ const STEP_SEQ: Record<string, string[]> = {
   madsadglad: ["cards", "cards_reveal", "cluster", "vote", "close"],
   balloon: ["cards", "cards_reveal", "cluster", "vote", "close"],
   sailboat: ["cards", "cards_reveal", "cluster", "vote", "close"],
+  startstop: ["cards", "cards_reveal", "cluster", "vote", "close"],
+  daki: ["cards", "cards_reveal", "cluster", "vote", "close"],
   oneword: ["word", "word_reveal", "close"],
   teamradar: ["setup", "rate", "radar_reveal"],
   timeline: ["build", "tload", "timeline_reveal"],
@@ -4807,9 +4820,15 @@ export default function SalaPage() {
         const top = ranked.find((cl) => cardsOf(cl.id).some((c) => c.columnKey === col.key));
         return top ? `${col.label.split(" ·")[0]}: ${top.name}` : null;
       }).filter(Boolean);
+      // Las de Ideación (Start/Stop/Continue, DAKI) dejan sus acciones top en proof
+      // para que las sugiera "Diseño de la prueba".
+      const IDEATION_BOARD = ["startstop", "daki"];
+      const finalists = ranked.slice(0, 3).map((c) => c.name);
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: allCards.length,
         summaryText: ranked[0] ? `top: ${ranked[0].name}` : (tops[0] ?? `${allCards.length} tarjetas`),
+        dataKey: IDEATION_BOARD.includes(session.type) && finalists.length ? "proof" : undefined,
+        dataValue: IDEATION_BOARD.includes(session.type) && finalists.length ? { finalists } : undefined,
       });
       setBusy(false); leave(); return;
     }

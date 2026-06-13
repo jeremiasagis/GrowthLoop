@@ -461,7 +461,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Votación · 3 puntos", minutes: 3 },
       { name: "Conversación y acciones", minutes: 8 },
     ],
-    sessionType: "startstop", implemented: false,
+    sessionType: "startstop", implemented: true,
   },
   {
     id: "ideation-daki", name: "DAKI", stage: "ideation", category: "classic",
