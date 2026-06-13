@@ -23,6 +23,7 @@ import { JourneyBoard, type JourneyCol } from "@/components/JourneyBoard";
 import { StaceyMatrix, STACEY_ZONES, zoneOf } from "@/components/StaceyMatrix";
 import { StoryboardCanvas } from "@/components/StoryboardCanvas";
 import { ArcherTarget } from "@/components/ArcherTarget";
+import { HonestyPulse, type HonestyKey } from "@/components/HonestyPulse";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -124,6 +125,7 @@ const STEP_SEQ: Record<string, string[]> = {
   storyboard: ["sbframe", "sbdraw", "sbpresent", "sbconsensus"],
   archer: ["arframe", "arbuild", "aralign", "arclose"],
   leancoffee: ["lctopics", "lcvote", "lcwork", "lcclose"],
+  follow: ["fwcard", "fwreport", "fwunblock", "fwdecision", "fwhonesty"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -3781,6 +3783,179 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 760 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿CÓMO VENIMOS? · check-in de la prueba ════════
+  if (session.type === "follow") {
+    const pf = initiative?.data?.proof;
+    const fl = initiative?.data?.follow;
+    const r = session.result;
+    const fv = (k: string) => (r[k] as string) ?? "";
+    const fidelity = fv("fwFidelity");
+    const hasBlockers = !!r.fwHasBlockers;
+    const decision = fv("fwDecision");
+    const startedAt = fl?.startedAt ?? (r.fwStartedAt as string) ?? "";
+    const deadline = pf?.deadline ?? "";
+    const dayInfo = (() => {
+      if (!startedAt || !deadline) return null;
+      const s = new Date(startedAt).getTime(), d = new Date(deadline).getTime(), now = Date.now();
+      const total = Math.max(1, Math.round((d - s) / 86400000));
+      const elapsed = Math.max(0, Math.round((now - s) / 86400000));
+      return { total, elapsed, left: Math.max(0, total - elapsed), pct: Math.min(100, (elapsed / total) * 100) };
+    })();
+    const honestVotes = inputs.filter((i) => i.key === "fwhonest").map((i) => (i.value as { v?: string }).v);
+    const hc = { green: honestVotes.filter((v) => v === "green").length, yellow: honestVotes.filter((v) => v === "yellow").length, red: honestVotes.filter((v) => v === "red").length };
+    const myHonest = (inputs.find((i) => i.userId === user.id && i.key === "fwhonest")?.value as { v?: string } | undefined)?.v as HonestyKey | undefined;
+    const honestShown = !!r.fwHonestShown;
+    const worry = hc.yellow + hc.red > hc.green;
+    const fwFinish = async () => {
+      setBusy(true);
+      const today = new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
+      const prevLog = (fl?.signalLog as { date: string; value: string }[] | undefined) ?? [];
+      const signalLog = fv("fwSignalNow") ? [...prevLog, { date: today, value: fv("fwSignalNow") }] : prevLog;
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Check-in: señal ${fv("fwSignalNow") || "—"} · ${decision === "stop" ? "detener" : decision === "adjust" ? "ajustar" : "continuar"}`,
+        dataKey: "follow",
+        dataValue: {
+          signalNow: fv("fwSignalNow"), fidelity, fidelityNote: fv("fwFidelityNote"),
+          blockers: hasBlockers && fv("fwBlockers") ? [fv("fwBlockers")] : [],
+          adjustNote: fv("fwAdjust"), decision, startedAt: startedAt || new Date().toISOString(),
+          honesty: hc, signalLog,
+        },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    const FichaCard = (
+      <Card pad={18} style={{ border: "1px solid color-mix(in srgb, var(--st-follow) 40%, var(--line))" }}>
+        <div className="eyebrow" style={{ color: "var(--st-follow)", marginBottom: 8 }}>La prueba en marcha</div>
+        {(pf?.betIf || pf?.betThen) && <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginBottom: 10 }}>Si <b>{pf?.betIf || "…"}</b>, lograremos <b>{pf?.betThen || "…"}</b>.</p>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: "var(--t-xs)" }}>
+          {pf?.signalMetric && <span><span className="muted">Señal:</span> <b>{pf.signalMetric}</b>{pf.signalTarget ? ` → ${pf.signalTarget}` : ""}</span>}
+          {pf?.responsible && <span><span className="muted">Responsable:</span> <b>{pf.responsible}</b></span>}
+          {deadline && <span><span className="muted">Revisión:</span> <b>{deadline}</b></span>}
+        </div>
+        {dayInfo && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-xs)", marginBottom: 4 }}><span className="muted">Día {dayInfo.elapsed} de {dayInfo.total}</span><span className="num" style={{ fontWeight: 700, color: dayInfo.left <= 2 ? "var(--warning)" : "var(--ink-2)" }}>{dayInfo.left} días restantes</span></div>
+            <div style={{ height: 6, borderRadius: 99, background: "var(--card-2)", overflow: "hidden" }}><div style={{ height: "100%", width: `${dayInfo.pct}%`, background: "var(--st-follow)", borderRadius: 99 }} /></div>
+          </div>
+        )}
+      </Card>
+    );
+    const ta: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" };
+    if (step === "fwcard") {
+      sub = "La ficha de la prueba que estamos siguiendo.";
+      content = FichaCard;
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "fwreport", 1); setBusy(false); }}>Reportar el avance</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El responsable va a reportar cómo viene.</p>;
+    } else if (step === "fwreport") {
+      sub = isFacil ? "Reporte del responsable (lo completás en pantalla)." : "El responsable reporta el avance.";
+      content = (
+        <>
+          {FichaCard}
+          <Card pad={18} style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 5 }}>Valor actual de la señal</div>
+                {isFacil ? <input defaultValue={fv("fwSignalNow")} onBlur={(e) => patchResult({ fwSignalNow: e.target.value.trim() })} placeholder={pf?.signalMetric ? `Ej: ${pf.signalTarget ?? "valor"}` : "Valor de la señal hoy"} style={ta as React.CSSProperties} /> : <p style={{ fontSize: "var(--t-sm)" }}>{fv("fwSignalNow") || "—"}</p>}
+              </div>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 6 }}>¿Se ejecutó como la diseñamos?</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {[{ k: "yes", t: "✅ Sí, completamente" }, { k: "partial", t: "⚡ Parcialmente" }, { k: "no", t: "❌ No llegamos" }].map((o) => (
+                    <button key={o.k} disabled={!isFacil} onClick={() => patchResult({ fwFidelity: o.k })} style={{ padding: "8px 12px", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", fontWeight: 600, border: `1.5px solid ${fidelity === o.k ? "var(--st-follow)" : "var(--line-2)"}`, background: fidelity === o.k ? "color-mix(in srgb, var(--st-follow) 14%, var(--card))" : "var(--card)" }}>{o.t}</button>
+                  ))}
+                </div>
+                {(fidelity === "partial" || fidelity === "no") && isFacil && <textarea defaultValue={fv("fwFidelityNote")} onBlur={(e) => patchResult({ fwFidelityNote: e.target.value })} rows={2} placeholder={fidelity === "partial" ? "¿Qué no pudimos hacer y por qué?" : "¿Qué pasó?"} style={{ ...ta, marginTop: 8 } as React.CSSProperties} />}
+                {(fidelity === "partial" || fidelity === "no") && !isFacil && fv("fwFidelityNote") && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 6 }}>{fv("fwFidelityNote")}</p>}
+              </div>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 6 }}>¿Hay obstáculos bloqueando?</div>
+                {isFacil ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => patchResult({ fwHasBlockers: true })} style={{ padding: "7px 14px", borderRadius: "var(--r-full)", fontWeight: 700, fontSize: "var(--t-sm)", border: `1.5px solid ${hasBlockers ? "var(--warning)" : "var(--line-2)"}`, background: hasBlockers ? "var(--warning-bg)" : "var(--card)", color: hasBlockers ? "var(--warning)" : "var(--ink-2)" }}>Sí</button>
+                    <button onClick={() => patchResult({ fwHasBlockers: false })} style={{ padding: "7px 14px", borderRadius: "var(--r-full)", fontWeight: 700, fontSize: "var(--t-sm)", border: `1.5px solid ${r.fwHasBlockers === false ? "var(--success)" : "var(--line-2)"}`, background: r.fwHasBlockers === false ? "var(--success-bg)" : "var(--card)", color: r.fwHasBlockers === false ? "var(--green)" : "var(--ink-2)" }}>No</button>
+                  </div>
+                ) : <p style={{ fontSize: "var(--t-sm)" }}>{hasBlockers ? "Sí" : r.fwHasBlockers === false ? "No" : "—"}</p>}
+                {hasBlockers && isFacil && <textarea defaultValue={fv("fwBlockers")} onBlur={(e) => patchResult({ fwBlockers: e.target.value })} rows={2} placeholder="¿Cuál es el obstáculo?" style={{ ...ta, marginTop: 8 } as React.CSSProperties} />}
+                {hasBlockers && !isFacil && fv("fwBlockers") && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 6 }}>{fv("fwBlockers")}</p>}
+              </div>
+            </div>
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !fidelity} onClick={async () => { setBusy(true); await setStep(sessionId, hasBlockers ? "fwunblock" : "fwdecision", hasBlockers ? 2 : 3); setBusy(false); }}>{hasBlockers ? "Destrabar" : "Pasar a la decisión"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El responsable completa el reporte.</p>;
+    } else if (step === "fwunblock") {
+      sub = "Destrabe rápido. Se ajusta la acción, no la apuesta.";
+      content = (
+        <>
+          <div style={{ padding: "12px 14px", marginBottom: 14, background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+            <Icon name="Info" size={14} style={{ color: "var(--warning)" }} /> Se puede ajustar <b>la acción</b> (cómo ejecutamos). <b>No</b> se cambia la apuesta (qué queremos lograr). Si ajustan algo, documentalo.
+          </div>
+          {hasBlockers && fv("fwBlockers") && <Card pad={14} style={{ marginBottom: 12 }}><div className="eyebrow" style={{ marginBottom: 4 }}>El obstáculo</div><div style={{ fontSize: "var(--t-sm)" }}>{fv("fwBlockers")}</div></Card>}
+          <Card pad={16}>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>El ajuste (qué y por qué)</div>
+            {isFacil ? <textarea defaultValue={fv("fwAdjust")} onBlur={(e) => patchResult({ fwAdjust: e.target.value })} rows={3} placeholder="Para destrabar vamos a…" style={ta as React.CSSProperties} /> : <p style={{ fontSize: "var(--t-sm)" }}>{fv("fwAdjust") || "El equipo está definiendo el destrabe…"}</p>}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "fwdecision", 3); setBusy(false); }}>Pasar a la decisión</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Conversen cómo destrabar.</p>;
+    } else if (step === "fwdecision") {
+      sub = "¿Qué hacemos con la prueba?";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[{ k: "continue", t: "Continuar como está", ic: "Play", c: "var(--green)" }, { k: "adjust", t: "Ajustar algo específico", ic: "Settings2", c: "var(--warning)" }, { k: "stop", t: "Detener la prueba", ic: "CircleStop", c: "var(--risk)" }].map((o) => (
+              <button key={o.k} disabled={!isFacil} onClick={() => patchResult({ fwDecision: o.k })} style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", borderRadius: "var(--r-md)", textAlign: "left", border: `1.5px solid ${decision === o.k ? o.c : "var(--line-2)"}`, background: decision === o.k ? `color-mix(in srgb, ${o.c} 12%, var(--card))` : "var(--card)" }}>
+                <Icon name={o.ic} size={17} style={{ color: o.c }} /><span style={{ fontWeight: 600, fontSize: "var(--t-sm)" }}>{o.t}</span>
+              </button>
+            ))}
+          </div>
+          {(decision === "adjust" || decision === "stop") && isFacil && <textarea defaultValue={fv("fwDecisionNote")} onBlur={(e) => patchResult({ fwDecisionNote: e.target.value })} rows={2} placeholder={decision === "stop" ? "Justificación del cierre anticipado…" : "¿Qué ajustamos y por qué?"} style={{ ...ta, marginTop: 12 } as React.CSSProperties} />}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !decision} onClick={async () => { setBusy(true); await setStep(sessionId, "fwhonesty", 4); setBusy(false); }}>Última: honestidad del equipo</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador registra la decisión.</p>;
+    } else {
+      sub = honestShown ? "Cómo siente el equipo que viene la prueba." : "Anónimo y honesto: ¿cómo ves que viene la prueba realmente?";
+      content = (
+        <>
+          <Card pad={20}>
+            {!isFacil && !honestShown
+              ? <HonestyPulse counts={hc} mine={myHonest} onVote={(k) => tapInput("fwhonest", { v: k })} />
+              : <HonestyPulse counts={hc} revealed />}
+          </Card>
+          {honestShown && worry && isFacil && (
+            <div style={{ marginTop: 12, padding: "12px 14px", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 45%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+              <Icon name="TriangleAlert" size={16} style={{ color: "var(--warning)" }} /> El equipo siente algo diferente al reporte. Considerá abrir el espacio para hablarlo antes de cerrar.
+            </div>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? (honestShown
+          ? <Button full size="lg" icon="Check" disabled={busy} onClick={fwFinish}>{busy ? "Guardando…" : "Cerrar el check-in"}</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy || honestVotes.length === 0} onClick={() => setResult(sessionId, { fwHonestShown: true })}>Revelar ({honestVotes.length}/{totalInRoom})</Button>)
+        : (honestShown ? <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra el check-in.</p> : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé con honestidad. Es anónimo.</p>);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

@@ -530,7 +530,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Decisión: continuar / ajustar / detener", minutes: 5 },
       { name: "Pregunta de honestidad anónima 🟢🟡🔴", minutes: 3 },
     ],
-    sessionType: "follow", entryStep: "fwcard", implemented: false,
+    sessionType: "follow", entryStep: "fwcard", implemented: true,
   },
   {
     id: "follow-what-is-blocking-us", name: "¿Qué nos está frenando?", stage: "follow", category: "growthloop",
