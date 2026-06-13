@@ -144,6 +144,7 @@ const STEP_SEQ: Record<string, string[]> = {
   lwlearned: ["lwldistinct", "lwlwrite", "lwlread", "lwlclassify", "lwlhighlight", "lwlclose"],
   lwnext: ["lwnopts", "lwndebate", "lwndecide", "lwnclose"],
   lwteam: ["lwtframe", "lwteval", "lwtreveal", "lwtadjust", "lwtprivate", "lwtclose"],
+  fourls: ["flcontext", "flwrite", "flreveal", "flvote", "fltalk", "flexport", "flclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -270,6 +271,7 @@ export default function SalaPage() {
         "lwreveal", "lwnarrative",
         "lwlread", "lwlclassify", "lwlhighlight",
         "lwtreveal", "lwtadjust",
+        "flreveal", "flvote", "fltalk", "flexport",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -617,7 +619,7 @@ export default function SalaPage() {
     if (stepIdx <= 0) return;
     setBusy(true);
     // Al volver atrás, re-ocultar votaciones/revelados y limpiar el timer del paso.
-    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, matrixShown: false, whVoteShown: false, fbVoteShown: false, sdVoteShown: false, wbVoteShown: false, closeWordShown: false, lhReactShown: false, fourlShown: false, timer: null });
+    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, matrixShown: false, whVoteShown: false, fbVoteShown: false, sdVoteShown: false, wbVoteShown: false, closeWordShown: false, flShown: false, timer: null });
     await setStep(sessionId, seq[stepIdx - 1], stepIdx - 1);
     setBusy(false);
   };
@@ -6234,6 +6236,215 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 820 : 600 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ 4 L'S · cierre del ciclo en 4 dimensiones (Aprendizaje E) ════════
+  if (session.type === "fourls") {
+    const FLCOLS = [
+      { key: "flliked", label: "👍 Liked · ¿qué disfrutamos o valoramos?", color: "var(--success)" },
+      { key: "fllearned", label: "📚 Learned · ¿qué aprendimos?", color: "var(--st-learn)" },
+      { key: "fllacked", label: "😕 Lacked · ¿qué nos faltó?", color: "var(--warning)" },
+      { key: "fllonged", label: "🌟 Longed for · ¿qué deseamos para el próximo ciclo?", color: "var(--st-proof)" },
+    ];
+    const flAll = allCards.filter((c) => FLCOLS.some((col) => col.key === c.columnKey));
+    const flCount = FLCOLS.reduce((a, c) => a + (counts[c.key] ?? 0), 0);
+    const myFlIds = ((inputs.find((i) => i.userId === user.id && i.key === "flv")?.value as { ids?: string[] } | undefined)?.ids) ?? [];
+    const flVotesOf = (id: string) => inputs.filter((x) => x.key === "flv").reduce((a, x) => a + (((x.value as { ids?: string[] }).ids ?? []).includes(id) ? 1 : 0), 0);
+    const toggleFlVote = (id: string) => { const cur = new Set(myFlIds); if (cur.has(id)) cur.delete(id); else if (cur.size < 3) cur.add(id); tapInput("flv", { ids: [...cur] }); };
+    const flVoters = new Set(inputs.filter((x) => x.key === "flv" && ((x.value as { ids?: string[] }).ids ?? []).length).map((x) => x.voterKey)).size;
+    const flShown = !!session.result.flShown;
+    const learnedCards = allCards.filter((c) => c.columnKey === "fllearned");
+    const longedCards = allCards.filter((c) => c.columnKey === "fllonged");
+    const lackedCards = allCards.filter((c) => c.columnKey === "fllacked");
+    const topOf = (cards: typeof flAll, n = 3) => [...cards].sort((a, b) => flVotesOf(b.id) - flVotesOf(a.id)).filter((c) => flVotesOf(c.id) > 0).slice(0, n);
+    const flExportSel = new Set((session.result.flExportSel as string[]) ?? learnedCards.map((c) => c.id));
+    const flExportMeta = (session.result.flExportMeta as Record<string, { type?: string; transferable?: boolean; urgent?: boolean }>) ?? {};
+    const setExpMeta = (id: string, patch: Record<string, unknown>) => patchResult({ flExportMeta: { ...((resultRef.current.flExportMeta as Record<string, unknown>) ?? {}), [id]: { ...(flExportMeta[id] ?? {}), ...patch } } });
+    const toggleExp = (id: string) => { const cur = new Set(flExportSel); if (cur.has(id)) cur.delete(id); else cur.add(id); patchResult({ flExportSel: [...cur] }); };
+    const learnPriorContext = initiative?.data?.learn as { narrative?: string; result?: string } | undefined;
+    const addFl = async (colKey: string) => { const t = (cardDraft[colKey] ?? "").trim(); if (!t) return; await addCard(sessionId, colKey, t, true); setCardDraft((d) => ({ ...d, [colKey]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const flFinish = async () => {
+      setBusy(true);
+      const nowIso = new Date().toISOString();
+      const exported: LearningEntry[] = learnedCards.filter((c) => flExportSel.has(c.id)).map((c) => ({
+        id: c.id, text: c.text, initiativeId: initiative?.id, initiativeTitle: initiative?.title,
+        stage: "learn", type: flExportMeta[c.id]?.type as LearningEntry["type"], resonances: flVotesOf(c.id),
+        transferable: !!flExportMeta[c.id]?.transferable, urgent: !!flExportMeta[c.id]?.urgent, date: nowIso,
+      }));
+      const existing = (team?.data?.library as LearningEntry[] | undefined) ?? [];
+      const merged = [...existing.filter((e) => !exported.some((n) => n.id === e.id)), ...exported];
+      const desires = topOf(longedCards).map((c) => c.text);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: flCount,
+        summaryText: `4 L's: ${flAll.length} tarjetas · ${exported.length} a la Biblioteca`,
+        dataKey: "learn", dataValue: { learnings: learnedCards.map((c) => c.text), desires, closeWords },
+        teamData: exported.length ? { library: merged } : undefined, noAdvance: true,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "flcontext") {
+      sub = "Vamos a hacer un cierre completo del ciclo en 4 dimensiones.";
+      content = (
+        <Card pad={22} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>🔚</div>
+          <p style={{ fontSize: "var(--t-md)", fontWeight: 700, lineHeight: 1.45 }}>Liked · Learned · Lacked · Longed for</p>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Lo que gustó, lo que aprendimos, lo que faltó y lo que anhelamos.</p>
+          {learnPriorContext?.narrative && <div style={{ marginTop: 14, textAlign: "left", padding: "10px 12px", background: "color-mix(in srgb, var(--st-learn) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", fontSize: "var(--t-xs)", lineHeight: 1.5 }}><span className="eyebrow" style={{ color: "var(--st-learn)", display: "block", marginBottom: 4 }}>El resultado del ciclo</span>{learnPriorContext.narrative}</div>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "flwrite", 1); setBusy(false); }}>Empezar</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el cierre.</p>;
+    } else if (step === "flwrite") {
+      sub = "Escritura silenciosa, en anónimo. Una idea por tarjeta, sin límite.";
+      content = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 12 }}>
+          {FLCOLS.map((col) => {
+            const mine = myCards.filter((c) => c.columnKey === col.key);
+            return (
+              <Card key={col.key} pad={14} style={{ borderTop: `3px solid ${col.color}` }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8, lineHeight: 1.35 }}>{col.label}</div>
+                <HiddenDots n={counts[col.key] ?? 0} label="ocultas" color={col.color} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                  {mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 4 }}>· tuya</span></div>)}
+                </div>
+                {!isFacil && (
+                  <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+                    <input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addFl(col.key)} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none" }} />
+                    <button onClick={() => addFl(col.key)} style={{ width: 30, borderRadius: "var(--r-sm)", background: col.color, color: "#08120c", border: "none", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || flCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "flreveal", 2); setBusy(false); }}>Revelar el tablero ({flCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Completá las 4 dimensiones. El facilitador revela cuando todos terminen.</p>;
+    } else if (step === "flreveal") {
+      wide = true;
+      sub = "El tablero del equipo. Agrupá lo similar mentalmente; después votamos.";
+      content = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 12 }}>
+          {FLCOLS.map((col) => {
+            const cs = allCards.filter((c) => c.columnKey === col.key);
+            return (
+              <div key={col.key} style={{ background: "var(--bg-2)", border: `1px solid color-mix(in srgb, ${col.color} 30%, var(--line))`, borderTop: `3px solid ${col.color}`, borderRadius: "var(--r-lg)", padding: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8, lineHeight: 1.35 }}>{col.label} <span className="num muted">{cs.length}</span></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {cs.map((c, i) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-sm)", padding: "8px 10px", fontSize: "var(--t-sm)", animation: `pop-in .4s var(--spring) ${i * 0.03}s both` }}>{c.text}</div>)}
+                  {!cs.length && <div className="faint" style={{ fontSize: "var(--t-xs)", textAlign: "center", padding: 12 }}>Sin tarjetas</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "flvote", 3); setBusy(false); }}>Votar (3 puntos c/u)</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mirá el tablero completo.</p>;
+    } else if (step === "flvote") {
+      wide = true;
+      sub = flShown ? "Las más votadas de cada dimensión." : "3 puntos por persona, en cualquier tarjeta. Foco en Learned y Longed for.";
+      content = (
+        <>
+          {!flShown && !isFacil && <div style={{ textAlign: "center", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Tus puntos:</span>{Array.from({ length: 3 }).map((_, i) => <span key={i} style={{ width: 15, height: 15, borderRadius: 99, background: i < (3 - myFlIds.length) ? "var(--st-learn)" : "var(--card-2)", border: `1px solid ${i < (3 - myFlIds.length) ? "var(--st-learn)" : "var(--line-2)"}` }} />)}</div>}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 12 }}>
+            {FLCOLS.map((col) => {
+              const cs = [...allCards.filter((c) => c.columnKey === col.key)].sort((a, b) => flVotesOf(b.id) - flVotesOf(a.id));
+              return (
+                <div key={col.key} style={{ background: "var(--bg-2)", border: `1px solid color-mix(in srgb, ${col.color} 30%, var(--line))`, borderTop: `3px solid ${col.color}`, borderRadius: "var(--r-lg)", padding: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8, lineHeight: 1.35 }}>{col.label}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {cs.map((c) => { const v = flVotesOf(c.id); const on = myFlIds.includes(c.id); return (
+                      <button key={c.id} disabled={isFacil || flShown} onClick={() => toggleFlVote(c.id)} style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 8, background: on && !flShown ? `color-mix(in srgb, ${col.color} 10%, var(--card))` : "var(--card)", border: `1px solid ${on && !flShown ? col.color : "var(--line)"}`, borderRadius: "var(--r-sm)", padding: "8px 10px", fontSize: "var(--t-xs)", cursor: isFacil || flShown ? "default" : "pointer" }}>
+                        <span style={{ flex: 1 }}>{c.text}</span>
+                        {flShown ? <span className="num" style={{ fontWeight: 800, color: v > 0 ? col.color : "var(--ink-3)" }}>{v}</span> : on && <Icon name="CheckCircle2" size={13} style={{ color: col.color }} />}
+                      </button>
+                    ); })}
+                    {!cs.length && <div className="faint" style={{ fontSize: "var(--t-xs)", textAlign: "center", padding: 8 }}>—</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {!flShown && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> {flVoters} de {totalInRoom} votaron</p>}
+        </>
+      );
+      controls = isFacil
+        ? (flShown
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "fltalk", 4); setBusy(false); }}>Conversar las más votadas</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy || flVoters === 0} onClick={() => setResult(sessionId, { flShown: true })}>Mostrar votación ({flVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus 3 puntos.</p>;
+    } else if (step === "fltalk") {
+      sub = "Conversación sobre lo más votado.";
+      const Block = (title: string, q: string, cards: typeof flAll, color: string) => (
+        <Card pad={14}>
+          <div className="eyebrow" style={{ color, marginBottom: 6 }}>{title}</div>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", fontStyle: "italic", marginBottom: 8 }}>{q}</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {cards.length ? cards.map((c) => <div key={c.id} style={{ fontSize: "var(--t-sm)", display: "flex", gap: 6 }}><Icon name="Dot" size={16} style={{ color }} /><span style={{ flex: 1 }}>{c.text}</span><span className="num muted">{flVotesOf(c.id)}</span></div>) : <span className="muted" style={{ fontSize: "var(--t-xs)" }}>Sin votos.</span>}
+          </div>
+        </Card>
+      );
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {Block("📚 Learned más votados", "¿Cómo nos aseguramos de aplicar esto? (se sugieren para la Biblioteca)", topOf(learnedCards), "var(--st-learn)")}
+          {Block("😕 Lacked más votados", "¿Qué haríamos diferente en el próximo ciclo?", topOf(lackedCards), "var(--warning)")}
+          {Block("🌟 Longed for más votados", "¿Cómo convertimos estos deseos en objetivos del próximo ciclo?", topOf(longedCards), "var(--st-proof)")}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "flexport", 5); setBusy(false); }}>Exportar a la Biblioteca</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Conversemos las más votadas.</p>;
+    } else if (step === "flexport") {
+      sub = isFacil ? "Elegí qué aprendizajes (Learned) van a la Biblioteca, con su tipo." : "El facilitador selecciona los aprendizajes para la Biblioteca.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {learnedCards.length === 0 && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>No hubo tarjetas en Learned.</p>}
+          {learnedCards.map((c) => { const sel = flExportSel.has(c.id); const m = flExportMeta[c.id] ?? {}; return (
+            <Card key={c.id} pad={14} style={{ opacity: sel ? 1 : 0.6 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <button disabled={!isFacil} onClick={() => toggleExp(c.id)} style={{ marginTop: 1, color: sel ? "var(--st-learn)" : "var(--ink-3)" }}><Icon name={sel ? "CheckSquare" : "Square"} size={18} /></button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45, marginBottom: sel ? 8 : 0 }}>{c.text}</div>
+                  {sel && isFacil && (
+                    <>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                        {LEARNING_TYPES.map((t) => { const on = m.type === t.k; return <button key={t.k} onClick={() => setExpMeta(c.id, { type: t.k })} style={{ padding: "4px 9px", borderRadius: "var(--r-full)", fontSize: 11, fontWeight: 600, border: `1.5px solid ${on ? t.color : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${t.color} 14%, var(--card))` : "var(--card)", color: on ? t.color : "var(--ink-2)" }}>{t.emoji} {t.label}</button>; })}
+                      </div>
+                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11 }}>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer" }}><input type="checkbox" checked={!!m.transferable} onChange={(e) => setExpMeta(c.id, { transferable: e.target.checked })} /> Transferible</label>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer" }}><input type="checkbox" checked={!!m.urgent} onChange={(e) => setExpMeta(c.id, { urgent: e.target.checked })} /> Urgente</label>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ); })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "flclose", 6); setBusy(false); }}>Cerrar con una palabra</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador exporta los aprendizajes.</p>;
+    } else {
+      sub = "El ritual de cierre del ciclo.";
+      content = learnClosing();
+      controls = learnCloseControls(flFinish);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 880 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

@@ -692,7 +692,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Conversación sobre las más votadas", minutes: 8 },
       { name: "Exportar a la Biblioteca", minutes: 2 },
     ],
-    sessionType: "fourls", entryStep: "flcontext", implemented: false,
+    sessionType: "fourls", entryStep: "flcontext", implemented: true,
   },
   {
     id: "learn-kudos", name: "Kudos Retro", stage: "learn", category: "classic",
