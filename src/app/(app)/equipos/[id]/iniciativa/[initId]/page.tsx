@@ -16,7 +16,7 @@ import { getInitiativeSessions, loadSessionMemories, type SessionCard, type Sess
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
 import { retrosForStage, stageOfSessionType } from "@/lib/retros/registry";
-import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, type Initiative, type StageKey, type Team } from "@/lib/data";
+import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; result?: Record<string, unknown> };
 
@@ -185,11 +185,22 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
 
   if (st === "ideation") {
     const d = data.proof;
-    if (!d?.betIf && !d?.betThen && !d?.bets?.length) return empty("Todavía no se diseñó la apuesta.");
+    if (!d?.betIf && !d?.betThen && !d?.bets?.length && !d?.finalists?.length && !d?.chosenIdea && !d?.risks?.length) return empty("Todavía no se diseñó la apuesta.");
     const betsList = (d?.bets?.length ? d.bets : [{ name: "", betIf: d?.betIf, betThen: d?.betThen, signalMetric: d?.signalMetric, signalTarget: d?.signalTarget, signalHow: d?.signalHow, deadline: d?.deadline, actions: d?.actions, mitigations: d?.mitigations }]);
+    const hasBet = !!(d?.betIf || d?.betThen || d?.bets?.length);
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {betsList.map((b, bi) => (
+        {(d?.finalists?.length || d?.chosenIdea) && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Ideas{d?.chosenIdea ? " · elegida ✓" : ""}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {d?.chosenIdea && <span style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--success-bg)", border: "1px solid color-mix(in srgb, var(--green) 40%, transparent)", color: "var(--green)", fontWeight: 600 }}>🎯 {d.chosenIdea}</span>}
+              {(d?.finalists ?? []).filter((f) => f !== d?.chosenIdea).map((f, i) => <span key={i} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>{f}</span>)}
+            </div>
+          </div>
+        )}
+        {!hasBet && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Falta diseñar la prueba (la apuesta).</p>}
+        {hasBet && betsList.map((b, bi) => (
           <div key={bi} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ padding: "14px 16px", background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 30%, transparent)", borderRadius: "var(--r-md)" }}>
               <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>{betsList.length > 1 ? `Apuesta ${bi + 1}` : "La apuesta"}{b.name ? ` · ${b.name}` : ""}</div>
@@ -369,7 +380,13 @@ export default function InitiativeDetailPage() {
   const [closeBusy, setCloseBusy] = useState(false);
   const nextSt = nextCycleStage(init.stage);
   const stageSessions = sessions.filter((s) => stageOfSessionType(s.stage) === init.stage);
+  // Bloqueo obligatorio: Ideación no cierra sin "Diseño de la prueba" completo
+  // (apuesta con resultado y señal). Es el único gate del ciclo.
+  const pf = init.data?.proof;
+  const betReady = !!((pf?.betThen && pf?.signalMetric) || (pf?.bets?.length && pf.bets[0]?.betThen && pf.bets[0]?.signalMetric));
+  const closeBlocked = normalizeStage(init.stage) === "ideation" && !betReady;
   const doCloseStage = async () => {
+    if (closeBlocked) return;
     setCloseBusy(true);
     const res = nextSt ? await setInitiativeStage(init.id, nextSt) : await setInitiativeStatus(init.id, "done");
     setCloseBusy(false);
@@ -617,9 +634,18 @@ export default function InitiativeDetailPage() {
                 </div>
               ) : null;
             })()}
+            {closeBlocked && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 14, background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 45%, transparent)", borderRadius: "var(--r-md)" }}>
+                <Icon name="TriangleAlert" size={18} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1, fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+                  <b>No definiste la prueba todavía.</b> Sin una prueba concreta no hay nada que seguir en la próxima etapa. Hacé la retro <b>Diseño de la prueba</b> antes de cerrar Ideación.
+                  {isFacil && <div style={{ marginTop: 10 }}><Button size="sm" icon="FlaskConical" onClick={() => { setCloseStageOpen(false); setLauncherOpen(true); }}>Hacer Diseño de la prueba</Button></div>}
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="secondary" full onClick={() => setCloseStageOpen(false)}>Cancelar</Button>
-              <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy} onClick={doCloseStage}>{closeBusy ? "Guardando…" : "Confirmar"}</Button>
+              <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy || closeBlocked} onClick={doCloseStage}>{closeBusy ? "Guardando…" : closeBlocked ? "Falta la prueba" : "Confirmar"}</Button>
             </div>
           </div>
         </div>
