@@ -19,6 +19,7 @@ import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage } from "@/lib/retros/registry";
 import { FodaGrid } from "@/components/FodaGrid";
 import { MemoryCard } from "@/components/RetroResult";
+import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
 
@@ -271,6 +272,58 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
   );
 }
 
+/** Ficha de la prueba en curso: visible mientras la iniciativa está en Seguimiento.
+   Indicadores visuales (días, en riesgo) — sin recordatorios automáticos. */
+function TestRunCard({ init }: { init: Initiative }) {
+  const pf = init.data?.proof;
+  const fl = init.data?.follow;
+  if (!pf?.betIf && !pf?.betThen && !pf?.signalMetric) return null;
+  const startedAt = fl?.startedAt;
+  const deadline = pf?.deadline;
+  const day = (() => {
+    if (!startedAt || !deadline) return null;
+    const s = new Date(startedAt).getTime(), d = new Date(deadline).getTime(), now = Date.now();
+    if (isNaN(s) || isNaN(d)) return null;
+    const total = Math.max(1, Math.round((d - s) / 86400000));
+    const elapsed = Math.max(0, Math.round((now - s) / 86400000));
+    return { total, elapsed, left: Math.round((d - now) / 86400000), pct: Math.min(100, Math.max(0, (elapsed / total) * 100)) };
+  })();
+  const hon = fl?.honesty;
+  const honWorry = hon ? hon.yellow + hon.red > hon.green : false;
+  const noCheckin = !startedAt;
+  const overdue = day != null && day.left < 0;
+  const closing = day != null && day.left >= 0 && day.left <= 2;
+  const risk = fl?.decision === "stop" || fl?.decision === "adjust" || overdue || honWorry;
+  const log = fl?.signalLog ?? [];
+  const riskLabel = fl?.decision === "stop" ? "Marcada para detener" : fl?.decision === "adjust" ? "En ajuste" : overdue ? "Pasó la fecha de revisión" : honWorry ? "El equipo tiene dudas" : closing ? "Cierra pronto" : null;
+  return (
+    <div style={{ background: "color-mix(in srgb, var(--st-follow) 7%, var(--card-2))", border: `1px solid color-mix(in srgb, var(--st-follow) ${risk ? 50 : 28}%, var(--line))`, borderRadius: "var(--r-md)", padding: 13 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <span className="eyebrow" style={{ color: "var(--st-follow)", display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="FlaskConical" size={13} /> Prueba en curso</span>
+        {riskLabel
+          ? <Pill color={risk ? "var(--risk)" : "var(--warning)"} bg={risk ? "var(--risk-bg)" : "var(--warning-bg)"} icon="TriangleAlert">{riskLabel}</Pill>
+          : noCheckin ? <Pill color="var(--ink-3)" bg="var(--card-2)" icon="Clock">Sin check-in aún</Pill> : <Pill color="var(--green)" bg="var(--success-bg)" icon="CircleCheck">En marcha</Pill>}
+      </div>
+      {(pf?.betIf || pf?.betThen) && <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, marginBottom: 8 }}>Si <b>{pf?.betIf || "…"}</b>, lograremos <b>{pf?.betThen || "…"}</b>.</p>}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: "var(--t-xs)", marginBottom: day ? 10 : 0 }}>
+        {pf?.signalMetric && <span><span className="muted">Señal:</span> <b>{pf.signalMetric}</b>{pf.signalTarget ? ` → ${pf.signalTarget}` : ""}</span>}
+        {pf?.responsible && <span><span className="muted">Responsable:</span> <b>{pf.responsible}</b></span>}
+        {deadline && <span><span className="muted">Revisión:</span> <b>{fmtDate(deadline)}</b></span>}
+      </div>
+      {day && (
+        <div style={{ marginBottom: log.length ? 12 : 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-xs)", marginBottom: 4 }}>
+            <span className="muted">Día {day.elapsed} de {day.total}</span>
+            <span className="num" style={{ fontWeight: 700, color: overdue ? "var(--risk)" : closing ? "var(--warning)" : "var(--ink-2)" }}>{overdue ? `${Math.abs(day.left)} días pasados` : `${day.left} días restantes`}</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 99, background: "var(--card)", overflow: "hidden" }}><div style={{ height: "100%", width: `${day.pct}%`, background: overdue ? "var(--risk)" : "var(--st-follow)", borderRadius: 99 }} /></div>
+        </div>
+      )}
+      {log.length > 0 && <SignalProgressChart log={log} metric={undefined} target={pf?.signalTarget} height={70} />}
+    </div>
+  );
+}
+
 function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team; init: Initiative; isFacil: boolean; onChanged: () => void; onEdit: () => void }) {
   const router = useRouter();
   const { show } = useToast();
@@ -344,6 +397,8 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
           );
         })}
       </div>
+
+      {init.stage === "follow" && !done && <TestRunCard init={init} />}
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", paddingTop: 4, borderTop: "1px solid var(--line)" }}>
         <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 6 }}>
