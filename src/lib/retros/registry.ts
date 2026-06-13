@@ -571,7 +571,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Reveal: promedio, rango y dispersión", minutes: 2 },
       { name: "¿Qué falta para subir 2 puntos? + acciones", minutes: 8 },
     ],
-    sessionType: "fwperfection", entryStep: "pgscore", implemented: false,
+    sessionType: "fwperfection", entryStep: "fpframe", implemented: true,
   },
   {
     id: "follow-team-radar", name: "Radar del Equipo", stage: "follow", category: "classic",

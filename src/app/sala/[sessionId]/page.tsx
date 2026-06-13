@@ -128,6 +128,7 @@ const STEP_SEQ: Record<string, string[]> = {
   follow: ["fwcard", "fwreport", "fwunblock", "fwdecision", "fwhonesty"],
   blocking: ["blframe", "blmap", "blclass", "blvote", "blplan"],
   roti: ["rtscore", "rtreveal", "rttalk"],
+  fwperfection: ["fpframe", "fpscore", "fpreveal", "fpactions"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -250,7 +251,7 @@ export default function SalaPage() {
         "pmcat", "pmvote", "pmmitigate", "pmclose",
         "sbdraw", "sbpresent", "sbconsensus",
         "lctopics", "lcvote", "lcwork", "lcclose",
-        "blclass", "blvote", "blplan",
+        "blclass", "blvote", "blplan", "fpactions",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -4053,6 +4054,151 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 560 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ PERFECTION GAME (Seguimiento) · ¿en qué número está la ejecución? ════════
+  if (session.type === "fwperfection") {
+    const pf = initiative?.data?.proof;
+    const fpScores = inputs.filter((i) => i.key === "fp").map((i) => (i.value as { v?: number }).v).filter((v): v is number => typeof v === "number");
+    const myFp = (inputs.find((i) => i.userId === user.id && i.key === "fp")?.value as { v?: number } | undefined)?.v;
+    const fpAvg = fpScores.length ? fpScores.reduce((a, b) => a + b, 0) / fpScores.length : 0;
+    const fpMin = fpScores.length ? Math.min(...fpScores) : 0;
+    const fpMax = fpScores.length ? Math.max(...fpScores) : 0;
+    const fpSpread = fpScores.length > 1 && fpMax - fpMin > 3;
+    const target = Math.min(10, Math.round(fpAvg) + 2);
+    const fpSugg = allCards.filter((c) => c.columnKey === "fps");
+    const fpActs = (session.result.fpActs as Record<string, { text?: string; who?: string }>) ?? {};
+    const setFpAct = (i: number, patch: Record<string, string>) => patchResult({ fpActs: { ...((resultRef.current.fpActs as Record<string, unknown>) ?? {}), [i]: { ...(fpActs[i] ?? {}), ...patch } } });
+    const addFps = async () => { const t = (cardDraft.fps ?? "").trim(); if (!t) return; await addCard(sessionId, "fps", t, true); setCardDraft((d) => ({ ...d, fps: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const FpFicha = (pf?.betIf || pf?.signalMetric) ? (
+      <div style={{ padding: "10px 14px", marginBottom: 14, background: "color-mix(in srgb, var(--st-follow) 9%, transparent)", border: "1px solid color-mix(in srgb, var(--st-follow) 28%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+        <span className="eyebrow" style={{ color: "var(--st-follow)", display: "block", marginBottom: 3 }}>La prueba que estamos ejecutando</span>
+        {pf?.betIf ? <>Si <b>{pf.betIf}</b>{pf?.betThen ? <>, lograremos <b>{pf.betThen}</b></> : ""}.</> : pf?.signalMetric}
+      </div>
+    ) : null;
+    const fpFinish = async () => {
+      setBusy(true);
+      const newActions = [0, 1, 2].map((i) => ({ text: fpActs[i]?.text ?? "", who: fpActs[i]?.who ?? "" })).filter((a) => a.text.trim());
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: fpSugg.length,
+        summaryText: `Perfection Game: ${fpAvg.toFixed(1)}/10 · ${newActions.length} acciones para subir`,
+        dataKey: "follow", dataValue: { newActions },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "fpframe") {
+      sub = "Vamos a puntuar cómo viene la ejecución de la prueba — no el resultado.";
+      content = (
+        <Card pad={24} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🎯</div>
+          <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, lineHeight: 1.4 }}>¿Qué tan bien estamos<br />ejecutando la prueba?</h2>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>Puntuamos del 1 al 10 cómo venimos ejecutando (la disciplina, el ritmo, la constancia) y definimos qué nos haría subir 2 puntos.</p>
+          {FpFicha && <div style={{ marginTop: 16, textAlign: "left" }}>{FpFicha}</div>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "fpscore", 1); setBusy(false); }}>Puntuar la ejecución</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el ejercicio.</p>;
+    } else if (step === "fpscore") {
+      sub = "¿En qué número está la ejecución? Anónimo, del 1 al 10.";
+      content = (
+        <Card pad={24}>
+          {isFacil ? (
+            <div style={{ textAlign: "center" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{fpScores.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>puntuaron · oculto hasta revelar</div></div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>Tu puntuación</span>
+                <span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-follow)" }}>{myFp ?? "—"}</span>
+              </div>
+              <input type="range" min={1} max={10} step={1} value={myFp ?? 5} onChange={(e) => tapInput("fp", { v: Number(e.target.value) })} style={{ width: "100%", accentColor: "var(--st-follow)" }} />
+              <div className="muted num" style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-xs)", marginTop: 4 }}><span>1</span><span>5</span><span>10</span></div>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center" }}><Icon name="Lock" size={12} /> Anónimo · {fpScores.length} de {totalInRoom} puntuaron</p>
+            </>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || fpScores.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "fpreveal", 2); setBusy(false); }}>Revelar puntuaciones ({fpScores.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Mové el slider. El facilitador revela cuando estén todos.</p>;
+    } else if (step === "fpreveal") {
+      sub = "Las puntuaciones de la ejecución, reveladas.";
+      content = (
+        <Card pad={24}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 18, marginBottom: 18, flexWrap: "wrap" }}>
+            <span><span className="num" style={{ fontSize: 44, fontWeight: 800, color: fpAvg >= 7 ? "var(--green)" : fpAvg >= 4 ? "var(--warning)" : "var(--risk)" }}>{fpAvg.toFixed(1)}</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}>/10 promedio</span></span>
+            <span className="num muted" style={{ fontSize: "var(--t-sm)" }}>rango {fpMin}–{fpMax}</span>
+          </div>
+          <div style={{ position: "relative", height: 46, margin: "0 8px" }}>
+            <div style={{ position: "absolute", left: 0, right: 0, top: 20, height: 6, borderRadius: 99, background: "var(--card-2)" }} />
+            {[1, 5, 10].map((m) => <span key={m} className="num muted" style={{ position: "absolute", left: `${((m - 1) / 9) * 100}%`, top: 32, fontSize: 10, transform: "translateX(-50%)" }}>{m}</span>)}
+            {fpScores.map((s, i) => (
+              <span key={i} style={{ position: "absolute", left: `${((s - 1) / 9) * 100}%`, top: 14, width: 18, height: 18, borderRadius: 99, background: "color-mix(in srgb, var(--st-follow) 30%, var(--card))", border: "2px solid var(--st-follow)", transform: "translateX(-50%)", animation: `pop-in .4s var(--spring) ${i * 0.06}s both` }} />
+            ))}
+          </div>
+          {fpSpread && <div style={{ marginTop: 14, padding: "10px 12px", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 35%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.5 }}><Icon name="Info" size={14} style={{ color: "var(--warning)" }} /> Hay mucha dispersión: no todos viven la ejecución igual. Vale la pena entender por qué.</div>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "fpactions", 3); setBusy(false); }}>¿Qué falta para subir 2 puntos?</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador sigue al plan de mejora.</p>;
+    } else {
+      sub = `Estamos en ${fpAvg.toFixed(1)}. ¿Qué nos haría llegar a ${target} en los próximos días?`;
+      content = (
+        <>
+          <Card pad={18} style={{ marginBottom: 14 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Ideas del equipo (anónimo)</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: isFacil ? 0 : 12 }}>
+              {fpSugg.map((c) => <span key={c.id} style={{ fontSize: "var(--t-sm)", padding: "6px 11px", borderRadius: "var(--r-full)", background: "var(--card)", border: "1px solid var(--line)" }}>{c.text}</span>)}
+              {!fpSugg.length && <span className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin ideas todavía…</span>}
+            </div>
+            {!isFacil && (
+              <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+                <input value={cardDraft.fps ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, fps: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addFps()} placeholder="Nos haría subir si…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                <Button size="sm" icon="Plus" onClick={addFps}>Sumar</Button>
+              </div>
+            )}
+          </Card>
+          {isFacil ? (
+            <Card pad={18}>
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Acciones concretas para subir (con responsable)</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <input defaultValue={fpActs[i]?.text ?? ""} onBlur={(e) => setFpAct(i, { text: e.target.value })} placeholder={`Acción ${i + 1}…`} style={{ flex: 2, minWidth: 160, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                    <select defaultValue={fpActs[i]?.who ?? ""} onChange={(e) => setFpAct(i, { who: e.target.value })} style={{ flex: 1, minWidth: 120, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }}>
+                      <option value="">Responsable…</option>
+                      {(team?.members ?? []).map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : (
+            <Card pad={16}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Acciones para subir</div>
+              {[0, 1, 2].some((i) => fpActs[i]?.text)
+                ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{[0, 1, 2].filter((i) => fpActs[i]?.text).map((i) => <div key={i} style={{ fontSize: "var(--t-sm)" }}>• {fpActs[i]?.text}{fpActs[i]?.who ? ` · ${fpActs[i]?.who}` : ""}</div>)}</div>
+                : <p className="muted" style={{ fontSize: "var(--t-sm)" }}>El facilitador está definiendo las acciones…</p>}
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={fpFinish}>{busy ? "Guardando…" : "Cerrar y guardar acciones"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sumá lo que nos haría subir 2 puntos.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
