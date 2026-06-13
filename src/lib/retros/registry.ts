@@ -585,7 +585,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Reveal comparativo (base vs. hoy)", minutes: 5 },
       { name: "Conversación sobre los movimientos", minutes: 6 },
     ],
-    sessionType: "fwradar", entryStep: "rate", implemented: false,
+    sessionType: "fwradar", entryStep: "rbase", implemented: true,
   },
   {
     id: "follow-starfish", name: "Starfish", stage: "follow", category: "classic",

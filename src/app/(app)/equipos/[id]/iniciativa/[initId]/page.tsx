@@ -15,6 +15,7 @@ import {
 import { getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
+import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { retrosForStage, stageOfSessionType } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
@@ -171,14 +172,51 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
 
   if (st === "follow") {
     const d = data.follow;
-    if (!d?.betCheckins?.length && !d?.signalNow && !d?.decision) return empty("Todavía no se hizo seguimiento de la acción.");
+    const log = d?.signalLog ?? [];
+    if (!d?.betCheckins?.length && !d?.signalNow && !d?.decision && !log.length && !d?.blockers?.length && !d?.newActions?.length && !d?.honesty) return empty("Todavía no se hizo seguimiento de la acción.");
+    const dec = d?.decision;
+    const decMeta = dec === "stop" ? { t: "Detener", c: "var(--risk)" } : dec === "adjust" ? { t: "Ajustar", c: "var(--warning)" } : dec === "continue" ? { t: "Continuar", c: "var(--green)" } : null;
+    const hon = d?.honesty;
+    const honTotal = hon ? hon.green + hon.yellow + hon.red : 0;
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {d?.signalNow && <p style={{ fontSize: "var(--t-sm)" }}><b>Señal hoy:</b> {d.signalNow}</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {log.length > 0 && (
+          <div style={{ padding: "14px 16px", background: "color-mix(in srgb, var(--st-follow) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-follow) 28%, transparent)", borderRadius: "var(--r-md)" }}>
+            <SignalProgressChart log={log} metric={data.proof?.signalMetric} target={data.proof?.signalTarget} />
+          </div>
+        )}
+        {d?.signalNow && !log.length && <p style={{ fontSize: "var(--t-sm)" }}><b>Señal hoy:</b> {d.signalNow}</p>}
         {(d?.betCheckins ?? []).map((c, i) => (
           <p key={i} style={{ fontSize: "var(--t-sm)" }}><b>{c.name || "Apuesta"}:</b> {c.signal} · {c.value} ({c.pct}%)</p>
         ))}
-        {d?.decision && <p style={{ fontSize: "var(--t-sm)" }}><b>Decisión:</b> {d.decision}</p>}
+        {!!d?.blockers?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Obstáculos detectados</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {d.blockers.map((b, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name="TriangleAlert" size={14} style={{ color: "var(--warning)" }} /><span>{b}</span></div>)}
+            </div>
+          </div>
+        )}
+        {!!d?.newActions?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Acciones de destrabe</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {d.newActions.map((a, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}>
+                  <Icon name="Wrench" size={14} style={{ color: "var(--st-follow)" }} /><span style={{ flex: 1 }}>{a.text}</span>{a.who && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>{a.who}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          {decMeta && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--t-sm)", padding: "5px 12px", borderRadius: "var(--r-full)", background: `color-mix(in srgb, ${decMeta.c} 12%, transparent)`, border: `1px solid ${decMeta.c}`, color: decMeta.c, fontWeight: 700 }}>Decisión: {decMeta.t}</span>}
+          {hon && honTotal > 0 && (
+            <span className="num muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", gap: 8 }}>
+              <span style={{ color: "var(--green)" }}>🟢 {hon.green}</span><span style={{ color: "var(--warning)" }}>🟡 {hon.yellow}</span><span style={{ color: "var(--risk)" }}>🔴 {hon.red}</span>
+            </span>
+          )}
+        </div>
       </div>
     );
   }

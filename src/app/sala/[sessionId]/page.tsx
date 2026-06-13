@@ -129,6 +129,7 @@ const STEP_SEQ: Record<string, string[]> = {
   blocking: ["blframe", "blmap", "blclass", "blvote", "blplan"],
   roti: ["rtscore", "rtreveal", "rttalk"],
   fwperfection: ["fpframe", "fpscore", "fpreveal", "fpactions"],
+  fwradar: ["rbase", "rate", "rcompare", "rtalk"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -309,14 +310,15 @@ export default function SalaPage() {
 
   // Radar del Equipo: si ya hicieron esta retro antes, traemos el radar
   // anterior para superponerlo y ver la evolución.
-  const [prevRadar, setPrevRadar] = useState<{ avg: Record<string, number>; date?: string } | null>(null);
+  const [prevRadar, setPrevRadar] = useState<{ avg: Record<string, number>; dims?: { key: string; label: string }[]; date?: string } | null>(null);
   useEffect(() => {
-    if (session?.type !== "teamradar") return;
+    if (session?.type !== "teamradar" && session?.type !== "fwradar") return;
     let active = true;
     (async () => {
       const last = await getLastClosedTeamSession(session.teamId, "teamradar", session.id);
       const avg = last?.result?.trAvg as Record<string, number> | undefined;
-      if (active && avg) setPrevRadar({ avg });
+      const dims = last?.result?.trDims as { key: string; label: string }[] | undefined;
+      if (active && avg) setPrevRadar({ avg, dims, date: last?.createdAt });
     })();
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4199,6 +4201,145 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 600 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ RADAR DEL EQUIPO (Seguimiento) · evolución vs. el radar base ════════
+  if (session.type === "fwradar") {
+    const CPAL = ["#00E87A", "#3B82F6", "#7C3AED", "#06B6D4", "#F59E0B", "#EF4444", "#EC4899", "#A3E635", "#14B8A6", "#F97316"];
+    const baseDims = prevRadar?.dims;
+    const frDimsRaw = baseDims && baseDims.length ? baseDims : PULSE_DIMS.map((d) => ({ key: d.key, label: d.label }));
+    const frDims = frDimsRaw.map((d, i) => ({ key: d.key, label: d.label, color: CPAL[i % CPAL.length] }));
+    const frAvg = averagePulse(responses);
+    const frOverall = pulseOverall(frAvg);
+    const baseOverall = prevRadar ? pulseOverall(prevRadar.avg) : 0;
+    const delta = (k: string) => prevRadar?.avg[k] != null && frAvg[k] != null ? to5(frAvg[k]) - to5(prevRadar.avg[k]) : null;
+    const moves = frDims.map((d) => ({ d, dl: delta(d.key) })).filter((x) => x.dl != null) as { d: typeof frDims[number]; dl: number }[];
+    const ups = [...moves].filter((m) => m.dl >= 0.3).sort((a, b) => b.dl - a.dl);
+    const downs = [...moves].filter((m) => m.dl <= -0.3).sort((a, b) => a.dl - b.dl);
+    const frFinish = async () => {
+      setBusy(true);
+      await setResult(sessionId, { trAvg: frAvg, trDims: frDimsRaw });
+      const overallDelta = prevRadar ? to5(frOverall) - to5(baseOverall) : 0;
+      await finalizeSession(session, {
+        cardCount: 0,
+        summaryText: prevRadar
+          ? `Radar de seguimiento: ${to5(frOverall).toFixed(1)}/5 (${overallDelta >= 0 ? "+" : ""}${overallDelta.toFixed(1)} vs. base)`
+          : `Radar de seguimiento: ${to5(frOverall).toFixed(1)}/5`,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "rbase") {
+      sub = prevRadar ? "Este es el radar base, de cuando arrancamos. Hoy lo volvemos a medir." : "Vamos a medir la salud del equipo durante la prueba.";
+      content = prevRadar ? (
+        <Card pad={24}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+            <span style={{ fontWeight: 700 }}>Radar base (Exploración)</span>
+            <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 14%, transparent)">{to5(baseOverall).toFixed(1)}/5</Pill>
+          </div>
+          <PulseRadar values={prevRadar.avg} dims={frDims} size={320} />
+        </Card>
+      ) : (
+        <Card pad={24} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 34, marginBottom: 10 }}>📡</div>
+          <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55 }}>No encontramos un Radar del Equipo previo de Exploración, así que esta vez tomamos la <b>línea de base</b>. La próxima podremos comparar la evolución.</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "rate", 1); setBusy(false); }}>Puntuar cómo estamos hoy</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador muestra el radar base.</p>;
+    } else if (step === "rate") {
+      sub = "Puntuá cada dimensión del 1 al 5 según cómo está el equipo hoy. Anónimo.";
+      content = isFacil ? (
+        <Card pad={24}><div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{responses.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>puntuaron</div></div></Card>
+      ) : (
+        <Card pad={24}>
+          {submitted && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 14 }}><Icon name="Check" size={16} /> Tu puntuación quedó guardada (anónima).</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, opacity: submitted ? 0.85 : 1 }}>
+            {frDims.map((d) => (
+              <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ flex: 1, minWidth: 150, fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, flexShrink: 0 }} />{d.label}</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[1, 2, 3, 4, 5].map((v) => { const on = (draft[d.key] ?? 3) === v; return (
+                    <button key={v} disabled={submitted} onClick={() => setDraft((s) => ({ ...s, [d.key]: v }))} className="num" style={{ width: 34, height: 34, borderRadius: 99, fontWeight: 800, fontSize: "var(--t-sm)", border: `1.5px solid ${on ? d.color : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${d.color} 22%, transparent)` : "var(--card)", color: on ? d.color : "var(--ink-2)", cursor: submitted ? "default" : "pointer" }}>{v}</button>
+                  ); })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, textAlign: "center" }}><Icon name="Lock" size={12} /> 1 Muy mal · 3 Regular · 5 Muy bien — {responses.length} de {totalInRoom} puntuaron</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || responses.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "rcompare", 2); setBusy(false); }}>Revelar comparativo ({responses.length})</Button>
+        : submitted
+          ? <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá a que el facilitador revele el radar.</p>
+          : <Button full size="lg" icon="Send" disabled={busy} onClick={async () => { setBusy(true); const res = await submitPulse(sessionId, Object.fromEntries(frDims.map((d) => [d.key, to100(draft[d.key] ?? 3)]))); setBusy(false); if (!res.error) setSubmitted(true); }}>{busy ? "Enviando…" : "Enviar mi puntuación"}</Button>;
+    } else if (step === "rcompare") {
+      sub = prevRadar ? "Base (punteado) vs. hoy. ¿Qué se movió desde que arrancamos?" : "El radar del equipo hoy.";
+      content = (
+        <Card pad={24}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+            <span style={{ fontWeight: 700 }}>Evolución del equipo</span>
+            <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+              {prevRadar && <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 0, borderTop: "2px dashed var(--violet)" }} /> base {to5(baseOverall).toFixed(1)}</span>}
+              <Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{to5(frOverall).toFixed(1)}/5</Pill>
+            </span>
+          </div>
+          <PulseRadar values={frAvg} dims={frDims} size={330} compare={prevRadar?.avg} />
+          {prevRadar && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+              {frDims.map((d) => { const dl = delta(d.key); if (dl == null) return null; const up = dl >= 0.3, down = dl <= -0.3; return (
+                <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-xs)" }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{d.label}</span>
+                  <span className="num muted">{to5(prevRadar.avg[d.key]).toFixed(1)} → {to5(frAvg[d.key]).toFixed(1)}</span>
+                  <span className="num" style={{ fontWeight: 800, width: 44, textAlign: "right", color: up ? "var(--green)" : down ? "var(--risk)" : "var(--ink-3)" }}>{dl >= 0 ? "+" : ""}{dl.toFixed(1)}</span>
+                </div>
+              ); })}
+            </div>
+          )}
+          {prevRadar && (ups.length > 0 || downs.length > 0) && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 6, fontSize: "var(--t-sm)" }}>
+              {ups[0] && <div><Icon name="TrendingUp" size={14} style={{ color: "var(--success)" }} /> <b>Subió:</b> {ups.slice(0, 3).map((m) => m.d.label).join(" · ")}</div>}
+              {downs[0] && <div><Icon name="TrendingDown" size={14} style={{ color: "var(--risk)" }} /> <b>Bajó:</b> {downs.slice(0, 3).map((m) => m.d.label).join(" · ")} <span className="muted">→ ¿la prueba tiene algo que ver?</span></div>}
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "rtalk", 3); setBusy(false); }}>Conversar los movimientos</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Miren qué subió y qué bajó.</p>;
+    } else {
+      sub = "¿Qué explica los movimientos? ¿La prueba tiene que ver?";
+      content = (
+        <Card pad={20}>
+          {prevRadar && (
+            <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              {ups[0] && <span style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--success-bg)", color: "var(--green)", fontWeight: 700 }}>↑ {ups[0].d.label}</span>}
+              {downs[0] && <span style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--risk-bg)", color: "var(--risk)", fontWeight: 700 }}>↓ {downs[0].d.label}</span>}
+            </div>
+          )}
+          <div className="eyebrow" style={{ marginBottom: 6 }}>Qué nos llevamos</div>
+          {isFacil
+            ? <textarea defaultValue={(session.result.frNote as string) ?? ""} onBlur={(e) => patchResult({ frNote: e.target.value.trim() })} rows={3} placeholder="Lo que el equipo entiende de los movimientos…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+            : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, color: (session.result.frNote as string) ? "var(--ink-0)" : "var(--ink-3)" }}>{(session.result.frNote as string) || "El facilitador está tomando nota…"}</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={frFinish}>{busy ? "Guardando…" : "Cerrar y guardar el radar"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Compartí cómo ves los movimientos.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 640 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
