@@ -475,7 +475,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Votación (foco Drop e Improve)", minutes: 3 },
       { name: "Conversación y acciones", minutes: 7 },
     ],
-    sessionType: "daki", implemented: false,
+    sessionType: "daki", implemented: true,
   },
   {
     id: "ideation-storyboarding", name: "Design Storyboarding", stage: "ideation", category: "classic",
