@@ -905,6 +905,14 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
   };
   const shown = inits.filter((i) => i.status === filter);
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
+  // Recordatorios derivados (sin cron): lo accionable que ya cumplió su fecha.
+  const today = Date.now();
+  const past = (iso?: string) => !!iso && new Date(iso).getTime() <= today;
+  const reminders: { icon: string; color: string; text: string; cta: string; init: Initiative }[] = [
+    ...inits.filter((i) => i.data?.consolidate?.pending && past(i.data.consolidate.due)).map((i) => ({ icon: "ClipboardCheck", color: "var(--st-follow)", text: `Consolidación de “${i.title}” lista para verificar`, cta: "Hacer el check", init: i })),
+    ...inits.filter((i) => i.status === "paused" && past(i.data?.learn?.pauseReviewAt)).map((i) => ({ icon: "PlayCircle", color: "var(--warning)", text: `“${i.title}” quedó pausada para revisar`, cta: "Ver variable", init: i })),
+    ...inits.filter((i) => past(i.data?.learn?.letterDate)).map((i) => ({ icon: "Mail", color: "var(--st-learn)", text: `La carta al equipo futuro de “${i.title}” cumplió su fecha`, cta: "Ver carta", init: i })),
+  ];
   const FILTERS: { key: Initiative["status"]; label: string }[] = [
     { key: "active", label: "En curso" },
     { key: "paused", label: "Pausadas" },
@@ -921,6 +929,21 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
           </div>
           {isFacil && <Button icon="Plus" onClick={newInitiative}>Nueva iniciativa</Button>}
         </div>
+
+        {reminders.length > 0 && (
+          <Card pad={16} style={{ border: "1px solid color-mix(in srgb, var(--st-follow) 35%, var(--line))", background: "color-mix(in srgb, var(--st-follow) 6%, var(--card))" }}>
+            <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, color: "var(--st-follow)" }}><Icon name="BellRing" size={13} /> Recordatorios del equipo</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {reminders.map((rm, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <Icon name={rm.icon} size={16} style={{ color: rm.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 140, fontSize: "var(--t-sm)" }}>{rm.text}</span>
+                  <Button size="sm" variant="secondary" onClick={() => router.push(`/equipos/${team.id}/iniciativa/${rm.init.id}`)}>{rm.cta}</Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {FILTERS.map((f) => {

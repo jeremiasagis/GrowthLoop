@@ -17,6 +17,7 @@ import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { CycleTimeline } from "@/components/CycleTimeline";
+import { WordCloud } from "@/components/WordCloud";
 import { retrosForStage, stageOfSessionType } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
@@ -287,7 +288,7 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
 
   // learn
   const d = data.learn;
-  if (!d?.decision && !d?.learnings?.length) return empty("Todavía no se cerró el ciclo.");
+  if (!d?.decision && !d?.learnings?.length && !d?.narrative && !d?.closeWords?.length) return empty("Todavía no se cerró el ciclo.");
   const resultMap: Record<string, { label: string; color: string }> = {
     yes: { label: "Funcionó", color: "var(--success)" }, partial: { label: "A medias", color: "var(--warning)" }, no: { label: "No funcionó", color: "var(--risk)" },
   };
@@ -327,6 +328,12 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
               <div key={i} style={{ display: "flex", gap: 8, fontSize: "var(--t-sm)", padding: "7px 10px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-learn)" }}><Icon name="Lightbulb" size={14} style={{ color: "var(--st-learn)" }} />{l}</div>
             ))}
           </div>
+        </div>
+      )}
+      {!!d?.closeWords?.length && (
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Sparkles" size={13} style={{ color: "var(--st-learn)" }} /> Cómo cerró el equipo</div>
+          <WordCloud words={d.closeWords} />
         </div>
       )}
     </div>
