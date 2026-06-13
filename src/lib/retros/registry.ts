@@ -630,7 +630,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Reveal y lectura colectiva", minutes: 8 },
       { name: "Narrativa compartida del ciclo", minutes: 7 },
     ],
-    sessionType: "lwhappened", entryStep: "lwresult", implemented: false,
+    sessionType: "lwhappened", entryStep: "lwresult", implemented: true,
   },
   {
     id: "learn-what-did-we-learn", name: "¿Qué aprendimos?", stage: "learn", category: "growthloop",

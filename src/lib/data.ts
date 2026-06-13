@@ -160,7 +160,10 @@ export interface InitiativeData {
   focus?: { rootCause?: string; roots?: string[]; cause?: string; causes?: string[]; whys?: string[]; secondaryCauses?: { name: string; votes: number; signals?: number }[]; blockStage?: string; blockPct?: number; blockFormulation?: string; priorityProblems?: string[]; clientName?: string; clientGap?: string; clientFbTask?: { how: string; who: string; due: string }; perfectionScore?: number; candidateFactors?: string[]; tensionPair?: string; tensionHypothesis?: string; journeyCritical?: string; journeyFinding?: string; staceyZone?: string; staceyAdvice?: string };
   proof?: { betIf?: string; betThen?: string; signal?: string; signalMetric?: string; signalTarget?: string; signalHow?: string; responsible?: string; deadline?: string; actions?: { text: string; who: string }[]; mitigations?: { risk: string; plan: string; who?: string; due?: string }[]; bets?: ProofBet[]; risks?: string[]; committed?: number; secondaryIdeas?: { name: string; ice: number }[]; hmw?: string; finalists?: string[]; chosenIdea?: string; bullseye?: string };
   follow?: { current?: number; target?: number; unit?: string; signalName?: string; signalNow?: string; onTrack?: boolean; blockers?: string[]; actionStatus?: { text: string; who: string; status: string }[]; betCheckins?: { name: string; signal: string; value: string; pct: number; actions: { text: string; who: string; status: string }[] }[]; newActions?: { text: string; who: string }[]; escalateTo?: string; decision?: string; fidelity?: string; fidelityNote?: string; adjustNote?: string; startedAt?: string; honesty?: { green: number; yellow: number; red: number }; signalLog?: { date: string; value: string }[]; finalHonesty?: string };
-  learn?: { result?: string; results?: string[]; achieved?: string[]; learnings?: string[]; highlights?: { name: string; votes: number }[]; decision?: string; decisions?: string[] };
+  learn?: { result?: string; results?: string[]; achieved?: string[]; learnings?: string[]; highlights?: { name: string; votes: number }[]; decision?: string; decisions?: string[];
+    narrative?: string; executed?: string; highlightedLearning?: string; decisionReason?: string;
+    processAdjustments?: string[]; desires?: string[]; commitments?: string[]; letterDate?: string;
+    closeWords?: string[]; };
   consolidate?: { outcome?: string; note?: string; date?: string };
 }
 
@@ -219,7 +222,31 @@ export interface TeamData {
   foda?: { f?: string[]; o?: string[]; d?: string[]; a?: string[]; date?: string }; // diagnóstico FODA inicial
   explorationClosedAt?: string; // ISO; cuándo se cerró el módulo de Exploración
   celebrated?: { level: number; cycles: number }; // hasta dónde ya festejamos (evita repetir confetti)
+  library?: LearningEntry[]; // Biblioteca de aprendizajes del equipo (todos los ciclos)
 }
+
+/** Un aprendizaje guardado en la Biblioteca del equipo. */
+export interface LearningEntry {
+  id: string;
+  text: string;
+  initiativeId?: string;   // variable de origen
+  initiativeTitle?: string;
+  stage?: string;          // etapa donde se registró
+  type?: "process" | "client" | "decisions" | "execution" | "communication";
+  resonances?: number;     // ⭐ del equipo
+  transferable?: boolean;
+  urgent?: boolean;
+  highlighted?: boolean;   // aprendizaje destacado del ciclo
+  date?: string;           // ISO
+}
+
+export const LEARNING_TYPES: { k: NonNullable<LearningEntry["type"]>; label: string; emoji: string; color: string }[] = [
+  { k: "process", label: "Proceso del equipo", emoji: "🔄", color: "#3B82F6" },
+  { k: "client", label: "Relación con cliente", emoji: "👥", color: "#06B6D4" },
+  { k: "decisions", label: "Toma de decisiones", emoji: "🎯", color: "#7C3AED" },
+  { k: "execution", label: "Ejecución", emoji: "⚙️", color: "#F59E0B" },
+  { k: "communication", label: "Comunicación", emoji: "💬", color: "#EC4899" },
+];
 
 /** El "Norte" del equipo: a qué apuntan las iniciativas de mejora. */
 export interface TeamObjective {

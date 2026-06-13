@@ -24,6 +24,8 @@ import { StaceyMatrix, STACEY_ZONES, zoneOf } from "@/components/StaceyMatrix";
 import { StoryboardCanvas } from "@/components/StoryboardCanvas";
 import { ArcherTarget } from "@/components/ArcherTarget";
 import { HonestyPulse, type HonestyKey } from "@/components/HonestyPulse";
+import { OneWordClosing } from "@/components/OneWordClosing";
+import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -138,6 +140,7 @@ const STEP_SEQ: Record<string, string[]> = {
   fwperfection: ["fpframe", "fpscore", "fpreveal", "fpactions"],
   fwradar: ["rbase", "rate", "rcompare", "rtalk"],
   starfish: ["cards", "cards_reveal", "cluster", "vote", "close"],
+  lwhappened: ["lwresult", "lwsilence", "lwreact", "lwreveal", "lwnarrative", "lwclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -261,6 +264,7 @@ export default function SalaPage() {
         "sbdraw", "sbpresent", "sbconsensus",
         "lctopics", "lcvote", "lcwork", "lcclose",
         "blclass", "blvote", "blplan", "fpactions",
+        "lwreveal", "lwnarrative",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -608,7 +612,7 @@ export default function SalaPage() {
     if (stepIdx <= 0) return;
     setBusy(true);
     // Al volver atrás, re-ocultar votaciones/revelados y limpiar el timer del paso.
-    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, matrixShown: false, whVoteShown: false, fbVoteShown: false, sdVoteShown: false, wbVoteShown: false, timer: null });
+    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, matrixShown: false, whVoteShown: false, fbVoteShown: false, sdVoteShown: false, wbVoteShown: false, closeWordShown: false, lhReactShown: false, fourlShown: false, timer: null });
     await setStep(sessionId, seq[stepIdx - 1], stepIdx - 1);
     setBusy(false);
   };
@@ -632,6 +636,19 @@ export default function SalaPage() {
       {timer && <SessionTimer secs={timerSecs} total={timerTotal} running={timerRunning} control={isFacil} onToggle={toggleTimer} onReset={stopTimer} onAdd={addTimerMin} />}
     </div>
   );
+
+  // ── Cierre universal de Aprendizaje (One Word) · reusado por todas las retros de learn ──
+  const closeWords = inputs.filter((i) => i.key === "closeword").map((i) => (i.value as { w?: string }).w).filter((w): w is string => !!w);
+  const myCloseWord = (inputs.find((i) => i.userId === user.id && i.key === "closeword")?.value as { w?: string } | undefined)?.w;
+  const closeWordShown = !!session.result.closeWordShown;
+  const learnClosing = (question?: string) => (
+    <OneWordClosing question={question} mine={myCloseWord} onSubmit={(w) => tapInput("closeword", { w })} revealed={closeWordShown} words={closeWords} count={closeWords.length} total={totalInRoom} isFacil={isFacil} />
+  );
+  const learnCloseControls = (finishFn: () => void) => isFacil
+    ? (closeWordShown
+      ? <Button full size="lg" icon="Check" disabled={busy} onClick={finishFn}>{busy ? "Guardando…" : "Cerrar la sesión"}</Button>
+      : <Button full size="lg" icon="Eye" disabled={busy || closeWords.length === 0} onClick={() => setResult(sessionId, { closeWordShown: true })}>Revelar nube de cierre ({closeWords.length}/{totalInRoom})</Button>)
+    : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>{closeWordShown ? "El facilitador cierra la sesión." : "Elegí tu palabra de cierre."}</p>;
 
   // ════════ PULSO SEMANAL · compartido por todas las sesiones ════════
   // Si la sesión arranca con "pulse"/"pulse_reveal" (porque el equipo no hizo el pulso esta
@@ -5589,6 +5606,180 @@ export default function SalaPage() {
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {proofReminder}
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿QUÉ PASÓ? · resultado real + narrativa compartida (Aprendizaje A) ════════
+  if (session.type === "lwhappened") {
+    const pf = initiative?.data?.proof;
+    const fl = initiative?.data?.follow;
+    const r = session.result;
+    const COLS3 = [
+      { key: "lhwork", label: "✅ ¿Qué funcionó de lo que hicimos?", color: "var(--success)" },
+      { key: "lhfail", label: "⚠️ ¿Qué no funcionó o no salió como esperábamos?", color: "var(--risk)" },
+      { key: "lhsurp", label: "💡 ¿Qué nos sorprendió, para bien o para mal?", color: "var(--st-proof)" },
+    ];
+    const reactCount = COLS3.reduce((a, c) => a + (counts[c.key] ?? 0), 0);
+    const achieved = (r.lhAchieved as string) ?? "";
+    const ACH = [{ k: "yes", t: "✅ Sí", c: "var(--success)" }, { k: "partial", t: "⚡ Parcialmente", c: "var(--warning)" }, { k: "no", t: "❌ No", c: "var(--risk)" }];
+    const log = (fl?.signalLog as { date: string; value: string }[] | undefined) ?? [];
+    const sigStart = log[0]?.value ?? "";
+    const sigEnd = log[log.length - 1]?.value ?? (fl?.signalNow as string) ?? "";
+    const parseNum = (s: string) => { const n = parseFloat(`${s}`.replace(/[^0-9.,-]/g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
+    const tgtN = pf?.signalTarget ? parseNum(pf.signalTarget) : null;
+    const endN = parseNum(sigEnd);
+    const sigColor = (tgtN != null && endN != null) ? (endN >= tgtN ? "var(--success)" : achieved === "partial" ? "var(--warning)" : "var(--risk)") : "var(--ink-1)";
+    const executed = (fl?.fidelity as string) ?? "";
+    const EXEC_LABEL: Record<string, string> = { yes: "Sí, completamente", partial: "Parcialmente", no: "No llegamos" };
+    const narrative = (r.lhNarrative as string) ?? "";
+    const narrOks = new Set(inputs.filter((i) => i.key === "lhnarrok").map((i) => i.userId));
+    const silenceAt = r.lhSilenceAt as number | undefined;
+    const silenceLeft = silenceAt ? Math.max(0, 60 - Math.round((now - silenceAt) / 1000)) : 60;
+    const lhFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: reactCount,
+        summaryText: `¿Qué pasó?: ${ACH.find((a) => a.k === achieved)?.t ?? "—"}`,
+        dataKey: "learn",
+        dataValue: { result: achieved, executed, narrative, closeWords },
+        noAdvance: true,
+      });
+      setBusy(false); leave();
+    };
+    const Ficha = (
+      <Card pad={18} style={{ border: "1px solid color-mix(in srgb, var(--st-learn) 35%, var(--line))" }}>
+        <div className="eyebrow" style={{ color: "var(--st-learn)", marginBottom: 8 }}>La prueba cerrada</div>
+        {(pf?.betIf || pf?.betThen) && <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, marginBottom: 10 }}>Apostamos: si <b>{pf?.betIf || "…"}</b>, lograríamos <b>{pf?.betThen || "…"}</b>.</p>}
+        {pf?.chosenIdea && <p style={{ fontSize: "var(--t-xs)", marginBottom: 10 }}><span className="muted">Acción ejecutada:</span> {pf.chosenIdea}</p>}
+        {(sigStart || sigEnd) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+            <span className="muted" style={{ fontSize: "var(--t-xs)" }}>Señal{pf?.signalMetric ? ` · ${pf.signalMetric}` : ""}:</span>
+            <span className="num" style={{ fontWeight: 700 }}>{sigStart || "—"}</span>
+            <Icon name="ArrowRight" size={14} style={{ color: sigColor }} />
+            <span className="num" style={{ fontWeight: 800, color: sigColor }}>{sigEnd || "—"}</span>
+            {pf?.signalTarget && <span className="muted num" style={{ fontSize: "var(--t-xs)" }}>(meta {pf.signalTarget})</span>}
+          </div>
+        )}
+        {log.length > 1 && <div style={{ margin: "8px 0" }}><SignalProgressChart log={log} target={pf?.signalTarget} height={70} /></div>}
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 6, fontSize: "var(--t-xs)" }}>
+          <span><span className="muted">¿Se alcanzó el umbral?</span> <b>{ACH.find((a) => a.k === achieved)?.t ?? "—"}</b></span>
+          {executed && <span><span className="muted">¿Se ejecutó como se diseñó?</span> <b>{EXEC_LABEL[executed] ?? executed}</b></span>}
+        </div>
+      </Card>
+    );
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "lwresult") {
+      sub = "El resultado real de la prueba, con el dato al lado.";
+      content = (
+        <>
+          {Ficha}
+          {isFacil && (
+            <Card pad={16} style={{ marginTop: 12 }}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>¿Se alcanzó el umbral? (tu lectura del dato)</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {ACH.map((o) => <button key={o.k} onClick={() => patchResult({ lhAchieved: o.k })} style={{ padding: "8px 14px", borderRadius: "var(--r-full)", fontWeight: 700, fontSize: "var(--t-sm)", border: `1.5px solid ${achieved === o.k ? o.c : "var(--line-2)"}`, background: achieved === o.k ? `color-mix(in srgb, ${o.c} 13%, var(--card))` : "var(--card)", color: achieved === o.k ? o.c : "var(--ink-2)" }}>{o.t}</button>)}
+              </div>
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !achieved} onClick={async () => { setBusy(true); await setResult(sessionId, { lhSilenceAt: Date.now() }); await setStep(sessionId, "lwsilence", 1); setBusy(false); }}>Tomar un momento</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador presenta el resultado.</p>;
+    } else if (step === "lwsilence") {
+      sub = "Tomemos un momento para procesar lo que pasó…";
+      content = (
+        <Card pad={32} style={{ textAlign: "center" }}>
+          <div className="num" style={{ fontSize: 64, fontWeight: 800, color: silenceLeft > 0 ? "var(--st-learn)" : "var(--green)", lineHeight: 1 }}>{silenceLeft}</div>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>Sin escribir ni votar. Solo dejá que el resultado se asiente.{isFacil && " Observá cómo reacciona el equipo."}</p>
+          <div style={{ height: 6, borderRadius: 99, background: "var(--card-2)", overflow: "hidden", marginTop: 18 }}><div style={{ height: "100%", width: `${(1 - silenceLeft / 60) * 100}%`, background: "var(--st-learn)", borderRadius: 99, transition: "width 1s linear" }} /></div>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || silenceLeft > 0} onClick={async () => { setBusy(true); await setStep(sessionId, "lwreact", 2); setBusy(false); }}>{silenceLeft > 0 ? `Esperá ${silenceLeft}s…` : "Abrir la reacción del equipo"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respirá. Procesemos juntos.</p>;
+    } else if (step === "lwreact") {
+      sub = "Tu reacción honesta, en anónimo. Todas las tarjetas que quieras.";
+      content = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 12 }}>
+          {COLS3.map((col) => {
+            const mine = myCards.filter((c) => c.columnKey === col.key);
+            return (
+              <Card key={col.key} pad={14} style={{ borderTop: `3px solid ${col.color}` }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8, lineHeight: 1.35 }}>{col.label}</div>
+                <HiddenDots n={counts[col.key] ?? 0} label="ocultas" color={col.color} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                  {mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 4 }}>· tuya</span></div>)}
+                </div>
+                {!isFacil && (
+                  <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+                    <input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={async (e) => { if (e.key === "Enter") { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, true); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); } }} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none" }} />
+                    <button onClick={async () => { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, true); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); }} style={{ width: 30, borderRadius: "var(--r-sm)", background: col.color, color: "#08120c", border: "none", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || reactCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "lwreveal", 3); setBusy(false); }}>Revelar y leer ({reactCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escribí tu reacción. El facilitador revela cuando todos terminen.</p>;
+    } else if (step === "lwreveal") {
+      wide = true;
+      sub = isFacil ? "Leé en voz alta. No interpretes todavía: solo leé y dejá que el equipo procese." : "Lectura colectiva. Escuchemos lo que aportó cada uno.";
+      content = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))", gap: 12 }}>
+          {COLS3.map((col) => {
+            const cs = allCards.filter((c) => c.columnKey === col.key);
+            return (
+              <div key={col.key} style={{ background: "var(--bg-2)", border: `1px solid color-mix(in srgb, ${col.color} 30%, var(--line))`, borderTop: `3px solid ${col.color}`, borderRadius: "var(--r-lg)", padding: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8, lineHeight: 1.35 }}>{col.label} <span className="num muted">{cs.length}</span></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {cs.map((c, i) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-sm)", padding: "8px 10px", fontSize: "var(--t-sm)", animation: `pop-in .4s var(--spring) ${i * 0.04}s both` }}>{c.text}</div>)}
+                  {!cs.length && <div className="faint" style={{ fontSize: "var(--t-xs)", textAlign: "center", padding: 12 }}>Sin tarjetas</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwnarrative", 4); setBusy(false); }}>Construir la narrativa</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escuchá la lectura del facilitador.</p>;
+    } else if (step === "lwnarrative") {
+      sub = "La narrativa compartida del ciclo. El facilitador redacta, el equipo aprueba.";
+      content = (
+        <Card pad={20}>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>Lo que pasó, en palabras del equipo</div>
+          {isFacil
+            ? <textarea defaultValue={narrative} onBlur={(e) => patchResult({ lhNarrative: e.target.value })} rows={6} placeholder={"Lo que pasó fue…\nFuncionó…\nNo funcionó…\nLo más sorprendente fue…"} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.6, resize: "vertical" }} />
+            : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap", color: narrative ? "var(--ink-0)" : "var(--ink-3)" }}>{narrative || "El facilitador está redactando la narrativa…"}</p>}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {!isFacil
+              ? (narrOks.has(user.id) ? <span style={{ color: "var(--green)", fontWeight: 700, fontSize: "var(--t-sm)", display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="CircleCheck" size={16} /> Aprobaste la narrativa</span> : <Button size="sm" icon="ThumbsUp" disabled={!narrative} onClick={() => tapInput("lhnarrok", { ok: true })}>Refleja lo que pasó</Button>)
+              : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Editá hasta que el equipo se sienta reflejado.</span>}
+            <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--green)" }}>{narrOks.size}/{totalInRoom} aprobaron</span>
+          </div>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !narrative.trim()} onClick={async () => { setBusy(true); await setStep(sessionId, "lwclose", 5); setBusy(false); }}>Cerrar con una palabra</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Aprobá la narrativa cuando te sientas reflejado.</p>;
+    } else {
+      sub = "El ritual de cierre del ciclo.";
+      content = learnClosing();
+      controls = learnCloseControls(lhFinish);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 860 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
           <div style={{ marginTop: 18 }}>{controls}</div>
         </div>
