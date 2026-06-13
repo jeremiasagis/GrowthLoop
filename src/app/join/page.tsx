@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Button, Card } from "@/components/ui";
-import { getSessionByCode } from "@/lib/session";
+import { joinSessionByCode } from "@/lib/session";
 
 export default function JoinPage() {
   const router = useRouter();
@@ -12,15 +12,24 @@ export default function JoinPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const join = async () => {
-    const c = code.trim().toUpperCase();
+  const join = async (override?: string) => {
+    const c = (override ?? code).trim().toUpperCase();
     if (c.length < 4 || busy) return;
     setBusy(true); setError(null);
-    const s = await getSessionByCode(c);
+    const res = await joinSessionByCode(c);
     setBusy(false);
-    if (!s) { setError("No encontramos una sesión activa con ese código. Revisalo con tu facilitador."); return; }
-    router.replace(`/sala/${s.id}`);
+    if (res.error || !res.sessionId) { setError(res.error ?? "No encontramos una sesión activa con ese código. Revisalo con tu facilitador."); return; }
+    router.replace(`/sala/${res.sessionId}`);
   };
+
+  // Código por URL (al escanear el QR del facilitador): se une solo.
+  const auto = useRef(false);
+  useEffect(() => {
+    if (auto.current) return;
+    const c = new URLSearchParams(window.location.search).get("code");
+    if (c && c.trim().length >= 4) { auto.current = true; setCode(c.toUpperCase()); join(c); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="screen-pad" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
@@ -37,7 +46,7 @@ export default function JoinPage() {
           className="num"
         />
         {error && <p style={{ color: "#ff8b8b", fontSize: "var(--t-sm)", fontWeight: 600, marginTop: 12 }}>{error}</p>}
-        <Button full size="lg" icon="ArrowRight" disabled={code.trim().length < 4 || busy} onClick={join} style={{ marginTop: 16 }}>{busy ? "Buscando…" : "Entrar a la sesión"}</Button>
+        <Button full size="lg" icon="ArrowRight" disabled={code.trim().length < 4 || busy} onClick={() => join()} style={{ marginTop: 16 }}>{busy ? "Entrando…" : "Entrar a la sesión"}</Button>
         <button onClick={() => router.back()} className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 14, fontWeight: 600 }}>Volver</button>
       </Card>
     </div>

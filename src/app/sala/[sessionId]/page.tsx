@@ -323,8 +323,9 @@ export default function SalaPage() {
         <p style={{ fontWeight: 700, marginBottom: 6 }}>No encontramos esta sesión con tu cuenta.</p>
         <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55 }}>
           Estás logueado como <b style={{ color: "var(--ink-0)" }}>{user.name}</b> ({user.role === "member" ? "miembro" : user.role}).
-          Si la sesión existe, esta cuenta no pertenece al equipo que la abrió — entrá con la cuenta correcta o pedile al facilitador que te invite al equipo.
+          Si la sesión existe, esta cuenta no pertenece al equipo que la abrió. Pedile el código al facilitador y unite con él.
         </p>
+        <Button full icon="Radio" onClick={() => router.push("/join")} style={{ marginTop: 16 }}>Unirme con un código</Button>
       </Card>
     </Shell>
   );
@@ -451,7 +452,7 @@ export default function SalaPage() {
           <Icon name="QrCode" size={15} /> Invitar al equipo {session.joinCode ? `· ${session.joinCode}` : ""}
         </button>
       )}
-      {showJoin && <JoinModal url={typeof window !== "undefined" ? window.location.href : ""} code={session.joinCode} onClose={() => setShowJoin(false)} />}
+      {showJoin && <JoinModal url={typeof window !== "undefined" ? `${window.location.origin}/join?code=${session.joinCode ?? ""}` : ""} code={session.joinCode} onClose={() => setShowJoin(false)} />}
     </div>
   );
 

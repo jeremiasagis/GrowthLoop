@@ -77,6 +77,17 @@ function mapSession(r: any): LiveSession {
 const JOIN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const newJoinCode = () => Array.from({ length: 5 }, () => JOIN_CHARS[Math.floor(Math.random() * JOIN_CHARS.length)]).join("");
 
+/** Unirse a la sala por código (estilo Kahoot): suma al usuario al equipo
+ *  de la sesión y devuelve el id de la sesión. Funciona aunque todavía no
+ *  sea integrante del equipo. */
+export async function joinSessionByCode(code: string): Promise<{ sessionId?: string; error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("join_session_by_code", { p_code: code.trim().toUpperCase() });
+  if (error) return { error: error.message };
+  if (!data) return { error: "No encontramos una sesión activa con ese código." };
+  return { sessionId: data as string };
+}
+
 /** Busca una sesión EN VIVO por su código de sala (respeta RLS: solo equipos visibles). */
 export async function getSessionByCode(code: string): Promise<LiveSession | null> {
   const supabase = getSupabaseBrowserClient();
