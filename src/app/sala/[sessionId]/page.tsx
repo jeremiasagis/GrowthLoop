@@ -27,7 +27,7 @@ import { HonestyPulse, type HonestyKey } from "@/components/HonestyPulse";
 import { OneWordClosing } from "@/components/OneWordClosing";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { useToast } from "@/components/Toast";
-import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
+import { PULSE_DIMS, FOUNDING_QUESTIONS, LEARNING_TYPES, overallOf, to5, to100, type LearningEntry } from "@/lib/data";
 import {
   addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster, pulseOverall,
   finalizeSession, getCardCounts, getCards, getClusters, getInitiativeSessions, getInputs, getMyCards, getParticipants, getSessionContent,
@@ -141,6 +141,7 @@ const STEP_SEQ: Record<string, string[]> = {
   fwradar: ["rbase", "rate", "rcompare", "rtalk"],
   starfish: ["cards", "cards_reveal", "cluster", "vote", "close"],
   lwhappened: ["lwresult", "lwsilence", "lwreact", "lwreveal", "lwnarrative", "lwclose"],
+  lwlearned: ["lwldistinct", "lwlwrite", "lwlread", "lwlclassify", "lwlhighlight", "lwlclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -265,6 +266,7 @@ export default function SalaPage() {
         "lctopics", "lcvote", "lcwork", "lcclose",
         "blclass", "blvote", "blplan", "fpactions",
         "lwreveal", "lwnarrative",
+        "lwlread", "lwlclassify", "lwlhighlight",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -5778,6 +5780,161 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 860 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿QUÉ APRENDIMOS? · aprendizajes → Biblioteca (Aprendizaje B) ════════
+  if (session.type === "lwlearned") {
+    const lrn = allCards.filter((c) => c.columnKey === "lrn");
+    const lrnCount = counts["lrn"] ?? 0;
+    const QS = [
+      "¿Qué sabemos ahora que no sabíamos antes de esta prueba?",
+      "¿Qué haríamos diferente si pudiéramos volver a empezar?",
+      "¿Qué de esto aplica a otras variables del equipo? (transferencia)",
+    ];
+    const myStars = ((inputs.find((i) => i.userId === user.id && i.key === "lstar")?.value as { ids?: string[] } | undefined)?.ids) ?? [];
+    const starsOf = (id: string) => inputs.filter((i) => i.key === "lstar").reduce((a, x) => a + (((x.value as { ids?: string[] }).ids ?? []).includes(id) ? 1 : 0), 0);
+    const toggleStar = (id: string) => { const cur = new Set(myStars); if (cur.has(id)) cur.delete(id); else cur.add(id); tapInput("lstar", { ids: [...cur] }); };
+    const lrnMeta = (session.result.lrnMeta as Record<string, { type?: string; transferable?: boolean; urgent?: boolean }>) ?? {};
+    const setMeta = (id: string, patch: Record<string, unknown>) => patchResult({ lrnMeta: { ...((resultRef.current.lrnMeta as Record<string, unknown>) ?? {}), [id]: { ...(lrnMeta[id] ?? {}), ...patch } } });
+    const highlight = (session.result.lrnHighlight as string) ?? "";
+    const addLrn = async () => { const t = (cardDraft.lrn ?? "").trim(); if (!t) return; await addCard(sessionId, "lrn", t, false); setCardDraft((d) => ({ ...d, lrn: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const ranked = [...lrn].sort((a, b) => starsOf(b.id) - starsOf(a.id));
+    const lwlFinish = async () => {
+      setBusy(true);
+      const nowIso = new Date().toISOString();
+      const entries: LearningEntry[] = lrn.map((c) => ({
+        id: c.id, text: c.text, initiativeId: initiative?.id, initiativeTitle: initiative?.title,
+        stage: "learn", type: lrnMeta[c.id]?.type as LearningEntry["type"], resonances: starsOf(c.id),
+        transferable: !!lrnMeta[c.id]?.transferable, urgent: !!lrnMeta[c.id]?.urgent,
+        highlighted: c.id === highlight, date: nowIso,
+      }));
+      const existing = (team?.data?.library as LearningEntry[] | undefined) ?? [];
+      const merged = [...existing.filter((e) => !entries.some((n) => n.id === e.id)), ...entries];
+      const highlightText = lrn.find((c) => c.id === highlight)?.text ?? "";
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: lrnCount,
+        summaryText: `${lrn.length} aprendizajes${highlightText ? ` · destacado: ${highlightText.slice(0, 40)}` : ""}`,
+        dataKey: "learn", dataValue: { learnings: lrn.map((c) => c.text), highlightedLearning: highlightText, closeWords },
+        teamData: { library: merged }, noAdvance: true,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "lwldistinct") {
+      sub = "Una distinción antes de empezar.";
+      content = (
+        <Card pad={28} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 34, marginBottom: 12 }}>🧠</div>
+          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, lineHeight: 1.5 }}>Un resultado exitoso no garantiza aprendizaje.<br />Un resultado fallido puede generar el aprendizaje más valioso.</p>
+          <p className="muted" style={{ fontSize: "var(--t-md)", marginTop: 12 }}>Hoy separamos las dos cosas.</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwlwrite", 1); setBusy(false); }}>Escribir los aprendizajes</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el ejercicio.</p>;
+    } else if (step === "lwlwrite") {
+      sub = "Sin apuro. Una tarjeta por aprendizaje. Acá no es anónimo.";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+            {QS.map((q, i) => <div key={i} style={{ display: "flex", gap: 8, fontSize: "var(--t-sm)", lineHeight: 1.4 }}><span className="num" style={{ color: "var(--st-learn)", fontWeight: 800 }}>{i + 1}</span><span>{q}</span></div>)}
+          </div>
+          <HiddenDots n={lrnCount} label="aprendizajes · se leen al revelar" color="var(--st-learn)" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+            {myCards.filter((c) => c.columnKey === "lrn").map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-learn)", borderRadius: "var(--r-sm)", padding: "8px 10px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 4 }}>· tuyo</span></div>)}
+          </div>
+          {!isFacil && (
+            <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+              <input value={cardDraft.lrn ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, lrn: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addLrn()} placeholder="Aprendimos que…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={addLrn}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || lrnCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "lwlread", 2); setBusy(false); }}>Leer y resonar ({lrnCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escribí tus aprendizajes. El facilitador abre la lectura cuando estén todos.</p>;
+    } else if (step === "lwlread") {
+      sub = "Cada uno lee sus aprendizajes. Poné ⭐ a los que más te resuenan.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {ranked.map((c) => { const stars = starsOf(c.id); const on = myStars.includes(c.id); const author = participants.find((p) => p.userId === c.authorId)?.name; return (
+            <Card key={c.id} pad={14} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45 }}>{c.text}</div>
+                {author && <div className="faint" style={{ fontSize: 10, marginTop: 3 }}>· {author}</div>}
+              </div>
+              <button onClick={() => { if (!isFacil) toggleStar(c.id); }} disabled={isFacil} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: "var(--r-full)", border: `1.5px solid ${on ? "var(--warning)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--warning) 14%, var(--card))" : "var(--card)", color: on ? "var(--warning)" : "var(--ink-2)", fontWeight: 700, cursor: isFacil ? "default" : "pointer" }}>
+                <Icon name="Star" size={14} style={on ? { fill: "var(--warning)" } : undefined} /> {stars}
+              </button>
+            </Card>
+          ); })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwlclassify", 3); setBusy(false); }}>Clasificar para la Biblioteca</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Marcá con ⭐ los que más te resuenan.</p>;
+    } else if (step === "lwlclassify") {
+      sub = isFacil ? "Clasificá cada aprendizaje. Se guardan en la Biblioteca del equipo." : "El facilitador clasifica los aprendizajes para la Biblioteca.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {ranked.map((c) => { const m = lrnMeta[c.id] ?? {}; return (
+            <Card key={c.id} pad={14}>
+              <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.45, marginBottom: 10 }}>{c.text} {starsOf(c.id) > 0 && <span className="num" style={{ color: "var(--warning)", fontSize: "var(--t-xs)" }}>⭐{starsOf(c.id)}</span>}</div>
+              {isFacil ? (
+                <>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                    {LEARNING_TYPES.map((t) => { const on = m.type === t.k; return <button key={t.k} onClick={() => setMeta(c.id, { type: t.k })} style={{ padding: "5px 10px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 600, border: `1.5px solid ${on ? t.color : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${t.color} 14%, var(--card))` : "var(--card)", color: on ? t.color : "var(--ink-2)" }}>{t.emoji} {t.label}</button>; })}
+                  </div>
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: "var(--t-xs)" }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><input type="checkbox" checked={!!m.transferable} onChange={(e) => setMeta(c.id, { transferable: e.target.checked })} /> Transferible a otras variables</label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><input type="checkbox" checked={!!m.urgent} onChange={(e) => setMeta(c.id, { urgent: e.target.checked })} /> Urgente aplicar el próximo ciclo</label>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: "var(--t-xs)" }}>
+                  {m.type && <span style={{ color: LEARNING_TYPES.find((t) => t.k === m.type)?.color }}>{LEARNING_TYPES.find((t) => t.k === m.type)?.emoji} {LEARNING_TYPES.find((t) => t.k === m.type)?.label}</span>}
+                  {m.transferable && <span className="muted">· transferible</span>}{m.urgent && <span className="muted">· urgente</span>}
+                </div>
+              )}
+            </Card>
+          ); })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || lrn.some((c) => !lrnMeta[c.id]?.type)} onClick={async () => { setBusy(true); await setStep(sessionId, "lwlhighlight", 4); setBusy(false); }}>{lrn.some((c) => !lrnMeta[c.id]?.type) ? "Clasificá todos para seguir" : "Elegir el destacado"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador clasifica cada aprendizaje.</p>;
+    } else if (step === "lwlhighlight") {
+      sub = "El aprendizaje más valioso del ciclo. Aparece destacado en el dashboard.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {ranked.map((c) => { const on = highlight === c.id; return (
+            <button key={c.id} disabled={!isFacil} onClick={() => patchResult({ lrnHighlight: c.id })} style={{ textAlign: "left", padding: "13px 15px", borderRadius: "var(--r-md)", border: `1.5px solid ${on ? "var(--st-learn)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--st-learn) 12%, var(--card))" : "var(--card)", cursor: isFacil ? "pointer" : "default", display: "flex", alignItems: "center", gap: 10 }}>
+              {on ? <Icon name="Star" size={18} style={{ color: "var(--st-learn)", fill: "var(--st-learn)" }} /> : <Icon name="Circle" size={18} style={{ color: "var(--line-2)" }} />}
+              <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: on ? 700 : 500 }}>{c.text}</span>
+              {starsOf(c.id) > 0 && <span className="num" style={{ color: "var(--warning)", fontSize: "var(--t-xs)" }}>⭐{starsOf(c.id)}</span>}
+            </button>
+          ); })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !highlight} onClick={async () => { setBusy(true); await setStep(sessionId, "lwlclose", 5); setBusy(false); }}>Cerrar con una palabra</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador elige el aprendizaje destacado.</p>;
+    } else {
+      sub = "El ritual de cierre del ciclo.";
+      content = learnClosing();
+      controls = learnCloseControls(lwlFinish);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 640 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

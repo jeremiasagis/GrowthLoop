@@ -645,7 +645,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Clasificación para la Biblioteca", minutes: 7 },
       { name: "Aprendizaje destacado del ciclo", minutes: 5 },
     ],
-    sessionType: "lwlearned", entryStep: "lwldistinct", implemented: false,
+    sessionType: "lwlearned", entryStep: "lwldistinct", implemented: true,
   },
   {
     id: "learn-what-is-next", name: "¿Qué sigue?", stage: "learn", category: "growthloop",
