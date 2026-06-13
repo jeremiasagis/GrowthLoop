@@ -393,6 +393,7 @@ export async function finalizeSession(session: LiveSession, opts: {
   dataKey?: string; dataValue?: unknown; pausedNames?: string[];
   noAdvance?: boolean; status?: string; stageOverride?: string;
   teamData?: Record<string, unknown>;
+  consolidateDays?: number; // si se setea, la variable entra en Consolidación N días
 }): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const date = new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
@@ -421,11 +422,19 @@ export async function finalizeSession(session: LiveSession, opts: {
   if (session.initiativeId) {
     const { data: initRow } = await supabase.from("initiatives").select("stage,data,objective_id").eq("id", session.initiativeId).maybeSingle();
     const patch: Record<string, unknown> = {};
-    if (opts.dataKey) {
+    if (opts.dataKey || opts.consolidateDays) {
       const prev = (initRow?.data as Record<string, unknown>) ?? {};
-      const prevK = (prev[opts.dataKey] as Record<string, unknown>) ?? {};
-      const dv = opts.dataValue && typeof opts.dataValue === "object" ? (opts.dataValue as Record<string, unknown>) : {};
-      patch.data = { ...prev, [opts.dataKey]: { ...prevK, ...dv } };
+      let nextData = { ...prev };
+      if (opts.dataKey) {
+        const prevK = (prev[opts.dataKey] as Record<string, unknown>) ?? {};
+        const dv = opts.dataValue && typeof opts.dataValue === "object" ? (opts.dataValue as Record<string, unknown>) : {};
+        nextData = { ...nextData, [opts.dataKey]: { ...prevK, ...dv } };
+      }
+      if (opts.consolidateDays) {
+        const due = new Date(); due.setDate(due.getDate() + opts.consolidateDays);
+        nextData = { ...nextData, consolidate: { startedAt: new Date().toISOString(), due: due.toISOString(), pending: true } };
+      }
+      patch.data = nextData;
     }
     // Modo libre: cerrar una sesión NO avanza la etapa. La etapa acumula
     // sesiones y el facilitador la cierra explícitamente desde la iniciativa

@@ -5838,7 +5838,7 @@ export default function SalaPage() {
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: lrnCount,
         summaryText: `${lrn.length} aprendizajes${highlightText ? ` · destacado: ${highlightText.slice(0, 40)}` : ""}`,
-        dataKey: "learn", dataValue: { learnings: lrn.map((c) => c.text), highlightedLearning: highlightText, closeWords },
+        dataKey: "learn", dataValue: { learnings: [...new Set([...((initiative?.data?.learn?.learnings as string[] | undefined) ?? []), ...lrn.map((c) => c.text)])], highlightedLearning: highlightText, closeWords },
         teamData: { library: merged }, noAdvance: true,
       });
       setBusy(false); leave();
@@ -6296,7 +6296,7 @@ export default function SalaPage() {
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: flCount,
         summaryText: `4 L's: ${flAll.length} tarjetas · ${exported.length} a la Biblioteca`,
-        dataKey: "learn", dataValue: { learnings: learnedCards.map((c) => c.text), desires, closeWords },
+        dataKey: "learn", dataValue: { learnings: [...new Set([...((initiative?.data?.learn?.learnings as string[] | undefined) ?? []), ...learnedCards.map((c) => c.text)])], desires, closeWords },
         teamData: exported.length ? { library: merged } : undefined, noAdvance: true,
       });
       setBusy(false); leave();
@@ -7003,10 +7003,16 @@ export default function SalaPage() {
       const overallResult = uniqResults.length === 1 ? uniqResults[0] : (results.length ? "partial" : "");
       const rOv = RESULTS.find((x) => x.k === overallResult);
       const dOv = DECISIONS.find((x) => x.k === overallDecision);
+      // Movimiento de la variable, unificado con las retros separadas:
+      // iterar → vuelve a Ideación (activa); implementar → Consolidación 30 días (activa);
+      // soltar → ciclo cerrado (done).
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: learnCount, summaryText: `Resultado: ${rOv?.l ?? "—"} · ${dOv?.l ?? "—"}`,
         dataKey: "learn", dataValue: { result: overallResult, results, decision: overallDecision, decisions, achieved, learnings: learnCards.map((c) => c.text), highlights: ranked.map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })).filter((h) => h.votes > 0) },
-        noAdvance: true, status: anyIterate ? "active" : "done", stageOverride: anyIterate ? "ideation" : undefined,
+        noAdvance: true,
+        status: anyIterate || anyConsolidate ? "active" : "done",
+        stageOverride: anyIterate ? "ideation" : undefined,
+        consolidateDays: anyConsolidate && !anyIterate ? 30 : undefined,
       });
       setBusy(false); leave();
     };
