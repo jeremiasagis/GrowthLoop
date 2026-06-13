@@ -3,12 +3,12 @@
 import { Icon } from "@/components/icon";
 import { Avatar, Bar, Card, Pill, PulseRadar, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getFacilitators, getTeam } from "@/lib/repository";
+import { getFacilitators, getMyTeam } from "@/lib/repository";
 import { PULSE_DIMS, dimVal, teamLiveStage, to5 } from "@/lib/data";
 
 export default function MemberEquipo() {
   const { user } = useAuth();
-  const team = getTeam(user?.teamId ?? "");
+  const team = getMyTeam(user?.teamId);
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo todavía.</p></Card></div>;
 
   const lead = team.facilitatorId ? getFacilitators().find((f) => f.id === team.facilitatorId) : undefined;

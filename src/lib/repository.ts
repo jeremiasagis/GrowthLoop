@@ -78,6 +78,12 @@ export function getTeams(): Team[] {
   const ids = myOrgIds();
   return teams.filter((t) => ids.has(t.orgId));
 }
+/** El equipo del miembro logueado: el que dice su perfil, o —auto-curativo—
+ *  el único/primer equipo que la RLS le deja ver (un miembro solo ve el suyo). */
+export function getMyTeam(teamId?: string): Team | undefined {
+  return (teamId ? getTeam(teamId) : undefined) ?? getTeams()[0];
+}
+
 export function getTeam(id: string): Team | undefined {
   return getTeams().find((t) => t.id === id);
 }

@@ -5,26 +5,26 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AvatarStack, Button, Card, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getFacilitators, getInitiatives, getTeam } from "@/lib/repository";
+import { getFacilitators, getInitiatives, getMyTeam } from "@/lib/repository";
 import { getOpenSessionForTeam, subscribeTeamSessions, type LiveSession } from "@/lib/session";
 import { overallOf, teamLiveStage } from "@/lib/data";
 
 export default function MemberHome() {
   const router = useRouter();
   const { user } = useAuth();
-  const team = getTeam(user?.teamId ?? "");
+  const team = getMyTeam(user?.teamId);
   const firstName = (user?.name ?? "").split(" ")[0] || "miembro";
   const [live, setLive] = useState<LiveSession | null>(null);
 
   useEffect(() => {
-    if (!user?.teamId) return;
+    if (!team?.id) return; const tid = team.id;
     let active = true;
-    const load = async () => { const s = await getOpenSessionForTeam(user.teamId!); if (active) setLive(s); };
+    const load = async () => { const s = await getOpenSessionForTeam(tid); if (active) setLive(s); };
     load();
-    const unsub = subscribeTeamSessions(user.teamId, load);
+    const unsub = subscribeTeamSessions(tid, load);
     const poll = setInterval(load, 3000);
     return () => { active = false; unsub(); clearInterval(poll); };
-  }, [user?.teamId]);
+  }, [team?.id]);
 
   if (!team) {
     return <div className="screen-pad"><Card pad={24}><p className="muted">Todavía no estás asignado a un equipo. Pedile a tu facilitador que te invite.</p></Card></div>;

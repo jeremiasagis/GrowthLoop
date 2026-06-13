@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Button, Card, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getInitiatives, getTeam } from "@/lib/repository";
+import { getInitiatives, getMyTeam } from "@/lib/repository";
 import { getOpenSessionForTeam, subscribeTeamSessions, type LiveSession } from "@/lib/session";
 import { CYCLE_STAGES, STAGES, type Initiative } from "@/lib/data";
 
@@ -37,19 +37,19 @@ function MiniCycle({ init }: { init: Initiative }) {
 export default function MemberIniciativas() {
   const router = useRouter();
   const { user } = useAuth();
-  const team = getTeam(user?.teamId ?? "");
+  const team = getMyTeam(user?.teamId);
   const [filter, setFilter] = useState<Initiative["status"]>("active");
   const [live, setLive] = useState<LiveSession | null>(null);
 
   useEffect(() => {
-    if (!user?.teamId) return;
+    if (!team?.id) return; const tid = team.id;
     let active = true;
-    const load = async () => { const s = await getOpenSessionForTeam(user.teamId!); if (active) setLive(s); };
+    const load = async () => { const s = await getOpenSessionForTeam(tid); if (active) setLive(s); };
     load();
-    const unsub = subscribeTeamSessions(user.teamId, load);
+    const unsub = subscribeTeamSessions(tid, load);
     const poll = setInterval(load, 3000);
     return () => { active = false; unsub(); clearInterval(poll); };
-  }, [user?.teamId]);
+  }, [team?.id]);
 
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo.</p></Card></div>;
 
