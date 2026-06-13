@@ -521,7 +521,7 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
 
 /** Columna derecha del equipo: pulso, salud, ritmo y contrato (compartida entre pestañas). */
 /** Panel de gamificación del equipo: nivel, XP, racha, misión y logros. */
-function TeamProgressPanel({ team }: { team: Team }) {
+function TeamProgressPanel({ team, onGoTab }: { team: Team; onGoTab?: (tab: string) => void }) {
   const g = teamProgress(team);
   const next = g.achievements.find((a) => !a.got && a.goal);
   return (
@@ -549,15 +549,21 @@ function TeamProgressPanel({ team }: { team: Team }) {
       </div>
 
       {/* Misión actual */}
-      {g.mission && (
-        <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 12 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 99, background: "var(--green-soft)", color: "var(--green)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Target" size={16} /></span>
-          <div style={{ minWidth: 0 }}>
-            <div className="eyebrow" style={{ color: "var(--green)" }}>Misión</div>
-            <div style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{g.mission.label}</div>
-          </div>
-        </div>
-      )}
+      {g.mission && (() => {
+        const m = g.mission;
+        const clickable = !!(onGoTab && m.tab);
+        return (
+          <button onClick={() => clickable && onGoTab!(m.tab!)} disabled={!clickable}
+            style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 12, width: "100%", textAlign: "left", padding: "8px 10px", marginLeft: -10, marginRight: -10, borderRadius: "var(--r-md)", cursor: clickable ? "pointer" : "default", background: "transparent" }}>
+            <span style={{ width: 30, height: 30, borderRadius: 99, background: "var(--green-soft)", color: "var(--green)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Target" size={16} /></span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="eyebrow" style={{ color: "var(--green)" }}>Misión</div>
+              <div style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{m.label}</div>
+            </div>
+            {clickable && <Icon name="ChevronRight" size={16} style={{ color: "var(--ink-3)" }} />}
+          </button>
+        );
+      })()}
 
       {/* Próximo logro */}
       {next && (
@@ -586,7 +592,7 @@ function TeamProgressPanel({ team }: { team: Team }) {
   );
 }
 
-function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onChanged: () => void }) {
+function TeamSidebar({ team, isFacil, onOpenPulse, onChanged, onGoTab }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onChanged: () => void; onGoTab?: (tab: string) => void }) {
   const live = getTeam(team.id) ?? team;
   const inits = getInitiatives(team.id);
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
@@ -594,7 +600,7 @@ function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; is
   const hasContract = !!live.data?.contract;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <TeamProgressPanel team={live} />
+      <TeamProgressPanel team={live} onGoTab={onGoTab} />
       <Card pad={20}>
         <SectionTitle icon="HeartPulse">Salud rápida</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -797,7 +803,7 @@ function ObjetivosSection({ team, isFacil, onChanged, onGoIniciativas }: { team:
   );
 }
 
-function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onInvite: () => void }) {
+function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onInvite: () => void; onGoTab?: (tab: string) => void }) {
   const router = useRouter();
   const { show } = useToast();
   const [, setNonce] = useState(0);
@@ -895,7 +901,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite }: { team: Team
         )}
       </div>
 
-      <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={onOpenPulse} onChanged={refresh} />
+      <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={onOpenPulse} onChanged={refresh} onGoTab={onGoTab} />
 
       {modal && <InitiativeModal teamId={team.id} onClose={() => setModal(false)} onSaved={refresh} />}
       {editing && <InitiativeModal teamId={team.id} editing={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
@@ -1075,7 +1081,7 @@ export default function TeamPage() {
           <div style={{ minWidth: 0 }}>
             <ExploracionSection team={getTeam(team.id) ?? team} isFacil={isFacil} />
           </div>
-          <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onChanged={() => setTeamNonce((n) => n + 1)} />
+          <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onChanged={() => setTeamNonce((n) => n + 1)} onGoTab={setTab} />
         </div>
       )}
 
@@ -1087,10 +1093,10 @@ export default function TeamPage() {
               Las iniciativas de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Iniciativas</button>.
             </p>
           </div>
-          <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onChanged={() => setTeamNonce((n) => n + 1)} />
+          <TeamSidebar team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onChanged={() => setTeamNonce((n) => n + 1)} onGoTab={setTab} />
         </div>
       )}
-      {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onInvite={() => setInviteOpen(true)} />}
+      {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onInvite={() => setInviteOpen(true)} onGoTab={setTab} />}
 
       {tab === "pulso" && <PulseDetail team={team} />}
 
