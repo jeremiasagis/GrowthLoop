@@ -733,7 +733,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Plenario de cierre (voluntario)", minutes: 5 },
       { name: "Cierre (One Word)", minutes: 1 },
     ],
-    sessionType: "speeddating", entryStep: "sdwarn", implemented: false,
+    sessionType: "speeddating", entryStep: "sdwarn", implemented: true,
   },
 ];
 

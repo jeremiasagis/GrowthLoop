@@ -148,6 +148,7 @@ const STEP_SEQ: Record<string, string[]> = {
   fourls: ["flcontext", "flwrite", "flreveal", "flvote", "fltalk", "flexport", "flclose"],
   kudos: ["kudwrite", "kuddeliver", "kudclose"],
   letter: ["ltframe", "ltwrite", "ltread", "lttheme", "ltclose"],
+  speeddating: ["sdwarn", "sdframe", "sdpairs", "sdrounds", "sdplenary", "sdclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -6668,6 +6669,177 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 640 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ SPEED DATING · cerrar tensiones de a dos (Aprendizaje H · sensible) ════════
+  if (session.type === "speeddating") {
+    const r = session.result;
+    const hasContract = !!team?.data?.contract;
+    // Parejas rotativas (método del círculo). Determinista, sin azar.
+    const players = (team?.members ?? []).map((m) => m.name);
+    const genRounds = (names: string[]) => {
+      const arr = names.slice();
+      if (arr.length < 2) return [] as [string, string][][];
+      if (arr.length % 2) arr.push("—"); // bye
+      const n = arr.length, half = n / 2;
+      const order = arr.slice();
+      const rounds: [string, string][][] = [];
+      for (let r2 = 0; r2 < n - 1; r2++) {
+        const pairs: [string, string][] = [];
+        for (let i = 0; i < half; i++) { const a = order[i], b = order[n - 1 - i]; if (a !== "—" && b !== "—") pairs.push([a, b]); }
+        rounds.push(pairs);
+        order.splice(1, 0, order.pop()!); // rotate keeping first fixed
+      }
+      return rounds;
+    };
+    const allRounds = genRounds(players);
+    const maxRounds = players.length > 6 ? Math.min(3, allRounds.length) : allRounds.length;
+    const rounds = allRounds.slice(0, maxRounds);
+    const sdRound = (r.sdRound as number) ?? 0;
+    const sdQ = (r.sdQ as string[]) ?? [
+      "¿Hay algo que quieras agradecerme de este ciclo?",
+      "¿Hay algo que quieras pedirme para el próximo?",
+      "¿Hay algo que necesite quedarse entre nosotros antes de cerrar?",
+    ];
+    const setQ = (i: number, val: string) => { const arr = sdQ.slice(); arr[i] = val; patchResult({ sdQ: arr }); };
+    const helpReqs = inputs.filter((i) => i.key === "sdhelp").length;
+    const iAskedHelp = inputs.some((i) => i.userId === user.id && i.key === "sdhelp");
+    const shared = inputs.filter((i) => i.key === "sdshare").map((i) => ({ name: participants.find((p) => p.userId === i.userId)?.name ?? "alguien", text: (i.value as { text?: string }).text ?? "" })).filter((s) => s.text.trim());
+    const sdShareDraft = (cardDraft.sdshare ?? "") as string;
+    const sdFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Speed Dating · ${players.length} participantes · ${rounds.length} rondas${shared.length ? ` · ${shared.length} compartieron` : ""}`,
+        dataKey: "learn", dataValue: { closeWords },
+        noAdvance: true,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "sdwarn") {
+      sub = "Antes de abrir: esta retro trabaja relaciones personales.";
+      content = (
+        <Card pad={20} style={{ border: "1px solid color-mix(in srgb, var(--warning) 45%, var(--line))" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: "var(--warning)" }}><Icon name="TriangleAlert" size={20} /><b style={{ fontSize: "var(--t-md)" }}>Recomendaciones</b></div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: "var(--t-sm)", lineHeight: 1.7 }}>
+            <li>Asegurate de que el contrato de equipo esté activo {hasContract ? <span style={{ color: "var(--green)" }}>✓ activo</span> : <span style={{ color: "var(--risk)" }}>· no encontrado</span>}</li>
+            <li>Recordá al equipo las reglas de seguridad</li>
+            <li>Tené preparado el protocolo de emergencia</li>
+            <li><b>No funciona si hay conflictos graves.</b> En ese caso, trabajá en privado primero.</li>
+          </ul>
+          {!hasContract && <div style={{ marginTop: 12, padding: "9px 12px", background: "var(--risk-bg)", border: "1px solid color-mix(in srgb, var(--risk) 40%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-xs)", lineHeight: 1.5 }}><Icon name="Info" size={13} style={{ color: "var(--risk)" }} /> El contrato del equipo no está activo. Conviene tenerlo antes de abrir esta retro.</div>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="ShieldCheck" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sdframe", 1); setBusy(false); }}>Confirmar apertura</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador está preparando la sesión.</p>;
+    } else if (step === "sdframe") {
+      sub = "Para cerrar conversaciones pendientes del ciclo. No para resolver conflictos grandes.";
+      content = (
+        <Card pad={20}>
+          <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginBottom: 14 }}>Es para <b>reconocer, pedir y agradecer</b> en conversaciones de a dos.</p>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>Reglas</div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: "var(--t-sm)", lineHeight: 1.7 }}>
+            <li>Escuchamos sin interrumpir</li>
+            <li>Hablamos en primera persona</li>
+            <li>Lo que se dice en las parejas, queda en las parejas</li>
+            <li>Nadie está obligado a compartir en el plenario</li>
+          </ul>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sdpairs", 2); setBusy(false); }}>Formar las parejas</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Leé las reglas. Arrancamos en un momento.</p>;
+    } else if (step === "sdpairs") {
+      sub = `Vamos a hacer ${rounds.length} ${rounds.length === 1 ? "ronda" : "rondas"} para que se crucen.`;
+      content = players.length < 2 ? (
+        <Card pad={20} style={{ textAlign: "center" }}><p className="muted" style={{ fontSize: "var(--t-sm)" }}>Se necesitan al menos 2 integrantes para el Speed Dating.</p></Card>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {rounds.map((pairs, ri) => (
+            <Card key={ri} pad={14}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Ronda {ri + 1}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {pairs.map(([a, b], pi) => <span key={pi} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)", fontSize: "var(--t-xs)", fontWeight: 600 }}>{a} <Icon name="ArrowLeftRight" size={12} style={{ color: "var(--st-learn)" }} /> {b}</span>)}
+              </div>
+            </Card>
+          ))}
+          <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center" }}>En remoto, abrí salas de breakout por pareja. Cada ronda dura 3 minutos.</p>
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || players.length < 2} onClick={async () => { setBusy(true); await setResult(sessionId, { sdRound: 0 }); await setStep(sessionId, "sdrounds", 3); setBusy(false); }}>Empezar las rondas</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador organiza las parejas.</p>;
+    } else if (step === "sdrounds") {
+      const pairs = rounds[sdRound] ?? [];
+      sub = `Ronda ${sdRound + 1} de ${rounds.length} · 3 minutos`;
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Card pad={16}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Las parejas de esta ronda</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {pairs.map(([a, b], pi) => <span key={pi} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--st-learn) 10%, var(--card))", border: "1px solid color-mix(in srgb, var(--st-learn) 30%, transparent)", fontSize: "var(--t-sm)", fontWeight: 700 }}>{a} <Icon name="ArrowLeftRight" size={13} style={{ color: "var(--st-learn)" }} /> {b}</span>)}
+            </div>
+          </Card>
+          <Card pad={16}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Preguntas guía</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {sdQ.map((q, i) => isFacil
+                ? <input key={i} defaultValue={q} onBlur={(e) => setQ(i, e.target.value)} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+                : <div key={i} style={{ fontSize: "var(--t-sm)", display: "flex", gap: 8, lineHeight: 1.4 }}><Icon name="MessageCircle" size={14} style={{ color: "var(--st-learn)", flexShrink: 0, marginTop: 2 }} /><span>{q}</span></div>)}
+            </div>
+          </Card>
+          {!isFacil && (
+            <div style={{ textAlign: "center" }}>
+              {iAskedHelp
+                ? <span style={{ color: "var(--warning)", fontSize: "var(--t-sm)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="Hand" size={15} /> Avisaste al facilitador</span>
+                : <button onClick={() => tapInput("sdhelp", { at: now })} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: "var(--r-full)", border: "1px solid color-mix(in srgb, var(--risk) 40%, var(--line-2))", background: "var(--card)", color: "var(--risk)", fontSize: "var(--t-xs)", fontWeight: 600 }}>🛑 Necesito hablar con el facilitador</button>}
+            </div>
+          )}
+          {isFacil && helpReqs > 0 && <div style={{ padding: "10px 13px", background: "var(--risk-bg)", border: "1px solid color-mix(in srgb, var(--risk) 45%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.5 }}><Icon name="Hand" size={15} style={{ color: "var(--risk)" }} /> {helpReqs} {helpReqs === 1 ? "persona pidió" : "personas pidieron"} hablar con vos. Acercate o pausá la sesión si hace falta.</div>}
+        </div>
+      );
+      controls = isFacil
+        ? (sdRound < rounds.length - 1
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={() => setResult(sessionId, { sdRound: sdRound + 1 })}>Siguiente ronda ({sdRound + 2}/{rounds.length})</Button>
+          : <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sdplenary", 4); setBusy(false); }}>Plenario de cierre</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Conversen de a dos. El facilitador controla el tiempo.</p>;
+    } else if (step === "sdplenary") {
+      sub = "¿Alguien quiere compartir algo de estas conversaciones con el grupo? Voluntario.";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: shared.length ? 14 : 0 }}>
+            {shared.map((s, i) => <div key={i} style={{ fontSize: "var(--t-sm)", padding: "9px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)" }}><b>{s.name}:</b> {s.text}</div>)}
+            {!shared.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Nada compartido todavía. No se fuerza nada.</p>}
+          </div>
+          {!isFacil && (
+            <div style={{ display: "flex", gap: 6 }}>
+              <input value={sdShareDraft} onChange={(e) => setCardDraft((d) => ({ ...d, sdshare: e.target.value }))} placeholder="Compartir algo (opcional)…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Send" disabled={!sdShareDraft.trim()} onClick={() => { tapInput("sdshare", { text: sdShareDraft.trim() }); setCardDraft((d) => ({ ...d, sdshare: "" })); }}>Compartir</Button>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center" }}><Icon name="Lock" size={11} /> Las conversaciones de las parejas no se guardan. Solo lo que elijan compartir acá.</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sdclose", 5); setBusy(false); }}>Cerrar con una palabra</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Compartí solo si querés.</p>;
+    } else {
+      sub = "Cerramos este ciclo con estas conversaciones.";
+      content = learnClosing("¿Con una palabra, cómo se van?");
+      controls = learnCloseControls(sdFinish);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
