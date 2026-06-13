@@ -123,6 +123,7 @@ const STEP_SEQ: Record<string, string[]> = {
   betdesign: ["bdcontext", "bdtemplate", "bdfilters", "bdconfirm"],
   storyboard: ["sbframe", "sbdraw", "sbpresent", "sbconsensus"],
   archer: ["arframe", "arbuild", "aralign", "arclose"],
+  leancoffee: ["lctopics", "lcvote", "lcwork", "lcclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -244,6 +245,7 @@ export default function SalaPage() {
         "hmwreveal", "hmwread", "hmwcluster", "hmwvote",
         "pmcat", "pmvote", "pmmitigate", "pmclose",
         "sbdraw", "sbpresent", "sbconsensus",
+        "lctopics", "lcvote", "lcwork", "lcclose",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -3273,6 +3275,153 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 860 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ LEAN COFFEE · agenda del equipo, trabajada por tiempo ════════
+  if (session.type === "leancoffee") {
+    const topics = allCards.filter((c) => c.columnKey === "topic");
+    const myLcIds = ((inputs.find((x) => x.userId === user.id && x.key === "lcv")?.value as { ids?: string[] } | undefined)?.ids) ?? [];
+    const lcVotesOf = (id: string) => inputs.filter((x) => x.key === "lcv").reduce((a, x) => a + (((x.value as { ids?: string[] }).ids ?? []).includes(id) ? 1 : 0), 0);
+    const agenda = [...topics].sort((a, b) => lcVotesOf(b.id) - lcVotesOf(a.id));
+    const lcVoters = new Set(inputs.filter((x) => x.key === "lcv" && ((x.value as { ids?: string[] }).ids ?? []).length).map((x) => x.voterKey)).size;
+    const lcCur = (session.result.lcCur as number) ?? 0;
+    const lcNotes = (session.result.lcNotes as Record<string, { dec?: string; act?: string }>) ?? {};
+    const setNote = (id: string, patch: Record<string, string>) => patchResult({ lcNotes: { ...((resultRef.current.lcNotes as Record<string, unknown>) ?? {}), [id]: { ...(lcNotes[id] ?? {}), ...patch } } });
+    const cont = inputs.filter((i) => i.key === `lccont:${lcCur}`).map((i) => (i.value as { v?: string }).v);
+    const goYes = cont.filter((v) => v === "yes").length, goNo = cont.filter((v) => v === "no").length;
+    const myCont = (inputs.find((i) => i.userId === user.id && i.key === `lccont:${lcCur}`)?.value as { v?: string } | undefined)?.v;
+    const addTopic = async () => { const t = (cardDraft.topic ?? "").trim(); if (!t) return; await addCard(sessionId, "topic", t, false); setCardDraft((d) => ({ ...d, topic: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const toggleLcVote = (id: string) => { const cur = new Set(myLcIds); if (cur.has(id)) cur.delete(id); else if (cur.size < 2) cur.add(id); tapInput("lcv", { ids: [...cur] }); };
+    const lcFinish = async () => {
+      setBusy(true);
+      const acts = agenda.map((t) => lcNotes[t.id]?.act).filter((a): a is string => !!a && a.trim().length > 0);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: topics.length,
+        summaryText: `Lean Coffee: ${agenda.length} temas · ${acts.length} acciones`,
+        dataKey: acts.length ? "proof" : undefined, dataValue: acts.length ? { finalists: acts.slice(0, 3) } : undefined,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "lctopics") {
+      sub = "Cada uno propone los temas o ideas que quiere trabajar hoy.";
+      content = (
+        <Card pad={20}>
+          {initiative?.data?.focus?.rootCause && <div style={{ padding: "8px 12px", marginBottom: 12, background: "color-mix(in srgb, var(--st-focus) 9%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-xs)" }}><b>Causa raíz:</b> {initiative.data.focus.rootCause}</div>}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
+            {topics.map((t) => { const author = t.authorId ? participants.find((p) => p.userId === t.authorId)?.name : undefined; return <span key={t.id} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card)", border: "1px solid var(--line)" }}>{t.text}{author && <span className="faint" style={{ marginLeft: 5 }}>· {author}</span>}</span>; })}
+            {!topics.length && <span className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin temas todavía.</span>}
+          </div>
+          {!isFacil && (
+            <div style={{ display: "flex", gap: 6 }}>
+              <input value={cardDraft.topic ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, topic: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addTopic()} placeholder="Un tema para trabajar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={addTopic}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || topics.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "lcvote", 1); setBusy(false); }}>Votar la agenda ({topics.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Proponé los temas que te interesan.</p>;
+    } else if (step === "lcvote") {
+      const shown = !!session.result.voteShown;
+      sub = shown ? "La agenda, en orden de prioridad." : "¿Qué temas trabajamos primero? 2 puntos por persona.";
+      const max = Math.max(1, ...topics.map((t) => lcVotesOf(t.id)));
+      content = (
+        <>
+          {!shown && !isFacil && <div style={{ textAlign: "center", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Tus puntos:</span>{Array.from({ length: 2 }).map((_, i) => <span key={i} style={{ width: 16, height: 16, borderRadius: 99, background: i < (2 - myLcIds.length) ? "var(--st-proof)" : "var(--card-2)", border: `1px solid ${i < (2 - myLcIds.length) ? "var(--st-proof)" : "var(--line-2)"}` }} />)}</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {(shown ? agenda : topics).map((t, i) => { const v = lcVotesOf(t.id); const on = myLcIds.includes(t.id); return (
+              <button key={t.id} disabled={isFacil || shown} onClick={() => toggleLcVote(t.id)}
+                style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: on && !shown ? "color-mix(in srgb, var(--st-proof) 8%, var(--card))" : "var(--card)", border: `1px solid ${on && !shown ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil || shown ? "default" : "pointer" }}>
+                {shown && <span className="num" style={{ width: 18, fontWeight: 700, color: i === 0 ? "var(--st-proof)" : "var(--ink-3)" }}>{i + 1}</span>}
+                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{t.text}</span>
+                {!shown && on && <Icon name="CheckCircle2" size={15} style={{ color: "var(--st-proof)" }} />}
+                {shown && <div style={{ width: 70 }}><Bar value={(v / max) * 100} color={i === 0 ? "var(--st-proof)" : "var(--violet)"} height={6} /></div>}
+                {shown && <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{v}</span>}
+              </button>
+            ); })}
+          </div>
+          {!shown && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> {lcVoters} de {totalInRoom} votaron</p>}
+        </>
+      );
+      controls = isFacil
+        ? (shown
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lcwork", 2); setBusy(false); }}>Empezar a trabajar la agenda</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy || lcVoters === 0} onClick={() => setResult(sessionId, { voteShown: true })}>Mostrar agenda ({lcVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus 2 puntos.</p>;
+    } else if (step === "lcwork") {
+      const t = agenda[lcCur];
+      sub = `Tema ${lcCur + 1} de ${agenda.length}. Lanzá el timer y registren decisiones y acciones.`;
+      content = t ? (
+        <>
+          <Card pad={18} style={{ marginBottom: 14, border: "1px solid color-mix(in srgb, var(--st-proof) 40%, var(--line))" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <span className="num" style={{ width: 24, height: 24, borderRadius: 99, background: "var(--st-proof)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 11 }}>{lcCur + 1}</span>
+              <b style={{ flex: 1, fontSize: "var(--t-md)" }}>{t.text}</b>
+              {isFacil && <span className="muted" style={{ fontSize: "var(--t-xs)" }}>⏱ usá el timer de arriba (5′)</span>}
+            </div>
+            {isFacil ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div><div className="eyebrow" style={{ marginBottom: 5 }}>Decisiones</div><textarea defaultValue={lcNotes[t.id]?.dec ?? ""} onBlur={(e) => setNote(t.id, { dec: e.target.value })} rows={2} placeholder="Lo que se decidió…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", resize: "vertical" }} /></div>
+                <div><div className="eyebrow" style={{ marginBottom: 5 }}>Acciones</div><textarea defaultValue={lcNotes[t.id]?.act ?? ""} onBlur={(e) => setNote(t.id, { act: e.target.value })} rows={2} placeholder="Qué se va a hacer (va a Diseño de la prueba)…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", resize: "vertical" }} /></div>
+              </div>
+            ) : (
+              <div style={{ fontSize: "var(--t-sm)", display: "flex", flexDirection: "column", gap: 6 }}>
+                {lcNotes[t.id]?.dec && <div><b>Decisiones:</b> {lcNotes[t.id]?.dec}</div>}
+                {lcNotes[t.id]?.act && <div><b>Acciones:</b> {lcNotes[t.id]?.act}</div>}
+              </div>
+            )}
+          </Card>
+          {/* seguir / pasar */}
+          <Card pad={16} style={{ textAlign: "center" }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>¿Seguimos o pasamos?</div>
+            {!isFacil
+              ? <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                  <Button size="sm" variant={myCont === "yes" ? "primary" : "secondary"} onClick={() => tapInput(`lccont:${lcCur}`, { v: "yes" })}>👍 Seguir</Button>
+                  <Button size="sm" variant={myCont === "no" ? "primary" : "secondary"} onClick={() => tapInput(`lccont:${lcCur}`, { v: "no" })}>👎 Pasar</Button>
+                </div>
+              : <div style={{ display: "flex", gap: 16, justifyContent: "center", fontSize: "var(--t-sm)", fontWeight: 700 }}><span style={{ color: "var(--green)" }}>👍 {goYes}</span><span style={{ color: "var(--ink-3)" }}>👎 {goNo}</span></div>}
+          </Card>
+        </>
+      ) : <Card pad={20}><p className="muted" style={{ fontSize: "var(--t-sm)" }}>No quedan temas.</p></Card>;
+      controls = isFacil
+        ? <div style={{ display: "flex", gap: 8 }}>
+            <Button full variant="secondary" icon="Plus" disabled={busy} onClick={() => launchTimer(5)}>+5 min</Button>
+            {lcCur < agenda.length - 1
+              ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setResult(sessionId, { lcCur: lcCur + 1, timer: null }); setBusy(false); }}>Siguiente tema</Button>
+              : <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lcclose", 3); setBusy(false); }}>Cerrar</Button>}
+          </div>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Votá seguir o pasar cuando suene el timer.</p>;
+    } else {
+      wide = true;
+      sub = "Lo que trabajó el equipo: decisiones y acciones por tema.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {agenda.filter((t) => lcNotes[t.id]?.dec || lcNotes[t.id]?.act).map((t, i) => (
+            <Card key={t.id} pad={14}>
+              <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 6 }}>{i + 1}. {t.text}</div>
+              {lcNotes[t.id]?.dec && <div style={{ fontSize: "var(--t-sm)" }}><b>Decisión:</b> {lcNotes[t.id]?.dec}</div>}
+              {lcNotes[t.id]?.act && <div style={{ fontSize: "var(--t-sm)", color: "var(--st-proof)" }}><b>Acción:</b> {lcNotes[t.id]?.act}</div>}
+            </Card>
+          ))}
+          {!agenda.some((t) => lcNotes[t.id]?.dec || lcNotes[t.id]?.act) && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>No quedaron decisiones registradas.</p>}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={lcFinish}>{busy ? "Guardando…" : "Cerrar Lean Coffee"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra la sesión.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 760 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

@@ -515,7 +515,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Trabajar por tema (5 min c/u)", minutes: 30 },
       { name: "Cierre: decisiones y acciones", minutes: 7 },
     ],
-    sessionType: "leancoffee", entryStep: "lctopics", implemented: false,
+    sessionType: "leancoffee", entryStep: "lctopics", implemented: true,
   },
   {
     id: "follow-checkin", name: "Check-in de la acción", stage: "follow", category: "growthloop",
