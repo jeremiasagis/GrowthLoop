@@ -22,6 +22,7 @@ export interface LiveSession {
   createdBy?: string;
   retro?: string;     // qué retrospectiva eligió el facilitador (catálogo)
   joinCode?: string;  // código corto para unirse (QR / tipeo)
+  createdAt?: string; // ISO de creación
   result: Record<string, unknown>;  // resultado vivo del paso (causa raíz, etc.)
 }
 
@@ -67,7 +68,8 @@ function mapSession(r: any): LiveSession {
     id: r.id, teamId: r.team_id, initiativeId: r.initiative_id ?? undefined,
     type: r.type, mode: r.mode, status: r.status,
     stepKey: r.step_key ?? undefined, stepIndex: r.step_index ?? 0, createdBy: r.created_by ?? undefined,
-    retro: r.retro ?? undefined, joinCode: r.join_code ?? undefined, result: (r.result as Record<string, unknown>) ?? {},
+    retro: r.retro ?? undefined, joinCode: r.join_code ?? undefined, createdAt: r.created_at ?? undefined,
+    result: (r.result as Record<string, unknown>) ?? {},
   };
 }
 
@@ -97,6 +99,26 @@ export async function getInitiativeSessions(initiativeId: string): Promise<LiveS
   const { data } = await supabase.from("sessions").select("*")
     .eq("initiative_id", initiativeId).order("created_at", { ascending: true });
   return (data ?? []).map(mapSession);
+}
+
+/** Una sesión cerrada con todo su contenido, lista para reconstruir su visualización. */
+export interface SessionMemory {
+  id: string; type: string; date: string; retro?: string; createdAt?: string;
+  result: Record<string, unknown>;
+  cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; inputs: SessionInput[];
+}
+
+/** Memoria viva: cada sesión (de las dadas) con su contenido completo,
+ *  para mostrar siempre todo lo que produjo el equipo. */
+export async function loadSessionMemories(sessions: LiveSession[]): Promise<SessionMemory[]> {
+  const out = await Promise.all(sessions.map(async (s) => {
+    const c = await getSessionContent(s.id);
+    return {
+      id: s.id, type: s.type, date: (s.result.date as string) ?? "", retro: s.retro, createdAt: s.createdAt,
+      result: s.result, cards: c.cards, clusters: c.clusters, votes: c.votes, inputs: c.inputs,
+    } as SessionMemory;
+  }));
+  return out;
 }
 
 /** Todo el contenido capturado en una sesión (tarjetas reveladas, clusters, votos, inputs). */

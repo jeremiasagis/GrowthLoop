@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
@@ -14,10 +14,11 @@ import {
 import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, teamLiveStage, to5, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
-import { createLiveSession } from "@/lib/session";
+import { createLiveSession, getClosedTeamSessions, loadSessionMemories, type SessionMemory } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage } from "@/lib/retros/registry";
 import { FodaGrid } from "@/components/FodaGrid";
+import { MemoryCard } from "@/components/RetroResult";
 
 function SessionsLog({ team }: { team: Team }) {
   const [n, setN] = useState(8);
@@ -560,6 +561,18 @@ function ExploracionSection({ team, isFacil }: { team: Team; isFacil: boolean })
   const closedAt = (team.data as { explorationClosedAt?: string } | undefined)?.explorationClosedAt;
   const catalog = retrosForStage("exploration").filter((r) => r.id !== "exploration-close");
   const doneNames = new Set(expSessions.map((s) => s.retro));
+  // Memoria viva: las sesiones de Exploración con su contenido para reconstruir cada visualización.
+  const [memories, setMemories] = useState<SessionMemory[]>([]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const ss = (await getClosedTeamSessions(team.id)).filter((s) => EXPLORE_TYPES.includes(s.type) && s.type !== "expclose");
+      const mems = await loadSessionMemories(ss);
+      if (active) setMemories(mems.reverse()); // más recientes primero
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [team.id, team.sessions.length]);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {launcherOpen && <SessionLauncher team={team} initialStage="exploration" onClose={() => setLauncherOpen(false)} />}
@@ -610,21 +623,10 @@ function ExploracionSection({ team, isFacil }: { team: Team; isFacil: boolean })
       )}
 
       <Card pad={20}>
-        <SectionTitle icon="History" sub="Lo que el equipo ya exploró">Sesiones de Exploración ({expSessions.length})</SectionTitle>
-        {expSessions.length === 0
+        <SectionTitle icon="History" sub="Todo lo que descubrió el equipo, siempre visible">Lo que produjo el equipo ({memories.length})</SectionTitle>
+        {memories.length === 0
           ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Todavía no hicieron ninguna retro de Exploración.</p>
-          : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {expSessions.map((s) => (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "var(--t-sm)", flexWrap: "wrap" }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 99, border: "2px solid var(--st-explore)", flexShrink: 0 }} />
-                  <span style={{ fontWeight: 600 }}>{s.retro}</span>
-                  <span className="muted" style={{ flex: 1, minWidth: 120, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.out}</span>
-                  <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{s.date}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{memories.map((m) => <MemoryCard key={m.id} mem={m} defaultOpen={false} />)}</div>}
         {isFacil && !closedAt && expSessions.length > 0 && (
           <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
             <Icon name="Map" size={13} style={{ color: "var(--st-explore)" }} /> ¿Ya exploraron suficiente? Abran la retro <b>Cierre de Exploración</b> para votar prioridades y generar el mapa de mejoras.

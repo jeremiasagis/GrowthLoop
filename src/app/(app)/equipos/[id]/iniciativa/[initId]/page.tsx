@@ -12,8 +12,9 @@ import { useToast } from "@/components/Toast";
 import {
   deleteInitiative, getFacilitators, getInitiatives, getTeam, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
-import { getInitiativeSessions, getSessionContent, type SessionCard, type SessionCluster, type SessionVote } from "@/lib/session";
+import { getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
+import { MemoryCard } from "@/components/RetroResult";
 import { retrosForStage, stageOfSessionType } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
@@ -282,45 +283,6 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
   );
 }
 
-const COL_LABELS: Record<string, string> = {
-  works: "Funciona", blocks: "Traba", unsaid: "No se dice", cause: "Causa", idea: "Idea", learning: "Aprendizaje", risk: "Riesgo",
-  pa: "Propósito", pb: "Propósito", pc: "Propósito", fin: "Entrada", fstart: "Arranque", fexec: "Ejecución", fdeliver: "Entrega",
-};
-
-/** Lo que el equipo escribió y votó en la sesión de esa etapa (datos reales). */
-function SessionCards({ sess }: { sess: StageContent }) {
-  const { cards, clusters, votes } = sess;
-  if (!cards.length) return null;
-  const votesByCluster: Record<string, number> = {};
-  votes.forEach((v) => { votesByCluster[v.clusterId] = (votesByCluster[v.clusterId] ?? 0) + 1; });
-  const cardsOf = (clId: string) => cards.filter((c) => c.clusterId === clId);
-  const loose = cards.filter((c) => !c.clusterId);
-  const orderedClusters = [...clusters].sort((a, b) => (votesByCluster[b.id] ?? 0) - (votesByCluster[a.id] ?? 0));
-  return (
-    <div style={{ marginTop: 4, paddingTop: 12, borderTop: "1px dashed var(--line)" }}>
-      <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="MessagesSquare" size={13} /> Lo que compartió el equipo · {cards.length}</div>
-      {orderedClusters.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: loose.length ? 10 : 0 }}>
-          {orderedClusters.map((cl) => (
-            <div key={cl.id} style={{ background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "9px 11px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: cardsOf(cl.id).length ? 7 : 0 }}>
-                <span style={{ color: "var(--green)" }}><Icon name="Layers" size={14} /></span>
-                <b style={{ fontSize: "var(--t-sm)", flex: 1, minWidth: 0 }}>{cl.name}</b>
-                {(votesByCluster[cl.id] ?? 0) > 0 && <Pill color="var(--green)" bg="var(--success-bg)" icon="Vote">{votesByCluster[cl.id]}</Pill>}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{cardsOf(cl.id).map((c) => <span key={c.id} style={{ fontSize: "var(--t-xs)", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "4px 8px" }}>{c.text}</span>)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      {loose.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {loose.map((c) => <span key={c.id} style={{ fontSize: "var(--t-xs)", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: "2px solid var(--ink-3)", borderRadius: "var(--r-sm)", padding: "4px 8px" }}>{c.text}{COL_LABELS[c.columnKey] && <span className="faint" style={{ marginLeft: 5, fontSize: 9 }}>· {COL_LABELS[c.columnKey]}</span>}</span>)}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function Field({ label, value, icon }: { label: string; value: ReactNode; icon: string }) {
   return (
@@ -339,23 +301,25 @@ export default function InitiativeDetailPage() {
   const [, setNonce] = useState(0);
   const refresh = () => setNonce((n) => n + 1);
   const [stageContent, setStageContent] = useState<Record<string, StageContent>>({});
+  // Memoria viva: TODAS las sesiones cerradas, agrupadas por etapa.
+  const [stageMemories, setStageMemories] = useState<Record<string, SessionMemory[]>>({});
 
   useEffect(() => {
     const id = params.initId;
     if (!id) return;
     let active = true;
     (async () => {
-      const ss = await getInitiativeSessions(id);
-      const byType: Record<string, { id: string; result: Record<string, unknown> }> = {};
-      for (const s of ss) byType[s.type] = { id: s.id, result: s.result }; // última sesión de cada etapa (orden ascendente)
+      const ss = (await getInitiativeSessions(id)).filter((s) => s.status === "closed");
+      const mems = await loadSessionMemories(ss);
+      const byStage: Record<string, SessionMemory[]> = {};
       const out: Record<string, StageContent> = {};
-      for (const [type, info] of Object.entries(byType)) {
-        const c = await getSessionContent(info.id);
-        // El contenido se indexa por etapa del ciclo nuevo (cada tipo de retro → su etapa).
-        const stKey = stageOfSessionType(type);
-        out[stKey] = { cards: c.cards, clusters: c.clusters, votes: c.votes, result: info.result };
+      for (const m of mems) {
+        const stKey = stageOfSessionType(m.type);
+        (byStage[stKey] ??= []).push(m);
+        // última de cada etapa para el resumen derivado (StageBody)
+        out[stKey] = { cards: m.cards, clusters: m.clusters, votes: m.votes, result: m.result };
       }
-      if (active) setStageContent(out);
+      if (active) { setStageContent(out); setStageMemories(byStage); }
     })();
     return () => { active = false; };
   }, [params.initId]);
@@ -506,10 +470,15 @@ export default function InitiativeDetailPage() {
                         : <Pill icon="Clock">pendiente</Pill>}
                   </span>
                 </div>
-                {(() => { const sc = stageContent[st]; const hasS = !!(sc && (sc.cards.length || sc.result)); return (
+                {(() => { const sc = stageContent[st]; const mems = stageMemories[st] ?? []; const hasS = !!(sc && (sc.cards.length || sc.result)) || mems.length > 0; return (
                   <>
                     <StageBody st={st} init={withDerived(init, stageContent)} hasSession={hasS} />
-                    {sc && <SessionCards sess={sc} />}
+                    {mems.length > 0 && (
+                      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="History" size={13} /> Lo que produjo el equipo · {mems.length} {mems.length === 1 ? "sesión" : "sesiones"}</div>
+                        {mems.map((m) => <MemoryCard key={m.id} mem={m} />)}
+                      </div>
+                    )}
                   </>
                 ); })()}
                 {current && isFacil && (
