@@ -13,6 +13,7 @@ import { createInitiative, getInitiatives, getTeam } from "@/lib/repository";
 import { retroByKey } from "@/lib/retros";
 import { retroById } from "@/lib/retros/registry";
 import { WordCloud } from "@/components/WordCloud";
+import { RoomLiveFx } from "@/components/RoomLiveFx";
 import { TimelineBoard, TL_EMO, type TlEvent } from "@/components/TimelineBoard";
 import { CirclesDiagram, CIRCLE_META, type CircleKey } from "@/components/CirclesDiagram";
 import { CauseTree } from "@/components/CauseTree";
@@ -114,14 +115,28 @@ function Shell({ onExit, mood, children }: { onExit?: () => void; mood?: number 
     : mood >= 60 ? "rgba(0,232,122,0.10)"
     : mood >= 45 ? "rgba(59,130,246,0.10)"
     : "rgba(245,158,11,0.10)";
+  const [stage, setStage] = useState(false);
+  const toggleStage = () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) { el.requestFullscreen?.().catch(() => {}); setStage(true); }
+    else { document.exitFullscreen?.().catch(() => {}); setStage(false); }
+  };
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement) setStage(false); };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: `radial-gradient(1100px 520px at 50% -160px, ${glow}, transparent), var(--bg-1)`, transition: "background .8s var(--ease)" }}>
+    <div className={stage ? "stage-mode" : ""} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: `radial-gradient(1100px 520px at 50% -160px, ${glow}, transparent), var(--bg-1)`, transition: "background .8s var(--ease)" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid var(--line)" }}>
-        {onExit ? <button onClick={onExit} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="X" size={18} /> Salir</button> : <span style={{ width: 60 }} />}
+        {onExit ? <button onClick={onExit} className="stage-hide" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="X" size={18} /> Salir</button> : <span style={{ width: 60 }} />}
         <Logo />
-        <span style={{ width: 60 }} />
+        <button onClick={toggleStage} title={stage ? "Salir de pantalla completa" : "Modo escenario (proyectar)"} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: stage ? "var(--green)" : "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600, minWidth: 60, justifyContent: "flex-end" }}>
+          <Icon name={stage ? "Minimize2" : "Maximize2"} size={17} /><span className="hide-sm">{stage ? "Salir" : "Escenario"}</span>
+        </button>
       </header>
       <main style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "40px 20px 80px" }}>{children}</main>
+      <RoomLiveFx />
     </div>
   );
 }

@@ -491,6 +491,22 @@ export function subscribeSession(sessionId: string, onChange: () => void): () =>
   return () => { supabase.removeChannel(channel); };
 }
 
+/** Bus efímero de la sala (reacciones y "está escribiendo"): broadcast en vivo,
+ *  no toca la base. Devuelve emisores + función de baja. */
+export function joinLiveBus(sessionId: string, h: { onReaction?: (emoji: string, from: string) => void; onTyping?: (name: string) => void }): { sendReaction: (emoji: string, from: string) => void; sendTyping: (name: string) => void; unsub: () => void } {
+  const supabase = getSupabaseBrowserClient();
+  const channel = supabase.channel(`live:${sessionId}`, { config: { broadcast: { self: false } } });
+  channel
+    .on("broadcast", { event: "reaction" }, ({ payload }) => h.onReaction?.((payload as { emoji: string; from: string }).emoji, (payload as { from: string }).from))
+    .on("broadcast", { event: "typing" }, ({ payload }) => h.onTyping?.((payload as { name: string }).name))
+    .subscribe();
+  return {
+    sendReaction: (emoji, from) => { channel.send({ type: "broadcast", event: "reaction", payload: { emoji, from } }); },
+    sendTyping: (name) => { channel.send({ type: "broadcast", event: "typing", payload: { name } }); },
+    unsub: () => { supabase.removeChannel(channel); },
+  };
+}
+
 /** Se suscribe a las sesiones de un equipo (para el banner del miembro). */
 export function subscribeTeamSessions(teamId: string, onChange: () => void): () => void {
   const supabase = getSupabaseBrowserClient();

@@ -21,13 +21,13 @@ export function HiddenDots({ n, label, color = "var(--green)" }: { n: number; la
   );
 }
 
-/** Cascada al revelar: cada ítem entra escalonado (efecto "aparecen todas juntas"). */
+/** Cascada al revelar: cada ítem entra escalonado, con rebote (más impacto). */
 export function Cascade({ children, gap = 8 }: { children: ReactNode; gap?: number }) {
   const items = Array.isArray(children) ? children : [children];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
       {items.map((c, i) => (
-        <div key={i} style={{ animation: `gl-reveal .5s var(--spring) ${Math.min(i * 0.05, 0.7).toFixed(2)}s both` }}>{c}</div>
+        <div key={i} style={{ animation: `gl-pop-strong .55s var(--spring) ${Math.min(i * 0.06, 0.8).toFixed(2)}s both` }}>{c}</div>
       ))}
     </div>
   );
@@ -44,7 +44,7 @@ export function RevealHeader({ n, label, color = "var(--green)" }: { n: number; 
   );
 }
 
-/** Envuelve cualquier bloque revelado con un "pop" de entrada. */
+/** Envuelve cualquier bloque revelado con un "pop" de entrada con rebote. */
 export function RevealPop({ children }: { children: ReactNode }) {
-  return <div style={{ animation: "gl-reveal .5s var(--spring) both" }}>{children}</div>;
+  return <div style={{ animation: "gl-pop-strong .55s var(--spring) both" }}>{children}</div>;
 }

@@ -186,6 +186,17 @@ a { color: inherit; text-decoration: none; }
 
 /* retros con escena: el elemento central flota suavemente */
 @keyframes gl-float { 0%, 100% { transform: translate(-50%, -55%) rotate(-2deg); } 50% { transform: translate(-50%, -62%) rotate(2deg); } }
+
+/* reacciones flotantes: suben y se desvanecen, con un leve zigzag */
+@keyframes gl-react { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 12% { opacity: 1; transform: translateY(-8px) scale(1.15); } 38% { transform: translateY(-30vh) translateX(14px) scale(1); } 70% { transform: translateY(-58vh) translateX(-12px) scale(1); opacity: 0.85; } 100% { transform: translateY(-82vh) translateX(6px) scale(0.9); opacity: 0; } }
+/* avatar latiendo cuando alguien está sumando */
+@keyframes gl-typing { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+/* reveal con más impacto: entra con sobre-escala y un pequeño rebote */
+@keyframes gl-pop-strong { 0% { opacity: 0; transform: translateY(22px) scale(0.7); } 55% { opacity: 1; transform: translateY(-6px) scale(1.08); } 78% { transform: translateY(0) scale(0.97); } 100% { transform: translateY(0) scale(1); } }
+
+/* modo escenario (proyección): agranda y oculta el chrome del facilitador */
+.stage-mode { font-size: 1.12em; }
+.stage-mode .stage-hide { display: none !important; }
 /* tablero-escena: 4 zonas en las esquinas con el centro libre para el dibujo */
 .scene-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: clamp(70px, 14vw, 160px); row-gap: 56px; padding: 18px; position: relative; }
 @media (max-width: 720px) {
