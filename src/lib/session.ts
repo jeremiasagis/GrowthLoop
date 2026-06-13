@@ -502,6 +502,19 @@ export function subscribeSession(sessionId: string, onChange: () => void): () =>
   return () => { supabase.removeChannel(channel); };
 }
 
+/** Huella del miembro: en cuántas sesiones participó y cuántos aportes hizo.
+ *  Sin comparar con nadie — es su rastro personal en el equipo. */
+export async function getMyFootprint(): Promise<{ sessions: number; contributions: number }> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { sessions: 0, contributions: 0 };
+  const [p, c] = await Promise.all([
+    supabase.from("session_participants").select("session_id", { count: "exact", head: true }).eq("user_id", auth.user.id),
+    supabase.from("session_cards").select("id", { count: "exact", head: true }).eq("author_id", auth.user.id),
+  ]);
+  return { sessions: p.count ?? 0, contributions: c.count ?? 0 };
+}
+
 /** Bus efímero de la sala (reacciones y "está escribiendo"): broadcast en vivo,
  *  no toca la base. Devuelve emisores + función de baja. */
 export function joinLiveBus(sessionId: string, h: { onReaction?: (emoji: string, from: string) => void; onTyping?: (name: string) => void }): { sendReaction: (emoji: string, from: string) => void; sendTyping: (name: string) => void; unsub: () => void } {

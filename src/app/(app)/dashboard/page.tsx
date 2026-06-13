@@ -7,6 +7,7 @@ import {
 } from "@/components/ui";
 import { STAGES, overallOf, teamLiveStage, to5, type Team } from "@/lib/data";
 import { getFacilitators, getTeams } from "@/lib/repository";
+import { teamProgress } from "@/lib/gamification";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ── Team card ────────────────────────────────────────────── */
@@ -262,6 +263,30 @@ export default function DashboardPage() {
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
               {teams.map((t) => <TeamCard key={t.id} team={t} go={go} />)}
+            </div>
+          )}
+
+          {teams.length > 1 && (
+            <div style={{ marginTop: 26 }}>
+              <SectionTitle icon="Trophy" sub="Comparativa sana entre equipos — sin ranking de personas">Progreso de los equipos</SectionTitle>
+              <Card pad={0} style={{ overflow: "hidden" }}>
+                {[...teams].map((t) => ({ t, g: teamProgress(t) })).sort((a, b) => b.g.xp - a.g.xp).map(({ t, g }, i, arr) => (
+                  <button key={t.id} onClick={() => go(`/equipos/${t.id}`)} style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", borderBottom: i < arr.length - 1 ? "1px solid var(--line)" : "none", background: "transparent" }}>
+                    <span className="num" style={{ width: 22, fontWeight: 800, color: i === 0 ? "var(--green)" : "var(--ink-3)", fontSize: "var(--t-sm)" }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{t.name}</span>
+                        <span className="num" style={{ fontSize: 10, fontWeight: 800, color: "var(--green)" }}>N{g.level.idx + 1}</span>
+                        <span className="muted" style={{ fontSize: "var(--t-xs)" }}>{g.level.name}</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 99, background: "var(--card-2)", overflow: "hidden", marginTop: 5, maxWidth: 240 }}><div style={{ height: "100%", width: `${g.pct}%`, background: "linear-gradient(90deg, var(--green), #3B82F6)", borderRadius: 99 }} /></div>
+                    </div>
+                    <span title="racha" className="num" style={{ fontSize: "var(--t-xs)", color: g.streak > 0 ? "var(--warning)" : "var(--ink-3)", fontWeight: 700, flexShrink: 0 }}>🔥 {g.streak}</span>
+                    <span title="ciclos cerrados" className="num" style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)", fontWeight: 700, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="CircleCheck" size={13} style={{ color: "var(--success)" }} />{g.cycles}</span>
+                    <span className="num muted" style={{ fontSize: "var(--t-xs)", flexShrink: 0, width: 56, textAlign: "right" }}>{g.xp} XP</span>
+                  </button>
+                ))}
+              </Card>
             </div>
           )}
         </div>
