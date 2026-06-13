@@ -705,7 +705,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Entrega de kudos", minutes: 10 },
       { name: "Cierre", minutes: 2 },
     ],
-    sessionType: "kudos", entryStep: "kudwrite", implemented: false,
+    sessionType: "kudos", entryStep: "kudwrite", implemented: true,
   },
   {
     id: "learn-letter-to-future-self", name: "Carta al equipo futuro", stage: "learn", category: "classic",

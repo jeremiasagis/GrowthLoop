@@ -26,6 +26,7 @@ import { ArcherTarget } from "@/components/ArcherTarget";
 import { HonestyPulse, type HonestyKey } from "@/components/HonestyPulse";
 import { OneWordClosing } from "@/components/OneWordClosing";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
+import { KudosCard, KUDO_EMOJIS } from "@/components/KudosCard";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, LEARNING_TYPES, overallOf, to5, to100, type LearningEntry } from "@/lib/data";
 import {
@@ -145,6 +146,7 @@ const STEP_SEQ: Record<string, string[]> = {
   lwnext: ["lwnopts", "lwndebate", "lwndecide", "lwnclose"],
   lwteam: ["lwtframe", "lwteval", "lwtreveal", "lwtadjust", "lwtprivate", "lwtclose"],
   fourls: ["flcontext", "flwrite", "flreveal", "flvote", "fltalk", "flexport", "flclose"],
+  kudos: ["kudwrite", "kuddeliver", "kudclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -272,6 +274,7 @@ export default function SalaPage() {
         "lwlread", "lwlclassify", "lwlhighlight",
         "lwtreveal", "lwtadjust",
         "flreveal", "flvote", "fltalk", "flexport",
+        "kuddeliver",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -6445,6 +6448,116 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 880 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ KUDOS RETRO · reconocimiento y gratitud (Aprendizaje F) ════════
+  if (session.type === "kudos") {
+    type Kudo = { to?: string; emoji?: string; text?: string };
+    const parseKudo = (s: string): Kudo => { try { return JSON.parse(s) as Kudo; } catch { return { text: s }; } };
+    const kudoCards = allCards.filter((c) => c.columnKey === "kudo");
+    const kudoCount = counts["kudo"] ?? 0;
+    const myKudos = myCards.filter((c) => c.columnKey === "kudo");
+    const nameOf = (uid?: string) => participants.find((p) => p.userId === uid)?.name ?? "alguien";
+    const initOf = (name: string) => (team?.members.find((m) => m.name === name)?.name ?? name).split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+    const kudIdx = (session.result.kudIdx as number) ?? 0;
+    const receivers = new Set(kudoCards.map((c) => parseKudo(c.text).to).filter(Boolean) as string[]);
+    const noKudos = (team?.members ?? []).map((m) => m.name).filter((n) => !receivers.has(n));
+    const kudTo = (cardDraft.kudoTo ?? "") as string;
+    const kudEmoji = (cardDraft.kudoEmoji ?? "") as string;
+    const kudText = (cardDraft.kudoText ?? "") as string;
+    const addKudo = async () => {
+      if (!kudTo || !kudText.trim()) return;
+      await addCard(sessionId, "kudo", JSON.stringify({ to: kudTo, emoji: kudEmoji, text: kudText.trim() }), false);
+      setCardDraft((d) => ({ ...d, kudoTo: "", kudoEmoji: "", kudoText: "" }));
+      if (user) setMyCards(await getMyCards(sessionId, user.id));
+    };
+    const emojiTally = kudoCards.reduce((acc, c) => { const e = parseKudo(c.text).emoji; if (e) acc[e] = (acc[e] ?? 0) + 1; return acc; }, {} as Record<string, number>);
+    const kudFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: kudoCount,
+        summaryText: `Kudos: ${kudoCards.length} reconocimientos`,
+        dataKey: "learn", dataValue: { closeWords },
+        noAdvance: true,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "kudwrite") {
+      sub = "Acá no hablamos de qué mejorar. Solo de lo que valoramos del trabajo de cada uno.";
+      content = (
+        <Card pad={20}>
+          {isFacil ? (
+            <div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--warning)" }}>{kudoCount}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>kudos escritos · {receivers.size}/{(team?.members.length ?? 0)} reconocidos</div></div>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                {myKudos.map((c) => { const k = parseKudo(c.text); return <div key={c.id} style={{ fontSize: "var(--t-sm)", padding: "8px 10px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)" }}>{k.emoji} <b>{k.to}</b>: {k.text}</div>; })}
+              </div>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>Quiero reconocer a…</div>
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
+                {(team?.members ?? []).map((m) => { const on = kudTo === m.name; return <button key={m.name} onClick={() => setCardDraft((d) => ({ ...d, kudoTo: m.name }))} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 600, border: `1.5px solid ${on ? "var(--warning)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--warning) 13%, var(--card))" : "var(--card)" }}><Avatar name={m.name} size={18} idx={0} /> {m.name}</button>; })}
+              </div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                {KUDO_EMOJIS.map((e) => <button key={e} onClick={() => setCardDraft((d) => ({ ...d, kudoEmoji: kudEmoji === e ? "" : e }))} style={{ fontSize: 20, padding: "4px 8px", borderRadius: "var(--r-sm)", border: `1.5px solid ${kudEmoji === e ? "var(--warning)" : "var(--line-2)"}`, background: kudEmoji === e ? "color-mix(in srgb, var(--warning) 13%, var(--card))" : "var(--card)" }}>{e}</button>)}
+              </div>
+              <textarea value={kudText} onChange={(e) => setCardDraft((d) => ({ ...d, kudoText: e.target.value }))} rows={2} placeholder="…por…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+              <Button full icon="Plus" disabled={!kudTo || !kudText.trim()} onClick={addKudo} style={{ marginTop: 10 }}>Sumar este kudo</Button>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>Escribí al menos uno. Sin límite. No es anónimo: el reconocimiento vale más cuando se sabe quién lo da.</p>
+            </>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Gift" disabled={busy || kudoCount === 0} onClick={async () => { setBusy(true); await setResult(sessionId, { kudIdx: 0 }); await setStep(sessionId, "kuddeliver", 1); setBusy(false); }}>Entregar los kudos ({kudoCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escribí tu reconocimiento. El facilitador entrega cuando estén todos.</p>;
+    } else if (step === "kuddeliver") {
+      sub = isFacil ? "Leé cada kudo en voz alta. Sin debate, solo reconocimiento." : "La entrega de los kudos del equipo.";
+      const cur = kudoCards[kudIdx];
+      const curK = cur ? parseKudo(cur.text) : null;
+      const delivered = kudoCards.slice(0, kudIdx);
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {curK && <KudosCard from={{ name: nameOf(cur!.authorId) }} to={{ name: curK.to ?? "—", initials: initOf(curK.to ?? "") }} text={curK.text ?? ""} emoji={curK.emoji} big />}
+          {kudIdx >= kudoCards.length && <Card pad={20} style={{ textAlign: "center" }}><div style={{ fontSize: 30 }}>🎉</div><p style={{ fontSize: "var(--t-md)", fontWeight: 700, marginTop: 8 }}>Esto es lo que construimos juntos en este ciclo.</p></Card>}
+          {delivered.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="eyebrow">Ya entregados</div>
+              {delivered.map((c, i) => { const k = parseKudo(c.text); return <KudosCard key={c.id} from={{ name: nameOf(c.authorId) }} to={{ name: k.to ?? "—", initials: initOf(k.to ?? "") }} text={k.text ?? ""} emoji={k.emoji} idx={i} />; })}
+            </div>
+          )}
+          {isFacil && noKudos.length > 0 && kudIdx >= kudoCards.length && (
+            <div style={{ padding: "10px 13px", background: "var(--card-2)", border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", fontSize: "var(--t-xs)", lineHeight: 1.5 }}>
+              <Icon name="Info" size={13} /> Sin kudos todavía: <b>{noKudos.join(", ")}</b>. Sin forzar, podés preguntar: "¿alguien quiere agregar algo para ellos?"
+            </div>
+          )}
+        </div>
+      );
+      controls = isFacil
+        ? (kudIdx < kudoCards.length
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={() => setResult(sessionId, { kudIdx: kudIdx + 1 })}>Siguiente kudo ({kudIdx + 1}/{kudoCards.length})</Button>
+          : <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "kudclose", 2); setBusy(false); }}>Cerrar con una palabra</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escuchá los reconocimientos del equipo.</p>;
+    } else {
+      sub = "El ritual de cierre del ciclo.";
+      content = (
+        <>
+          {Object.keys(emojiTally).length > 0 && <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 14 }}>{Object.entries(emojiTally).sort((a, b) => b[1] - a[1]).map(([e, n]) => <span key={e} style={{ fontSize: "var(--t-sm)" }}>{e} <span className="num muted">{n}</span></span>)}</div>}
+          {learnClosing()}
+        </>
+      );
+      controls = learnCloseControls(kudFinish);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 720 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
