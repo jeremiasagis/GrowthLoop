@@ -625,7 +625,7 @@ export default function SalaPage() {
     if (stepIdx <= 0) return;
     setBusy(true);
     // Al volver atrás, re-ocultar votaciones/revelados y limpiar el timer del paso.
-    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, matrixShown: false, whVoteShown: false, fbVoteShown: false, sdVoteShown: false, wbVoteShown: false, closeWordShown: false, flShown: false, timer: null });
+    await setResult(sessionId, { voteShown: false, cvoteShown: false, ivoteShown: false, flowShown: false, stuckShown: false, iceShown: false, lvoteShown: false, matrixShown: false, whVoteShown: false, fbVoteShown: false, sdVoteShown: false, wbVoteShown: false, closeWordShown: false, flShown: false, fwHonestShown: false, conShown: false, kudIdx: 0, sdRound: 0, lhSilenceAt: null, timer: null });
     await setStep(sessionId, seq[stepIdx - 1], stepIdx - 1);
     setBusy(false);
   };

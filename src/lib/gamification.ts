@@ -59,7 +59,9 @@ export function teamProgress(team: Team, nowMs: number = Date.now()): TeamProgre
   const sessions = team.sessions ?? [];
   const inits = team.initiatives ?? [];
   const data = team.data ?? {};
-  const cycles = inits.filter((i) => i.status === "done").length;
+  // Un ciclo "cerrado" = la iniciativa terminó (done) o llegó a una decisión de
+  // Aprendizaje (implementar/iterar/pivotar/pausar) aunque siga activa por iteración.
+  const cycles = inits.filter((i) => i.status === "done" || !!i.data?.learn?.decision).length;
   const totalStages = inits.reduce((a, i) => a + stagesDone(i), 0);
 
   let xp = sessions.length * XP.session
