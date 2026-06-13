@@ -428,8 +428,24 @@ export default function InitiativeDetailPage() {
   const betReady = !!((pf?.betThen && pf?.signalMetric) || (pf?.bets?.length && pf.bets[0]?.betThen && pf.bets[0]?.signalMetric));
   const followCheckinDone = !!(fl?.startedAt || fl?.signalLog?.length || fl?.betCheckins?.length || fl?.decision || fl?.honesty);
   const stageNorm = normalizeStage(init.stage);
-  const closeBlocked = (stageNorm === "ideation" && !betReady) || (stageNorm === "follow" && !followCheckinDone);
+  // Aprendizaje: 3 bloqueos — resultado (A/E o combinada), aprendizaje (B/E o combinada) y decisión (C o combinada).
+  const ld = init.data?.learn;
+  const hasResultRetro = sessions.some((s) => ["lwhappened", "fourls", "learn"].includes(s.stage));
+  const hasLearningRetro = sessions.some((s) => ["lwlearned", "fourls", "learn"].includes(s.stage));
+  const hasDecision = !!ld?.decision;
+  const learnMissing = stageNorm === "learn" ? [
+    !hasResultRetro && { label: "Una retro de resultado (¿Qué pasó? o 4 L's)", types: "lwhappened" },
+    !hasLearningRetro && { label: "Una retro de aprendizaje (¿Qué aprendimos? o 4 L's)", types: "lwlearned" },
+    !hasDecision && { label: "La retro ¿Qué sigue? con la decisión registrada", types: "lwnext" },
+  ].filter(Boolean) as { label: string; types: string }[] : [];
+  const closeBlocked = (stageNorm === "ideation" && !betReady) || (stageNorm === "follow" && !followCheckinDone) || (stageNorm === "learn" && learnMissing.length > 0);
   const needsFinalHonesty = stageNorm === "follow" && followCheckinDone && !finalHonesty;
+  const DEC_NEXT: Record<string, { label: string; detail: string }> = {
+    implement: { label: "Implementar", detail: "La variable entra en Consolidación. Te avisamos en 30 días (in-app) para verificar." },
+    iterate: { label: "Iterar", detail: "La variable vuelve a Ideación con el contexto precargado." },
+    pivot: { label: "Pivotar", detail: "La variable vuelve a Foco con los aprendizajes como contexto." },
+    pause: { label: "Pausar", detail: "La variable queda pausada en el mapa." },
+  };
   const HON_OPTS = [
     { k: "green" as const, emoji: "🟢", label: "La prueba funcionó", color: "var(--success)" },
     { k: "yellow" as const, emoji: "🟡", label: "Resultados mixtos", color: "var(--warning)" },
@@ -439,6 +455,25 @@ export default function InitiativeDetailPage() {
     if (closeBlocked || needsFinalHonesty) return;
     setCloseBusy(true);
     if (stageNorm === "follow" && finalHonesty) await patchInitiativeData(init.id, "follow", { finalHonesty });
+    // Cierre de Aprendizaje: el movimiento de la variable depende de la decisión de ¿Qué sigue?
+    if (stageNorm === "learn") {
+      const dec = ld?.decision;
+      let res: { error?: string } = {};
+      if (dec === "iterate") { res = await setInitiativeStage(init.id, "ideation"); await setInitiativeStatus(init.id, "active"); }
+      else if (dec === "pivot") { res = await setInitiativeStage(init.id, "focus"); await setInitiativeStatus(init.id, "active"); }
+      else if (dec === "pause") { res = await setInitiativeStatus(init.id, "paused"); }
+      else if (dec === "implement") {
+        const due = new Date(); due.setDate(due.getDate() + 30);
+        await patchInitiativeData(init.id, "consolidate", { startedAt: new Date().toISOString(), due: due.toISOString(), pending: true });
+        res = await setInitiativeStatus(init.id, "active");
+      } else { res = await setInitiativeStatus(init.id, "done"); }
+      setCloseBusy(false);
+      if (res.error) { show(res.error, "TriangleAlert"); return; }
+      setCloseStageOpen(false); setFinalHonesty(null);
+      show(dec === "iterate" ? "Iterar · vuelve a Ideación" : dec === "pivot" ? "Pivotar · vuelve a Foco" : dec === "pause" ? "Variable pausada" : dec === "implement" ? "Implementar · en Consolidación 30 días" : "Ciclo cerrado 🎉", "Check");
+      refresh();
+      return;
+    }
     const res = nextSt ? await setInitiativeStage(init.id, nextSt) : await setInitiativeStatus(init.id, "done");
     setCloseBusy(false);
     if (res.error) { show(res.error, "TriangleAlert"); return; }
@@ -736,6 +771,46 @@ export default function InitiativeDetailPage() {
                 </div>
               </div>
             )}
+            {closeBlocked && stageNorm === "learn" && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 14, background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 45%, transparent)", borderRadius: "var(--r-md)" }}>
+                <Icon name="TriangleAlert" size={18} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1, fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+                  <b>Para cerrar Aprendizaje necesitás:</b>
+                  <ul style={{ margin: "8px 0 0", paddingLeft: 18, lineHeight: 1.6 }}>{learnMissing.map((m, i) => <li key={i}>{m.label}</li>)}</ul>
+                  {isFacil && <div style={{ marginTop: 10 }}><Button size="sm" icon="Users" onClick={() => { setCloseStageOpen(false); setLauncherOpen(true); }}>Abrir una sesión de Aprendizaje</Button></div>}
+                </div>
+              </div>
+            )}
+            {stageNorm === "learn" && !closeBlocked && (
+              <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <div className="eyebrow" style={{ marginBottom: 8 }}>El ciclo completo</div>
+                  <CycleTimeline sessions={sessions.map((s) => ({ stage: s.stage, date: s.date }))} currentStage={init.stage} done={done} />
+                </div>
+                {ld?.narrative && (
+                  <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-learn) 8%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                    <div className="eyebrow" style={{ marginBottom: 5 }}>El resultado</div>
+                    <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{ld.narrative}</p>
+                  </div>
+                )}
+                {(fl?.signalLog?.length ?? 0) > 1 && (
+                  <div style={{ padding: "12px 14px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                    <div className="eyebrow" style={{ marginBottom: 8 }}>Evolución de la señal</div>
+                    <SignalProgressChart log={fl!.signalLog!} target={pf?.signalTarget} height={70} />
+                  </div>
+                )}
+                {ld?.highlightedLearning && (
+                  <div style={{ fontSize: "var(--t-sm)", display: "flex", gap: 8, alignItems: "center" }}><Icon name="Star" size={15} style={{ color: "var(--st-learn)" }} /><span><b>Aprendizaje del ciclo:</b> {ld.highlightedLearning}</span></div>
+                )}
+                {ld?.decision && DEC_NEXT[ld.decision] && (
+                  <div style={{ padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--card)", border: "1px solid var(--line)" }}>
+                    <div className="eyebrow" style={{ marginBottom: 5 }}>La decisión</div>
+                    <div style={{ fontSize: "var(--t-sm)", fontWeight: 700, marginBottom: 4 }}>{DEC_NEXT[ld.decision].label}{ld.decisionReason ? <span style={{ fontWeight: 400 }}> — {ld.decisionReason}</span> : ""}</div>
+                    <div className="muted" style={{ fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 6 }}><Icon name="ArrowRight" size={12} style={{ color: "var(--st-learn)" }} /> {DEC_NEXT[ld.decision].detail}</div>
+                  </div>
+                )}
+              </div>
+            )}
             {stageNorm === "follow" && followCheckinDone && (
               <div style={{ marginBottom: 16 }}>
                 <div className="eyebrow" style={{ marginBottom: 8 }}>Honestidad final · ¿cómo cerramos la prueba?</div>
@@ -753,7 +828,7 @@ export default function InitiativeDetailPage() {
             )}
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="secondary" full onClick={() => setCloseStageOpen(false)}>Cancelar</Button>
-              <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy || closeBlocked || needsFinalHonesty} onClick={doCloseStage}>{closeBusy ? "Guardando…" : closeBlocked ? (stageNorm === "follow" ? "Falta un check-in" : "Falta la prueba") : needsFinalHonesty ? "Elegí cómo cerramos" : "Confirmar"}</Button>
+              <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy || closeBlocked || needsFinalHonesty} onClick={doCloseStage}>{closeBusy ? "Guardando…" : closeBlocked ? (stageNorm === "follow" ? "Falta un check-in" : stageNorm === "learn" ? "Faltan retros" : "Falta la prueba") : needsFinalHonesty ? "Elegí cómo cerramos" : stageNorm === "learn" && ld?.decision && DEC_NEXT[ld.decision] ? DEC_NEXT[ld.decision].label : "Confirmar"}</Button>
             </div>
           </div>
         </div>
