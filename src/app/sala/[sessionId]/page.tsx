@@ -149,6 +149,7 @@ const STEP_SEQ: Record<string, string[]> = {
   kudos: ["kudwrite", "kuddeliver", "kudclose"],
   letter: ["ltframe", "ltwrite", "ltread", "lttheme", "ltclose"],
   speeddating: ["sdwarn", "sdframe", "sdpairs", "sdrounds", "sdplenary", "sdclose"],
+  consolidation: ["concheck", "conresult"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -6840,6 +6841,96 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ CONSOLIDACIÓN · ¿se sostuvo el cambio? (micro-sesión 30 días) ════════
+  if (session.type === "consolidation") {
+    const r = session.result;
+    const CON = [
+      { k: "sustained", emoji: "✅", t: "Sí, se volvió parte de cómo trabajamos", color: "var(--success)" },
+      { k: "partial", emoji: "⚡", t: "Parcialmente, algunas cosas se mantienen", color: "var(--warning)" },
+      { k: "reverted", emoji: "❌", t: "No, volvimos a como estábamos", color: "var(--risk)" },
+    ];
+    const votes = inputs.filter((i) => i.key === "convote").map((i) => (i.value as { v?: string }).v);
+    const myVote = (inputs.find((i) => i.userId === user.id && i.key === "convote")?.value as { v?: string } | undefined)?.v;
+    const tally = CON.map((o) => ({ ...o, n: votes.filter((v) => v === o.k).length }));
+    const winner = [...tally].sort((a, b) => b.n - a.n)[0];
+    const shown = !!r.conShown;
+    const pf = initiative?.data?.proof;
+    const conFinish = async () => {
+      setBusy(true);
+      const outcome = winner?.n ? winner.k : "partial";
+      const nowIso = new Date().toISOString();
+      const revertLearning: LearningEntry | null = outcome === "reverted" ? {
+        id: `con-${session.id}`, text: "El cambio se revirtió al retirar el monitoreo. Necesita condiciones sistémicas para sostenerse (posible efecto Hawthorne).",
+        initiativeId: initiative?.id, initiativeTitle: initiative?.title, stage: "learn", type: "process", transferable: true, date: nowIso,
+      } : null;
+      const existing = (team?.data?.library as LearningEntry[] | undefined) ?? [];
+      const merged = revertLearning ? [...existing.filter((e) => e.id !== revertLearning.id), revertLearning] : existing;
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Consolidación: ${CON.find((c) => c.k === outcome)?.t ?? "—"}`,
+        dataKey: "consolidate", dataValue: { outcome, date: nowIso, pending: false },
+        teamData: revertLearning ? { library: merged } : undefined,
+        // Sostenida → archiva la variable como mejorada; parcial/revertida → vuelve activa.
+        noAdvance: true, status: outcome === "sustained" ? "done" : "active",
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "concheck") {
+      sub = "30 días después. La pregunta de la verdad.";
+      content = (
+        <Card pad={24}>
+          {pf?.chosenIdea && <div style={{ padding: "10px 12px", marginBottom: 16, background: "color-mix(in srgb, var(--st-learn) 9%, transparent)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)" }}><span className="muted">El cambio que implementamos:</span> {pf.chosenIdea}</div>}
+          <p style={{ fontSize: "var(--t-md)", fontWeight: 700, lineHeight: 1.5, textAlign: "center", marginBottom: 18 }}>¿El cambio que implementamos se sostuvo sin que nadie lo estuviera monitoreando activamente?</p>
+          {isFacil ? (
+            <div style={{ textAlign: "center" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-learn)" }}>{votes.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respondieron · anónimo</div></div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {CON.map((o) => { const on = myVote === o.k; return (
+                <button key={o.k} onClick={() => tapInput("convote", { v: o.k })} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: "var(--r-md)", textAlign: "left", border: `1.5px solid ${on ? o.color : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${o.color} 13%, var(--card))` : "var(--card)", cursor: "pointer" }}>
+                  <span style={{ fontSize: 22 }}>{o.emoji}</span><span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{o.t}</span>{on && <Icon name="CheckCircle2" size={16} style={{ color: o.color }} />}
+                </button>
+              ); })}
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || votes.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "conresult", 1); await setResult(sessionId, { conShown: true }); setBusy(false); }}>Revelar resultado ({votes.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Respondé con honestidad. Es anónimo.</p>;
+    } else {
+      sub = "El veredicto de la consolidación.";
+      const outcome = winner?.n ? winner.k : "partial";
+      const ow = CON.find((c) => c.k === outcome)!;
+      content = (
+        <Card pad={22}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {tally.map((o) => <div key={o.k} style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 18, width: 24 }}>{o.emoji}</span><span style={{ flex: 1, fontSize: "var(--t-sm)" }}>{o.t}</span><div style={{ width: 80, height: 8, borderRadius: 99, background: "var(--card-2)", overflow: "hidden" }}><div style={{ height: "100%", width: `${(o.n / Math.max(1, votes.length)) * 100}%`, background: o.color, borderRadius: 99 }} /></div><span className="num" style={{ fontWeight: 800, width: 18, textAlign: "right", color: o.color }}>{o.n}</span></div>)}
+          </div>
+          <div style={{ padding: "12px 14px", borderRadius: "var(--r-md)", background: `color-mix(in srgb, ${ow.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${ow.color} 30%, transparent)`, fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+            <b style={{ color: ow.color }}>{ow.emoji} {ow.t}.</b>{" "}
+            {outcome === "sustained" && "La variable se archiva como mejorada y entra en los logros del equipo."}
+            {outcome === "partial" && "La variable vuelve al mapa como activa. Conviene una sesión de Foco sobre qué impide la consolidación total."}
+            {outcome === "reverted" && "La variable vuelve al mapa. Se registró un aprendizaje en la Biblioteca: el cambio necesita condiciones sistémicas para sostenerse (posible efecto Hawthorne)."}
+          </div>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={conFinish}>{busy ? "Guardando…" : "Cerrar la consolidación"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra la consolidación.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 560 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

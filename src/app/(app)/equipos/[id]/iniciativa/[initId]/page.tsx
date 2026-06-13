@@ -12,7 +12,7 @@ import { useToast } from "@/components/Toast";
 import {
   deleteInitiative, getFacilitators, getInitiatives, getTeam, patchInitiativeData, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
-import { getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
+import { createLiveSession, getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
@@ -447,6 +447,21 @@ export default function InitiativeDetailPage() {
     refresh();
   };
   const doDelete = async () => { setDelBusy(true); const res = await deleteInitiative(init.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Iniciativa eliminada", "Trash2"); router.push(`/equipos/${team.id}`); };
+  // Consolidación: estado post-Implementar (30 días). Indicador in-app + disparo manual del check.
+  const con = init.data?.consolidate;
+  const conPending = !!con?.pending;
+  const conDue = con?.due;
+  const conLeft = conDue ? Math.round((new Date(conDue).getTime() - Date.now()) / 86400000) : null;
+  const conReady = conLeft != null && conLeft <= 0;
+  const [conBusy, setConBusy] = useState(false);
+  const startConsolidation = async () => {
+    if (conBusy) return;
+    setConBusy(true);
+    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: "consolidation", firstStep: "concheck" });
+    setConBusy(false);
+    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
+    router.push(`/sala/${res.session.id}`);
+  };
 
   return (
     <div className="screen-pad">
@@ -514,6 +529,19 @@ export default function InitiativeDetailPage() {
           })}
         </div>
       </Card>
+
+      {conPending && (
+        <Card pad={18} style={{ marginBottom: 22, border: `1px solid color-mix(in srgb, ${conReady ? "var(--warning)" : "var(--success)"} 45%, var(--line))`, background: `color-mix(in srgb, ${conReady ? "var(--warning)" : "var(--success)"} 7%, var(--card))` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 22 }}>🔄</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Consolidación{conLeft != null && !conReady ? ` · ${conLeft} días restantes` : ""}</div>
+              <div className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>{conReady ? "Es momento de verificar si el cambio se sostuvo sin monitoreo." : "El cambio está en período de consolidación. Verificamos a los 30 días."}</div>
+            </div>
+            {isFacil && conReady && <Button icon="ClipboardCheck" disabled={conBusy} onClick={startConsolidation}>Hacer el check</Button>}
+          </div>
+        </Card>
+      )}
 
       <div className="team-grid">
         {/* columna principal: etapas + timeline */}

@@ -360,6 +360,7 @@ function InitiativeCard({ team, init, isFacil, onChanged, onEdit }: { team: Team
             <span style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>{init.title}</span>
             {done && <Pill color="var(--success)" bg="var(--success-bg)" icon="CircleCheck">Cerrada</Pill>}
             {paused && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="Pause">Pausada</Pill>}
+            {init.data?.consolidate?.pending && !done && (() => { const left = init.data.consolidate.due ? Math.round((new Date(init.data.consolidate.due).getTime() - Date.now()) / 86400000) : null; return <Pill color="var(--st-follow)" bg="color-mix(in srgb, var(--st-follow) 14%, transparent)" icon="RefreshCw">{left != null && left > 0 ? `Consolidación · ${left}d` : "Consolidación · a verificar"}</Pill>; })()}
           </div>
           {init.description && <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 4, lineHeight: 1.5 }}>{init.description}</p>}
         </div>

@@ -164,7 +164,7 @@ export interface InitiativeData {
     narrative?: string; executed?: string; highlightedLearning?: string; decisionReason?: string;
     processAdjustments?: string[]; desires?: string[]; commitments?: string[]; letterDate?: string;
     pauseReviewAt?: string; closeWords?: string[]; };
-  consolidate?: { outcome?: string; note?: string; date?: string };
+  consolidate?: { outcome?: string; note?: string; date?: string; startedAt?: string; due?: string; pending?: boolean };
 }
 
 /** Objetivo del equipo (puede haber varios; cada uno agrupa iniciativas). */
