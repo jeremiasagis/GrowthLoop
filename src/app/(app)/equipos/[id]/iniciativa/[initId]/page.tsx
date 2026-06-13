@@ -16,6 +16,7 @@ import { getInitiativeSessions, loadSessionMemories, type SessionCard, type Sess
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
+import { CycleTimeline } from "@/components/CycleTimeline";
 import { retrosForStage, stageOfSessionType } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, type Initiative, type StageKey, type Team } from "@/lib/data";
 
@@ -631,6 +632,11 @@ export default function InitiativeDetailPage() {
                 <button onClick={() => setDelOpen(true)} style={{ marginTop: 4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, color: "var(--risk)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="Trash2" size={14} /> Eliminar iniciativa</button>
               )}
             </div>
+          </Card>
+
+          <Card pad={20}>
+            <SectionTitle icon="Route" sub="Las etapas que recorrió esta variable">Recorrido del ciclo</SectionTitle>
+            <CycleTimeline sessions={sessions.map((s) => ({ stage: s.stage, date: s.date }))} currentStage={init.stage} done={done} />
           </Card>
 
           <Card pad={20}>
