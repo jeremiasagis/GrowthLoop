@@ -558,7 +558,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Reveal: promedio y distribución", minutes: 2 },
       { name: "Conversación sobre lo bajo", minutes: 7 },
     ],
-    sessionType: "roti", entryStep: "rtscore", implemented: false,
+    sessionType: "roti", entryStep: "rtscore", implemented: true,
   },
   {
     id: "follow-perfection-game", name: "Perfection Game", stage: "follow", category: "classic",

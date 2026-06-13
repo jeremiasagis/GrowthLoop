@@ -127,6 +127,7 @@ const STEP_SEQ: Record<string, string[]> = {
   leancoffee: ["lctopics", "lcvote", "lcwork", "lcclose"],
   follow: ["fwcard", "fwreport", "fwunblock", "fwdecision", "fwhonesty"],
   blocking: ["blframe", "blmap", "blclass", "blvote", "blplan"],
+  roti: ["rtscore", "rtreveal", "rttalk"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -3958,6 +3959,100 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 600 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ROTI · ¿está valiendo la pena el tiempo? ════════
+  if (session.type === "roti") {
+    const RT_LABELS = ["Tiempo perdido", "Poco valor", "Aceptable", "Buen retorno", "Muy valioso"];
+    const RT_EMO = ["😞", "🙁", "😐", "🙂", "🤩"];
+    const rtScores = inputs.filter((i) => i.key === "rt").map((i) => (i.value as { v?: number }).v).filter((v): v is number => typeof v === "number");
+    const myRt = (inputs.find((i) => i.userId === user.id && i.key === "rt")?.value as { v?: number } | undefined)?.v;
+    const rtAvg = rtScores.length ? rtScores.reduce((a, b) => a + b, 0) / rtScores.length : 0;
+    const rtDist = [1, 2, 3, 4, 5].map((n) => rtScores.filter((s) => s === n).length);
+    const rtLow = rtScores.filter((s) => s <= 2).length;
+    const rtFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, { pulseAvg: avg, summaryText: `ROTI: ${rtAvg.toFixed(1)}/5 · ${rtScores.length} respuestas${rtLow ? ` · ${rtLow} bajas` : ""}` });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "rtscore") {
+      sub = "¿Está valiendo la pena el tiempo que le dedicamos a esta prueba? Anónimo, del 1 al 5.";
+      content = (
+        <Card pad={24}>
+          {isFacil ? (
+            <div style={{ textAlign: "center" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{rtScores.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>respondieron · oculto hasta revelar</div></div>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[5, 4, 3, 2, 1].map((n) => { const on = myRt === n; return (
+                  <button key={n} onClick={() => tapInput("rt", { v: n })} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: "var(--r-md)", textAlign: "left", border: `1.5px solid ${on ? "var(--st-follow)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--st-follow) 13%, var(--card))" : "var(--card)", cursor: "pointer" }}>
+                    <span style={{ fontSize: 22 }}>{RT_EMO[n - 1]}</span>
+                    <span className="num" style={{ fontWeight: 800, width: 14, color: on ? "var(--st-follow)" : "var(--ink-2)" }}>{n}</span>
+                    <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{RT_LABELS[n - 1]}</span>
+                    {on && <Icon name="CheckCircle2" size={16} style={{ color: "var(--st-follow)" }} />}
+                  </button>
+                ); })}
+              </div>
+              <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, textAlign: "center" }}><Icon name="Lock" size={12} /> Anónimo · {rtScores.length} de {totalInRoom} respondieron</p>
+            </>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || rtScores.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "rtreveal", 1); setBusy(false); }}>Revelar resultado ({rtScores.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Elegí tu puntuación. El facilitador revela cuando estén todos.</p>;
+    } else if (step === "rtreveal") {
+      sub = "El retorno del tiempo, según el equipo.";
+      const maxD = Math.max(1, ...rtDist);
+      content = (
+        <Card pad={24}>
+          <div style={{ textAlign: "center", marginBottom: 18 }}>
+            <span className="num" style={{ fontSize: 48, fontWeight: 800, color: rtAvg >= 3.5 ? "var(--green)" : rtAvg >= 2.5 ? "var(--warning)" : "var(--risk)" }}>{rtAvg.toFixed(1)}</span>
+            <span className="muted" style={{ fontSize: "var(--t-sm)" }}>/5 promedio</span>
+            <div style={{ fontSize: 30, marginTop: 4 }}>{RT_EMO[Math.max(0, Math.round(rtAvg) - 1)]}</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[5, 4, 3, 2, 1].map((n) => { const c = rtDist[n - 1]; return (
+              <div key={n} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 16, width: 22 }}>{RT_EMO[n - 1]}</span>
+                <span className="num muted" style={{ width: 12, fontWeight: 700 }}>{n}</span>
+                <div style={{ flex: 1, height: 10, borderRadius: 99, background: "var(--card-2)", overflow: "hidden" }}><div style={{ height: "100%", width: `${(c / maxD) * 100}%`, background: n <= 2 ? "var(--risk)" : n === 3 ? "var(--warning)" : "var(--green)", borderRadius: 99 }} /></div>
+                <span className="num" style={{ width: 18, textAlign: "right", fontWeight: 700 }}>{c}</span>
+              </div>
+            ); })}
+          </div>
+          {rtLow > 0 && <div style={{ marginTop: 14, padding: "10px 12px", background: "var(--risk-bg)", border: "1px solid color-mix(in srgb, var(--risk) 35%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.5 }}><Icon name="TriangleAlert" size={14} style={{ color: "var(--risk)" }} /> {rtLow} {rtLow === 1 ? "persona siente" : "personas sienten"} que el tiempo no está rindiendo. Vale la pena escucharlo.</div>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "rttalk", 2); setBusy(false); }}>Conversarlo</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador abre la conversación.</p>;
+    } else {
+      sub = "Pongamos en palabras lo bajo: ¿qué nos haría sentir que el tiempo rinde?";
+      content = (
+        <Card pad={20}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 14 }}><span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: rtAvg >= 3.5 ? "var(--green)" : rtAvg >= 2.5 ? "var(--warning)" : "var(--risk)" }}>{rtAvg.toFixed(1)}/5</span><span className="muted" style={{ fontSize: "var(--t-sm)" }}>{rtScores.length} respuestas{rtLow ? ` · ${rtLow} bajas` : ""}</span></div>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>Qué nos llevamos de la conversación</div>
+          {isFacil
+            ? <textarea defaultValue={(session.result.rtNote as string) ?? ""} onBlur={(e) => patchResult({ rtNote: e.target.value.trim() })} rows={3} placeholder="Lo que dijo el equipo sobre el retorno del tiempo…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+            : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, color: (session.result.rtNote as string) ? "var(--ink-0)" : "var(--ink-3)" }}>{(session.result.rtNote as string) || "El facilitador está tomando nota…"}</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={rtFinish}>{busy ? "Guardando…" : "Cerrar ROTI"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Compartí qué te haría sentir que el tiempo rinde.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 560 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
