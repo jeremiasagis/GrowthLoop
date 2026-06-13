@@ -405,7 +405,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Agrupación temática", minutes: 5 },
       { name: "Votación · 3 puntos → top 3", minutes: 3 },
     ],
-    sessionType: "hmw", entryStep: "hmwframe", implemented: false,
+    sessionType: "hmw", entryStep: "hmwframe", implemented: true,
   },
   {
     id: "ideation-which-do-we-choose", name: "¿Cuál elegimos?", stage: "ideation", category: "growthloop",

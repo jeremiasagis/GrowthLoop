@@ -102,6 +102,7 @@ const STEP_SEQ: Record<string, string[]> = {
   opposites: ["oppairs", "oprate", "opreveal", "opsynth"],
   journey: ["sdsetup", "sdanalyze", "sdvote", "sddeep", "sdsynth"],
   stacey: ["stintro", "stplace", "streveal", "stzone"],
+  hmw: ["hmwframe", "hmwwrite", "hmwreveal", "hmwread", "hmwcluster", "hmwvote"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -216,6 +217,7 @@ export default function SalaPage() {
         "word_reveal", "timeline_reveal", "brain", "classify", "soup_close", "read", "rel_close", "whcluster",
         "cvcontrast", "fbcauses", "fbvote", "fbdeep", "fbmain", "pgfactors", "pgsynth",
         "sdanalyze", "sdvote", "sddeep", "sdsynth", "wbdeep",
+        "hmwreveal", "hmwread", "hmwcluster", "hmwvote",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -3037,6 +3039,180 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 640 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿CÓMO PODRÍAMOS? · lluvia de ideas → top 3 ════════
+  if (session.type === "hmw") {
+    const rootCause = (initiative?.data?.focus?.rootCause as string) || (initiative?.data?.focus?.cause as string) || "";
+    const hmwQ = (session.result.hmwQ as string) ?? "";
+    const ideas = allCards.filter((c) => c.columnKey === "idea");
+    const ideaCount = counts["idea"] ?? 0;
+    const HMW_DOTS = 3;
+    const hmwRemaining = HMW_DOTS - myVoteCount;
+    const hmwVoters = new Set(votes.map((v) => v.voterKey)).size;
+    const hmwShown = !!session.result.voteShown;
+    const addIdea = async () => { const t = (cardDraft.idea ?? "").trim(); if (!t) return; await addCard(sessionId, "idea", t, true); setCardDraft((d) => ({ ...d, idea: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const hmwGroup = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Idea ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
+    const HmwBanner = hmwQ ? (
+      <div style={{ padding: "10px 14px", marginBottom: 14, background: "color-mix(in srgb, var(--st-proof) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 32%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-md)", fontWeight: 700, lineHeight: 1.45, textAlign: "center" }}>{hmwQ}</div>
+    ) : null;
+    const hmwFinish = async () => {
+      setBusy(true);
+      const top = ranked.slice(0, 3).map((c) => c.name);
+      const looseTop = !clusters.length ? ideas.slice(0, 3).map((c) => c.text) : [];
+      const finalists = (top.length ? top : looseTop);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: ideas.length,
+        summaryText: `${ideas.length} ideas · top: ${finalists[0] ?? "—"}`,
+        dataKey: "proof", dataValue: { hmw: hmwQ, finalists },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "hmwframe") {
+      sub = "Formulamos la pregunta que va a abrir las ideas.";
+      content = (
+        <Card pad={22}>
+          {rootCause && <div style={{ padding: "10px 12px", marginBottom: 14, background: "color-mix(in srgb, var(--st-focus) 9%, transparent)", border: "1px solid color-mix(in srgb, var(--st-focus) 28%, transparent)", borderRadius: "var(--r-md)" }}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 3 }}>La causa raíz {initiative?.data?.focus?.rootCause ? "(de Foco)" : ""}</div><div style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{rootCause}</div></div>}
+          <div className="eyebrow" style={{ marginBottom: 6 }}>¿Cómo podríamos…?</div>
+          {isFacil
+            ? <textarea defaultValue={hmwQ || "¿Cómo podríamos … para que …?"} onBlur={(e) => patchResult({ hmwQ: e.target.value.trim() })} rows={2} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-proof) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+            : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.5, color: hmwQ ? "var(--ink-0)" : "var(--ink-3)" }}>{hmwQ || "El facilitador está formulando la pregunta…"}</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !hmwQ.trim()} onClick={async () => { setBusy(true); await setStep(sessionId, "hmwwrite", 1); setBusy(false); }}>Empezar la ideación</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador formula la pregunta.</p>;
+    } else if (step === "hmwwrite") {
+      sub = "En silencio: tirá todas las ideas que se te ocurran. Quedan ocultas hasta revelar.";
+      content = (
+        <>
+          {HmwBanner}
+          <Card pad={20}>
+            <HiddenDots n={ideaCount} label="ideas · ocultas hasta revelar" color="var(--st-proof)" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+              {myCards.filter((c) => c.columnKey === "idea").map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· tuya</span></div>)}
+            </div>
+            {!isFacil && (
+              <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+                <input value={cardDraft.idea ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, idea: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addIdea()} placeholder="Una idea…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                <Button size="sm" icon="Plus" onClick={addIdea}>Sumar</Button>
+              </div>
+            )}
+          </Card>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || ideaCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "hmwreveal", 2); setBusy(false); }}>Revelar ideas ({ideaCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tirá tantas ideas como quieras. El facilitador revela cuando todos terminen.</p>;
+    } else if (step === "hmwreveal" || step === "hmwread") {
+      wide = true;
+      sub = step === "hmwreveal" ? "¡Todas las ideas a la vista!" : "Lectura express: cada uno lee sus ideas en voz alta (30s).";
+      content = <>{HmwBanner}<RevealHeader n={ideas.length} label="ideas" color="var(--st-proof)" /><RevealPop><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 10 }}>{ideas.map((c, i) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 12px", fontSize: "var(--t-sm)", lineHeight: 1.4, animation: `gl-pop-strong .5s var(--spring) ${(i * 0.04).toFixed(2)}s both` }}>{c.text}</div>)}</div></RevealPop></>;
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, step === "hmwreveal" ? "hmwread" : "hmwcluster", step === "hmwreveal" ? 3 : 4); setBusy(false); }}>{step === "hmwreveal" ? "Lectura express" : "Agrupar ideas"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>{step === "hmwreveal" ? "Mirá todas las ideas." : "Leé las tuyas en voz alta, 30 segundos."}</p>;
+    } else if (step === "hmwcluster") {
+      wide = true;
+      sub = isFacil ? "Agrupá las ideas que van juntas. Después votamos." : "El facilitador agrupa las ideas afines.";
+      content = (
+        <>
+          {HmwBanner}
+          <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span className="eyebrow">Sueltas ({loose.filter((c) => c.columnKey === "idea").length})</span>
+                {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={hmwGroup}>Agrupar {sel.length}</Button>}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 10 }}>
+                {loose.filter((c) => c.columnKey === "idea").map((c) => {
+                  const on = sel.includes(c.id);
+                  const st: React.CSSProperties = { textAlign: "left", background: on ? "var(--green-soft)" : "var(--card)", border: "1px solid " + (on ? "var(--green)" : "var(--line)"), borderLeft: "3px solid var(--st-proof)", borderRadius: "var(--r-md)", padding: "10px 11px", fontSize: "var(--t-sm)", lineHeight: 1.4 };
+                  return isFacil
+                    ? <button key={c.id} onClick={() => setSel((s) => (on ? s.filter((x) => x !== c.id) : [...s, c.id]))} style={st}>{c.text}</button>
+                    : <div key={c.id} style={st}>{c.text}</div>;
+                })}
+                {!loose.filter((c) => c.columnKey === "idea").length && <div style={{ gridColumn: "1/-1", color: "var(--ink-3)", fontSize: "var(--t-sm)", padding: 16, textAlign: "center" }}>Todas agrupadas.</div>}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <span className="eyebrow">Grupos ({clusters.length})</span>
+              {clusters.map((cl) => (
+                <Card key={cl.id} pad={12}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ color: "var(--st-proof)" }}><Icon name="Layers" size={15} /></span>
+                    {isFacil
+                      ? <input defaultValue={cl.name} onBlur={(e) => { if (e.target.value.trim()) renameCluster(cl.id, e.target.value.trim()); }} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", outline: "none", borderBottom: "1px dashed color-mix(in srgb, var(--st-proof) 55%, transparent)" }} />
+                      : <span style={{ flex: 1, fontWeight: 700, fontSize: "var(--t-sm)" }}>{cl.name}</span>}
+                    {isFacil && <button onClick={() => deleteCluster(cl.id)} style={{ color: "var(--ink-3)" }}><Icon name="Trash2" size={14} /></button>}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {cardsOf(cl.id).map((c) => <div key={c.id} style={{ fontSize: "var(--t-xs)", color: "var(--ink-1)", padding: "5px 7px", background: "var(--card-2)", borderRadius: "var(--r-sm)" }}>{c.text}</div>)}
+                  </div>
+                </Card>
+              ))}
+              {!clusters.length && <div style={{ border: "1px dashed var(--line-2)", borderRadius: "var(--r-md)", padding: 18, textAlign: "center", color: "var(--ink-3)", fontSize: "var(--t-sm)" }}>{isFacil ? "Seleccioná ideas y agrupalas." : "Sin grupos aún."}</div>}
+            </div>
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "hmwvote", 5); setBusy(false); }}>Votar las mejores</Button>
+        : null;
+    } else {
+      sub = hmwShown ? "Las 3 ideas más votadas pasan a ¿Cuál elegimos?." : "¿Cuáles probarías? 3 puntos por persona.";
+      const voteItems = clusters.length ? clusters : ideas.map((c) => ({ id: c.id, name: c.text }));
+      const max = Math.max(1, ...voteItems.map((c) => votesByCluster[c.id] ?? 0));
+      const rankedItems = [...voteItems].sort((a, b) => (votesByCluster[b.id] ?? 0) - (votesByCluster[a.id] ?? 0));
+      content = (
+        <>
+          {HmwBanner}
+          {hmwShown ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {rankedItems.map((cl, i) => (
+                <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span className="num" style={{ width: 20, fontWeight: 700, color: i < 3 ? "var(--st-proof)" : "var(--ink-3)" }}>{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}{i < 3 && <Pill color="var(--st-proof)" bg="color-mix(in srgb, var(--st-proof) 14%, transparent)" icon="Star">finalista</Pill>}</div>
+                    <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i < 3 ? "var(--st-proof)" : "var(--violet)"} height={7} />
+                  </div>
+                  <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {!isFacil && <div style={{ textAlign: "center", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Tus puntos:</span>{Array.from({ length: HMW_DOTS }).map((_, i) => <span key={i} style={{ width: 16, height: 16, borderRadius: 99, background: i < hmwRemaining ? "var(--st-proof)" : "var(--card-2)", border: `1px solid ${i < hmwRemaining ? "var(--st-proof)" : "var(--line-2)"}` }} />)}</div>}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {voteItems.map((cl) => { const mine = votes.filter((v) => v.userId === user.id && v.clusterId === cl.id).length; return (
+                  <button key={cl.id} onClick={() => { if (!isFacil && hmwRemaining > 0) castVote(cl.id, 1, hmwRemaining); }}
+                    style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", background: mine > 0 ? "color-mix(in srgb, var(--st-proof) 8%, var(--card))" : "var(--card)", border: `1px solid ${mine > 0 ? "color-mix(in srgb, var(--st-proof) 45%, var(--line))" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "default" : "pointer" }}>
+                    <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "var(--t-sm)" }}>{cl.name}</div>
+                    {!isFacil && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{Array.from({ length: mine }).map((_, k) => <span key={k} style={{ width: 14, height: 14, borderRadius: 99, background: "var(--st-proof)" }} />)}{mine > 0 && <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); castVote(cl.id, -1, hmwRemaining); }} style={{ display: "inline-flex", color: "var(--ink-3)", padding: 3 }}><Icon name="X" size={13} /></span>}</span>}
+                  </button>
+                ); })}
+              </div>
+              <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> {hmwVoters} de {totalInRoom} votaron</p>
+            </>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? (hmwShown
+          ? <Button full size="lg" icon="Check" disabled={busy} onClick={hmwFinish}>{busy ? "Guardando…" : "Cerrar · top 3 a ¿Cuál elegimos?"}</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy || hmwVoters === 0} onClick={() => setResult(sessionId, { voteShown: true })}>Mostrar votación ({hmwVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {HMW_DOTS} puntos.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
