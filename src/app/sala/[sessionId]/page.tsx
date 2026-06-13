@@ -103,6 +103,7 @@ const STEP_SEQ: Record<string, string[]> = {
   journey: ["sdsetup", "sdanalyze", "sdvote", "sddeep", "sdsynth"],
   stacey: ["stintro", "stplace", "streveal", "stzone"],
   hmw: ["hmwframe", "hmwwrite", "hmwreveal", "hmwread", "hmwcluster", "hmwvote"],
+  ideachoose: ["icpresent", "icmatrix", "icice", "icconfirm"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -177,6 +178,8 @@ export default function SalaPage() {
   const [focusSel, setFocusSel] = useState<string | null>(null);
   // Foco: ficha que se está arrastrando en el mapa (posición local en fracción 0-1).
   const [ieDrag, setIeDrag] = useState<{ id: string; x: number; y: number } | null>(null);
+  // ¿Cuál elegimos?: ficha que el facilitador arrastra en la matriz impacto/esfuerzo.
+  const [icDrag, setIcDrag] = useState<{ i: number; x: number; y: number } | null>(null);
   // Timeline: hito y emoción elegidos para el próximo evento del miembro.
   const [tlPick, setTlPick] = useState<{ m: number; emo: "pos" | "neu" | "neg" }>({ m: 0, emo: "pos" });
   const sessionId = params.sessionId;
@@ -3213,6 +3216,170 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 920 : 600 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿CUÁL ELEGIMOS? · matriz impacto/esfuerzo + ICE ════════
+  if (session.type === "ideachoose") {
+    const fromHmw = (initiative?.data?.proof?.finalists as string[] | undefined) ?? [];
+    const icIdeas = (session.result.icIdeas as string[]) ?? fromHmw;
+    const icPos = (session.result.icPos as Record<number, { x: number; y: number }>) ?? {};
+    const posOf = (i: number) => icPos[i] ?? { x: 0.5, y: 0.18 + (i % 5) * 0.14 };
+    const iceAvg = (i: number) => {
+      const xs = inputs.filter((x) => x.key === `ice:${i}`).map((x) => x.value as { imp?: number; conf?: number; eas?: number });
+      if (!xs.length) return null;
+      const a = (k: "imp" | "conf" | "eas") => xs.reduce((s, v) => s + (v[k] ?? 5), 0) / xs.length;
+      return { imp: a("imp"), conf: a("conf"), eas: a("eas"), score: (a("imp") + a("conf") + a("eas")) / 3, n: xs.length };
+    };
+    const myIce = (i: number) => (inputs.find((x) => x.userId === user.id && x.key === `ice:${i}`)?.value as { imp?: number; conf?: number; eas?: number } | undefined) ?? {};
+    const iceRaters = new Set(inputs.filter((x) => x.key.startsWith("ice:")).map((x) => x.voterKey)).size;
+    const iceWinner = icIdeas.length ? icIdeas.map((_, i) => ({ i, s: iceAvg(i)?.score ?? -1 })).reduce((b, x) => (x.s > b.s ? x : b)).i : 0;
+    const icChosen = session.result.icChosen as number | undefined;
+    const QUAD = [
+      { x: 0, y: 0, w: 50, h: 50, c: "var(--green)", label: "alto impacto · bajo esfuerzo" },
+      { x: 50, y: 0, w: 50, h: 50, c: "#EAB308", label: "alto impacto · alto esfuerzo" },
+      { x: 0, y: 50, w: 50, h: 50, c: "#F97316", label: "bajo impacto · bajo esfuerzo" },
+      { x: 50, y: 50, w: 50, h: 50, c: "var(--risk)", label: "bajo impacto · alto esfuerzo" },
+    ];
+    const padXY = (el: HTMLElement, cx: number, cy: number) => { const r = el.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (cx - r.left) / r.width)), y: Math.min(1, Math.max(0, (cy - r.top) / r.height)) }; };
+    const icFinish = async () => {
+      setBusy(true);
+      const chosen = icChosen ?? iceWinner;
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Idea elegida: ${icIdeas[chosen] ?? "—"}`,
+        dataKey: "proof", dataValue: { chosenIdea: icIdeas[chosen] ?? "" },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "icpresent") {
+      sub = isFacil ? "Las ideas finalistas. Podés ajustar la lista antes de la matriz." : "Las ideas finalistas que vamos a comparar.";
+      content = (
+        <Card pad={20}>
+          {!fromHmw.length && isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 10 }}>No vinieron de ¿Cómo podríamos?. Cargalas a mano.</p>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {icIdeas.map((t, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                <span className="num" style={{ color: "var(--st-proof)", fontWeight: 800 }}>{i + 1}</span>
+                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{t}</span>
+                {isFacil && <button onClick={() => patchResult({ icIdeas: icIdeas.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={14} /></button>}
+              </div>
+            ))}
+            {!icIdeas.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin ideas todavía.</p>}
+          </div>
+          {isFacil && (
+            <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+              <input value={cardDraft.icadd ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, icadd: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter" && (cardDraft.icadd ?? "").trim()) { patchResult({ icIdeas: [...icIdeas, cardDraft.icadd!.trim()] }); setCardDraft((d) => ({ ...d, icadd: "" })); } }} placeholder="Agregar idea…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={() => { if ((cardDraft.icadd ?? "").trim()) { patchResult({ icIdeas: [...icIdeas, cardDraft.icadd!.trim()] }); setCardDraft((d) => ({ ...d, icadd: "" })); } }}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || icIdeas.length < 2} onClick={async () => { setBusy(true); if (!session.result.icIdeas) await setResult(sessionId, { icIdeas }); await setStep(sessionId, "icmatrix", 1); setBusy(false); }}>Ubicar en la matriz ({icIdeas.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>En un momento las ubican en la matriz.</p>;
+    } else if (step === "icmatrix") {
+      wide = true;
+      sub = isFacil ? "Arrastrá cada idea según su impacto y esfuerzo. La esquina verde es la zona ganadora." : "El equipo ubica las ideas por impacto y esfuerzo.";
+      content = (
+        <Card pad={16}>
+          <div onPointerMove={(e) => { if (!icDrag) return; const c = padXY(e.currentTarget, e.clientX, e.clientY); setIcDrag({ ...icDrag, ...c }); }}
+            onPointerUp={(e) => { if (!icDrag) return; const c = padXY(e.currentTarget, e.clientX, e.clientY); patchResult({ icPos: { ...((resultRef.current.icPos as Record<number, { x: number; y: number }>) ?? {}), [icDrag.i]: c } }); setIcDrag(null); }}
+            style={{ position: "relative", width: "100%", aspectRatio: "3/2", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", overflow: "hidden", touchAction: isFacil ? "none" : "auto" }}>
+            {QUAD.map((q, k) => <div key={k} style={{ position: "absolute", left: `${q.x}%`, top: `${q.y}%`, width: `${q.w}%`, height: `${q.h}%`, background: `color-mix(in srgb, ${q.c} 8%, transparent)` }} />)}
+            <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "var(--line-2)" }} />
+            <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: "var(--line-2)" }} />
+            <span className="muted" style={{ position: "absolute", top: 6, left: 8, fontSize: 10 }}>IMPACTO ↑</span>
+            <span className="muted" style={{ position: "absolute", bottom: 6, right: 8, fontSize: 10 }}>ESFUERZO →</span>
+            <span style={{ position: "absolute", top: 6, left: "26%", fontSize: 9, color: "var(--green)", fontWeight: 800, transform: "translateX(-50%)" }}>★ ganá acá</span>
+            {icIdeas.map((t, i) => {
+              const dragging = icDrag?.i === i;
+              const p = dragging ? { x: icDrag!.x, y: icDrag!.y } : posOf(i);
+              return (
+                <button key={i} disabled={!isFacil} title={t}
+                  onPointerDown={(e) => { if (!isFacil) return; e.stopPropagation(); (e.currentTarget.parentElement as HTMLElement)?.setPointerCapture(e.pointerId); const c = padXY(e.currentTarget.parentElement as HTMLElement, e.clientX, e.clientY); setIcDrag({ i, ...c }); }}
+                  style={{ position: "absolute", left: `${p.x * 100}%`, top: `${p.y * 100}%`, transform: "translate(-50%,-50%)", maxWidth: 150, display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: "var(--r-full)", background: "var(--st-proof)", color: "#fff", fontSize: "var(--t-xs)", fontWeight: 700, boxShadow: `0 0 ${dragging ? 16 : 8}px color-mix(in srgb, var(--st-proof) 60%, transparent)`, cursor: isFacil ? "grab" : "default", touchAction: "none", zIndex: dragging ? 3 : 1, lineHeight: 1.25 }}>
+                  <span className="num" style={{ flexShrink: 0 }}>{i + 1}</span><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      );
+      controls = isFacil
+        ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Button full size="lg" icon="Check" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "icconfirm", 3); setBusy(false); }}>Hay una clara ganadora → elegir</Button>
+            <Button full variant="secondary" icon="Scale" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "icice", 2); setBusy(false); }}>Hay debate → desempatar con ICE</Button>
+          </div>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Sugerí posiciones por reacción/voz. El facilitador mueve las fichas.</p>;
+    } else if (step === "icice") {
+      sub = "Desempate ICE: puntuá cada idea (impacto · confianza · facilidad), del 1 al 10.";
+      content = isFacil ? (
+        <>
+          <Card pad={20} style={{ marginBottom: 14 }}><div style={{ textAlign: "center" }}><div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--green)" }}>{iceRaters}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>puntuaron</div></div></Card>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {icIdeas.map((t, i) => { const a = iceAvg(i); const win = a && i === iceWinner; return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: win ? "color-mix(in srgb, var(--st-proof) 10%, var(--card))" : "var(--card)", border: `1px solid ${win ? "var(--st-proof)" : "var(--line)"}`, borderRadius: "var(--r-md)" }}>
+                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{t}{win && <Pill color="var(--st-proof)" bg="color-mix(in srgb, var(--st-proof) 14%, transparent)" icon="Star">mayor ICE</Pill>}</span>
+                <span className="num" style={{ fontWeight: 800, color: "var(--st-proof)", fontSize: "var(--t-lg)" }}>{a ? a.score.toFixed(1) : "—"}</span>
+              </div>
+            ); })}
+          </div>
+        </>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {icIdeas.map((t, i) => { const r = myIce(i); return (
+            <Card key={i} pad={16}>
+              <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 10 }}>{i + 1}. {t}</div>
+              {([["imp", "Impacto"], ["conf", "Confianza"], ["eas", "Facilidad"]] as const).map(([k, lab]) => (
+                <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <span style={{ width: 76, fontSize: "var(--t-xs)", fontWeight: 600 }}>{lab}</span>
+                  <input type="range" min={1} max={10} value={(r as Record<string, number>)[k] ?? 5} onChange={(e) => tapInput(`ice:${i}`, { ...r, [k]: Number(e.target.value) })} style={{ flex: 1, accentColor: "var(--st-proof)" }} />
+                  <span className="num" style={{ width: 18, fontWeight: 800, color: "var(--st-proof)" }}>{(r as Record<string, number>)[k] ?? "—"}</span>
+                </div>
+              ))}
+            </Card>
+          ); })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || iceRaters === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "icconfirm", 3); setBusy(false); }}>Ver la elegida</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Puntuá las {icIdeas.length} ideas.</p>;
+    } else {
+      sub = "La idea que vamos a probar. El equipo confirma.";
+      const chosen = icChosen ?? iceWinner;
+      content = (
+        <>
+          <Card pad={24} style={{ textAlign: "center", border: "1.5px solid var(--st-proof)" }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🎯</div>
+            <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>La idea elegida</div>
+            <div style={{ fontSize: "var(--t-lg)", fontWeight: 800, lineHeight: 1.4 }}>{icIdeas[chosen] ?? "—"}</div>
+            {iceAvg(chosen) && <div className="num muted" style={{ fontSize: "var(--t-sm)", marginTop: 6 }}>ICE {iceAvg(chosen)!.score.toFixed(1)}/10</div>}
+          </Card>
+          {isFacil && icIdeas.length > 1 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>¿Otra? Elegí manualmente</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {icIdeas.map((t, i) => <button key={i} onClick={() => patchResult({ icChosen: i })} style={{ fontSize: "var(--t-xs)", padding: "6px 11px", borderRadius: "var(--r-full)", border: `1px solid ${i === chosen ? "var(--st-proof)" : "var(--line-2)"}`, background: i === chosen ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", color: i === chosen ? "var(--st-proof)" : "var(--ink-2)", fontWeight: 600 }}>{i + 1}. {t.length > 30 ? t.slice(0, 30) + "…" : t}</button>)}
+              </div>
+            </div>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={icFinish}>{busy ? "Guardando…" : "Cerrar con esta idea"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador confirma la idea elegida.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 760 : 600 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

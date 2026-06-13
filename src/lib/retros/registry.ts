@@ -418,7 +418,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Desempate ICE (si hace falta)", minutes: 7 },
       { name: "Confirmación de la elegida", minutes: 2 },
     ],
-    sessionType: "ideachoose", entryStep: "icpresent", implemented: false,
+    sessionType: "ideachoose", entryStep: "icpresent", implemented: true,
   },
   {
     id: "ideation-what-could-fail", name: "¿Qué podría fallar?", stage: "ideation", category: "growthloop",
