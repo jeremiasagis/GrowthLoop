@@ -147,6 +147,7 @@ const STEP_SEQ: Record<string, string[]> = {
   lwteam: ["lwtframe", "lwteval", "lwtreveal", "lwtadjust", "lwtprivate", "lwtclose"],
   fourls: ["flcontext", "flwrite", "flreveal", "flvote", "fltalk", "flexport", "flclose"],
   kudos: ["kudwrite", "kuddeliver", "kudclose"],
+  letter: ["ltframe", "ltwrite", "ltread", "lttheme", "ltclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -6558,6 +6559,115 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 720 : 600 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ CARTA AL EQUIPO FUTURO · memoria narrativa (Aprendizaje G) ════════
+  if (session.type === "letter") {
+    const r = session.result;
+    const defaultTarget = (() => { const d = new Date(now); d.setMonth(d.getMonth() + 3); return d.toISOString().slice(0, 10); })();
+    const targetDate = (r.ltTargetDate as string) || defaultTarget;
+    const fmtLong = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" }); };
+    const letters = inputs.filter((i) => i.key === "letter").map((i) => ({ uid: i.userId, text: (i.value as { text?: string }).text ?? "", name: participants.find((p) => p.userId === i.userId)?.name ?? "alguien" })).filter((l) => l.text.trim());
+    const myLetter = (inputs.find((i) => i.userId === user.id && i.key === "letter")?.value as { text?: string } | undefined)?.text ?? "";
+    const written = inputs.filter((i) => i.key === "letter" && ((i.value as { text?: string }).text ?? "").trim()).length;
+    const commits = (r.ltCommit as string[]) ?? ["", "", ""];
+    const setCommit = (i: number, val: string) => { const arr = (((resultRef.current.ltCommit as string[]) ?? commits)).slice(); while (arr.length <= i) arr.push(""); arr[i] = val; patchResult({ ltCommit: arr }); };
+    const ltFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Carta al equipo futuro · ${letters.length} cartas`,
+        dataKey: "learn", dataValue: { commitments: commits.filter((c) => c.trim()), letterDate: targetDate, closeWords },
+        noAdvance: true,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "ltframe") {
+      sub = "Le escribimos al equipo del futuro. ¿Qué queremos que recuerden de este ciclo?";
+      content = (
+        <Card pad={24} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 34, marginBottom: 10 }}>✉️</div>
+          <div className="eyebrow" style={{ marginBottom: 4 }}>Destinatario</div>
+          <p style={{ fontSize: "var(--t-lg)", fontWeight: 800, lineHeight: 1.4 }}>El equipo {team?.name ?? ""}<br /><span style={{ color: "var(--st-learn)" }}>el {fmtLong(targetDate)}</span></p>
+          {isFacil && (
+            <div style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span className="muted" style={{ fontSize: "var(--t-xs)" }}>Fecha objetivo:</span>
+              <input type="date" defaultValue={targetDate} onBlur={(e) => { if (e.target.value) patchResult({ ltTargetDate: e.target.value }); }} style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 14, lineHeight: 1.5 }}>La carta queda guardada con esta fecha y aparece como recordatorio in-app cuando llegue el momento.</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "ltwrite", 1); setBusy(false); }}>Escribir las cartas</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el ejercicio.</p>;
+    } else if (step === "ltwrite") {
+      sub = "Tu carta, a tu manera. No anónima.";
+      content = isFacil ? (
+        <Card pad={24} style={{ textAlign: "center" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--st-learn)" }}>{written}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>escribieron su carta</div></Card>
+      ) : (
+        <Card pad={20}>
+          <div style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 12, padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)" }}>
+            Estructura sugerida (no obligatoria):<br />· Lo más importante que aprendimos fue…<br />· Si pudiéramos volver a hacer X lo haríamos diferente porque…<br />· Lo que queremos que recuerden es…<br />· El consejo más importante que les damos es…
+          </div>
+          <textarea defaultValue={myLetter} onBlur={(e) => setMyInput(sessionId, "letter", { text: e.target.value })} rows={8} placeholder="Querido equipo del futuro…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.6, resize: "vertical" }} />
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || written === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "ltread", 2); setBusy(false); }}>Lectura compartida ({written})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escribí tu carta. El facilitador abre la lectura cuando estén.</p>;
+    } else if (step === "ltread") {
+      sub = "Cada uno lee su carta en voz alta. Escuchamos en silencio.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {letters.map((l, i) => (
+            <Card key={l.uid} pad={16} style={{ animation: `pop-in .4s var(--spring) ${i * 0.05}s both` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><Avatar name={l.name} size={26} idx={i} /><b style={{ fontSize: "var(--t-sm)" }}>{l.name}</b></div>
+              <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{l.text}</p>
+            </Card>
+          ))}
+          {!letters.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Todavía no hay cartas.</p>}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lttheme", 3); setBusy(false); }}>Identificar temas comunes</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escuchá las cartas del equipo.</p>;
+    } else if (step === "lttheme") {
+      sub = "Los temas que se repiten se vuelven compromisos del equipo para el próximo ciclo.";
+      content = (
+        <Card pad={20}>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Compromisos del equipo (lo que se repite en las cartas)</div>
+          {isFacil ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[0, 1, 2].map((i) => <input key={i} defaultValue={commits[i] ?? ""} onBlur={(e) => setCommit(i, e.target.value)} placeholder={`Compromiso ${i + 1}…`} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />)}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {commits.filter((c) => c.trim()).length ? commits.filter((c) => c.trim()).map((c, i) => <div key={i} style={{ fontSize: "var(--t-sm)", display: "flex", gap: 6 }}><Icon name="Flag" size={14} style={{ color: "var(--st-learn)" }} /><span>{c}</span></div>) : <p className="muted" style={{ fontSize: "var(--t-sm)" }}>El facilitador está identificando los temas…</p>}
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12 }}>Quedan visibles en el dashboard del equipo.</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "ltclose", 4); setBusy(false); }}>Cerrar con una palabra</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador identifica los temas comunes.</p>;
+    } else {
+      sub = "El ritual de cierre del ciclo.";
+      content = learnClosing();
+      controls = learnCloseControls(ltFinish);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: 640 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}

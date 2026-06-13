@@ -718,7 +718,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Lectura compartida", minutes: 10 },
       { name: "Temas comunes → compromisos", minutes: 5 },
     ],
-    sessionType: "letter", entryStep: "ltframe", implemented: false,
+    sessionType: "letter", entryStep: "ltframe", implemented: true,
   },
   {
     id: "learn-speed-dating", name: "Speed Dating", stage: "learn", category: "classic",
