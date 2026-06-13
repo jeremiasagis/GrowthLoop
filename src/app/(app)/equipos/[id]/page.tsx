@@ -9,7 +9,7 @@ import {
 } from "@/components/ui";
 import {
   createInitiative, createObjective, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
-  removeTeamMember, setInitiativeObjective, setInitiativeStage, setInitiativeStatus, setObjectiveStatus, setTeamCadence, setTeamObjective, updateInitiative,
+  markCelebrated, removeTeamMember, setInitiativeObjective, setInitiativeStage, setInitiativeStatus, setObjectiveStatus, setTeamCadence, setTeamObjective, updateInitiative,
 } from "@/lib/repository";
 import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, teamLiveStage, to5, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -19,6 +19,7 @@ import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage } from "@/lib/retros/registry";
 import { FodaGrid } from "@/components/FodaGrid";
 import { MemoryCard } from "@/components/RetroResult";
+import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
 
 function SessionsLog({ team }: { team: Team }) {
@@ -987,6 +988,24 @@ export default function TeamPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delBusy, setDelBusy] = useState(false);
+  const [celeb, setCeleb] = useState<{ title: string; subtitle?: string; emoji: string } | null>(null);
+
+  // Celebración: confetti al subir de nivel o cerrar un ciclo (la 1ª vez fija la
+  // línea de base en silencio para no festejar el historial retroactivo).
+  useEffect(() => {
+    if (!team) return;
+    const g = teamProgress(team);
+    const cel = team.data?.celebrated;
+    if (!cel) { markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles }); return; }
+    if (g.cycles > cel.cycles) {
+      setCeleb({ title: "¡Ciclo de mejora cerrado! 🎉", subtitle: `El equipo completó ${g.cycles} ${g.cycles === 1 ? "mejora" : "mejoras"} de punta a punta`, emoji: "🏆" });
+      markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles });
+    } else if (g.level.idx > cel.level) {
+      setCeleb({ title: `¡Subieron a Nivel ${g.level.idx + 1}!`, subtitle: g.level.name, emoji: "⭐" });
+      markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [team?.id, team?.sessions.length, team?.initiatives?.filter((i) => i.status === "done").length]);
 
   if (!team) return <div className="screen-pad">Equipo no encontrado.</div>;
   const lead = team.facilitatorId ? getFacilitators().find((f) => f.id === team.facilitatorId) : undefined;
@@ -1003,6 +1022,7 @@ export default function TeamPage() {
 
   return (
     <div className="screen-pad">
+      <Celebration show={!!celeb} title={celeb?.title ?? ""} subtitle={celeb?.subtitle} emoji={celeb?.emoji} onDone={() => setCeleb(null)} />
       <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", marginBottom: 14 }}>
         <button onClick={() => router.push("/organizaciones")} className="muted">Organizaciones</button>
         <span className="faint"><Icon name="ChevronRight" size={13} /></span>

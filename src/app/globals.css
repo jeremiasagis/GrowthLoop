@@ -197,6 +197,11 @@ a { color: inherit; text-decoration: none; }
 /* modo escenario (proyección): agranda y oculta el chrome del facilitador */
 .stage-mode { font-size: 1.12em; }
 .stage-mode .stage-hide { display: none !important; }
+
+/* confetti: cae girando desde arriba */
+@keyframes gl-confetti { 0% { transform: translateY(-12vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(104vh) rotate(720deg); opacity: 0.9; } }
+/* cartel de celebración: entra con un golpe */
+@keyframes gl-celebrate { 0% { opacity: 0; transform: scale(0.6) translateY(20px); } 55% { opacity: 1; transform: scale(1.06) translateY(0); } 100% { opacity: 1; transform: scale(1); } }
 /* tablero-escena: 4 zonas en las esquinas con el centro libre para el dibujo */
 .scene-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: clamp(70px, 14vw, 160px); row-gap: 56px; padding: 18px; position: relative; }
 @media (max-width: 720px) {

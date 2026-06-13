@@ -217,6 +217,8 @@ export interface TeamData {
   objective?: TeamObjective; // el "Norte" del equipo
   cadence?: { everyDays: number }; // ritmo sugerido (7 = semanal, 14 = quincenal)
   foda?: { f?: string[]; o?: string[]; d?: string[]; a?: string[]; date?: string }; // diagnóstico FODA inicial
+  explorationClosedAt?: string; // ISO; cuándo se cerró el módulo de Exploración
+  celebrated?: { level: number; cycles: number }; // hasta dónde ya festejamos (evita repetir confetti)
 }
 
 /** El "Norte" del equipo: a qué apuntan las iniciativas de mejora. */

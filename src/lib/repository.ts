@@ -187,6 +187,11 @@ export async function setTeamCadence(teamId: string, everyDays: number): Promise
   return mergeTeamData(teamId, { cadence: { everyDays } });
 }
 
+/** Marca hasta qué nivel/ciclos ya celebramos (para no repetir el confetti). */
+export async function markCelebrated(teamId: string, celebrated: { level: number; cycles: number }): Promise<{ error?: string }> {
+  return mergeTeamData(teamId, { celebrated });
+}
+
 /** El superadmin asigna qué admin gestiona una organización. */
 export async function assignOrgAdmin(orgId: string, adminEmail: string | null): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();

@@ -10,6 +10,7 @@ export interface Achievement { key: string; label: string; icon: string; desc: s
 export interface TeamLevel { idx: number; name: string; min: number; next: number | null }
 export interface TeamProgress {
   xp: number;
+  cycles: number;            // ciclos de mejora cerrados
   level: TeamLevel;
   toNext: number;            // XP que falta para el próximo nivel (0 si es el último)
   pct: number;               // 0-100 dentro del nivel actual
@@ -112,7 +113,7 @@ export function teamProgress(team: Team, nowMs: number = Date.now()): TeamProgre
     if (active) mission = { label: `Avancen "${active.title}" en su etapa actual`, tab: "seguimiento" };
   }
 
-  return { xp, level, toNext, pct, streak, cadenceDays, achievements, unlocked, mission };
+  return { xp, cycles, level, toNext, pct, streak, cadenceDays, achievements, unlocked, mission };
 }
 
 function uniqueExploreRetros(sessions: SessionLog[]): number {
