@@ -599,7 +599,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Votación · 3 puntos", minutes: 3 },
       { name: "Acciones de ajuste + cierre", minutes: 10 },
     ],
-    sessionType: "starfish", implemented: false,
+    sessionType: "starfish", implemented: true,
   },
   {
     id: "learn-cycle-close", name: "Cierre del ciclo", stage: "learn", category: "growthloop",

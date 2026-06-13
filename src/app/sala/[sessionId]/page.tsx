@@ -83,6 +83,13 @@ const RETRO_COLS: Record<string, { key: string; label: string; color: string; ic
     { key: "keep",    label: "✅ Keep · preservar",  color: "#3B82F6",        icon: "Check" },
     { key: "improve", label: "🔧 Improve · mejorar", color: "var(--warning)", icon: "Wrench" },
   ],
+  starfish: [
+    { key: "keep",  label: "⭐ Seguir · lo que funciona, mantenerlo",   color: "var(--success)", icon: "Star" },
+    { key: "more",  label: "➕ Más de · intensificar lo que rinde",    color: "#3B82F6",        icon: "TrendingUp" },
+    { key: "less",  label: "➖ Menos de · bajar lo que no aporta",      color: "var(--warning)", icon: "TrendingDown" },
+    { key: "start", label: "🚀 Empezar · algo nuevo que falta probar", color: "var(--st-follow)", icon: "Play" },
+    { key: "stop",  label: "🛑 Dejar · lo que no funciona, cortarlo",  color: "var(--risk)",    icon: "CircleStop" },
+  ],
 };
 
 // FODA del equipo: matriz 2×2 (internas arriba, externas abajo), anónimo hasta revelar.
@@ -130,6 +137,7 @@ const STEP_SEQ: Record<string, string[]> = {
   roti: ["rtscore", "rtreveal", "rttalk"],
   fwperfection: ["fpframe", "fpscore", "fpreveal", "fpactions"],
   fwradar: ["rbase", "rate", "rcompare", "rtalk"],
+  starfish: ["cards", "cards_reveal", "cluster", "vote", "close"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -5904,11 +5912,17 @@ export default function SalaPage() {
       // para que las sugiera "Diseño de la prueba".
       const IDEATION_BOARD = ["startstop", "daki"];
       const finalists = ranked.slice(0, 3).map((c) => c.name);
+      // Starfish es de Seguimiento: sus ajustes priorizados van a follow.newActions.
+      const isFollowBoard = session.type === "starfish";
+      const dataKey = isFollowBoard && finalists.length ? "follow" : (IDEATION_BOARD.includes(session.type) && finalists.length ? "proof" : undefined);
+      const dataValue = isFollowBoard && finalists.length
+        ? { newActions: finalists.map((name) => ({ text: name, who: "" })) }
+        : (IDEATION_BOARD.includes(session.type) && finalists.length ? { finalists } : undefined);
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: allCards.length,
         summaryText: ranked[0] ? `top: ${ranked[0].name}` : (tops[0] ?? `${allCards.length} tarjetas`),
-        dataKey: IDEATION_BOARD.includes(session.type) && finalists.length ? "proof" : undefined,
-        dataValue: IDEATION_BOARD.includes(session.type) && finalists.length ? { finalists } : undefined,
+        dataKey,
+        dataValue,
       });
       setBusy(false); leave(); return;
     }
