@@ -433,7 +433,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Votación · top 3 riesgos", minutes: 2 },
       { name: "Mitigaciones (responsable + fecha)", minutes: 7 },
     ],
-    sessionType: "premortem", entryStep: "pmframe", implemented: false,
+    sessionType: "premortem", entryStep: "pmframe", implemented: true,
   },
   {
     id: "ideation-experiment-design", name: "Diseño de la prueba", stage: "ideation", category: "growthloop",
