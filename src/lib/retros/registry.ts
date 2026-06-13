@@ -447,7 +447,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "3 filtros de validación", minutes: 5 },
       { name: "Confirmación colectiva", minutes: 3 },
     ],
-    sessionType: "betdesign", entryStep: "bdcontext", implemented: false,
+    sessionType: "betdesign", entryStep: "bdcontext", implemented: true,
   },
   {
     id: "ideation-start-stop-continue", name: "Start · Stop · Continue", stage: "ideation", category: "classic",

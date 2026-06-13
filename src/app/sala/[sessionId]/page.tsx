@@ -105,6 +105,7 @@ const STEP_SEQ: Record<string, string[]> = {
   hmw: ["hmwframe", "hmwwrite", "hmwreveal", "hmwread", "hmwcluster", "hmwvote"],
   ideachoose: ["icpresent", "icmatrix", "icice", "icconfirm"],
   premortem: ["pmframe", "pmwrite", "pmcat", "pmvote", "pmmitigate", "pmclose"],
+  betdesign: ["bdcontext", "bdtemplate", "bdfilters", "bdconfirm"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -3252,6 +3253,175 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 860 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ DISEÑO DE LA PRUEBA · la apuesta + 3 filtros ════════
+  if (session.type === "betdesign") {
+    const pd = initiative?.data?.proof;
+    const r = session.result;
+    const f = (k: string, fallback = "") => (r[k] as string) ?? fallback;
+    const others = (r.bdOthers as string[]) ?? [];
+    const filters = [
+      { k: "bdF1", q: "¿Es observable?", bad: "“Mejorar la comunicación”", good: "“Reducir de 3 a 1 las reuniones sin acuerdos por semana”", fix: "Reformulá la señal para que se vea sin interpretación subjetiva." },
+      { k: "bdF2", q: "¿Es medible en 15 días?", bad: "“Cambiar la cultura del equipo”", good: "“3 entregas a tiempo esta quincena”", fix: "Ajustá el plazo o la señal para que el cambio sea visible en el tiempo definido." },
+      { k: "bdF3", q: "¿Depende solo del equipo?", bad: "“Que el cliente apruebe más rápido”", good: "“Mandar el informe 2 días antes”", fix: "Reformulá para que la señal sea algo que el equipo controla directamente." },
+    ];
+    const allFilters = filters.every((x) => r[x.k] === true);
+    const bdOks = new Set(inputs.filter((i) => i.key === "bdok").map((i) => i.userId));
+    const iBdOk = bdOks.has(user.id);
+    const bdFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Prueba: ${f("bdThen") || f("bdIf") || "diseñada"}`,
+        dataKey: "proof",
+        dataValue: {
+          betIf: f("bdIf"), betThen: f("bdThen"), signalMetric: f("bdSignal"), signalTarget: f("bdThreshold"),
+          signalHow: f("bdAction"), responsible: f("bdResp"), deadline: f("bdDeadline"),
+          actions: f("bdAction") ? [{ text: f("bdAction"), who: f("bdResp") }] : undefined,
+        },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "bdcontext") {
+      sub = "Todo lo que sabemos, antes de diseñar la prueba.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {pd?.chosenIdea && <Card pad={16}><div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 4 }}>La idea que vamos a probar</div><div style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{pd.chosenIdea}</div></Card>}
+          {initiative?.data?.focus?.rootCause && <Card pad={16}><div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 4 }}>La causa raíz (de Foco)</div><div style={{ fontSize: "var(--t-sm)" }}>{initiative.data.focus.rootCause}</div></Card>}
+          {!!(pd?.mitigations?.length) && (
+            <Card pad={16}>
+              <div className="eyebrow" style={{ color: "var(--risk)", marginBottom: 8 }}>Riesgos a vigilar (de ¿Qué podría fallar?)</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pd.mitigations!.map((m, i) => <div key={i} style={{ fontSize: "var(--t-sm)" }}><b>{m.risk}</b>{m.plan ? <span className="muted"> → {m.plan}</span> : null}</div>)}
+              </div>
+            </Card>
+          )}
+          {!pd?.chosenIdea && !initiative?.data?.focus?.rootCause && <Card pad={16}><p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin contexto previo de Foco/Ideación — lo definimos directamente en el template.</p></Card>}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "bdtemplate", 1); setBusy(false); }}>Diseñar la apuesta</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador repasa el contexto.</p>;
+    } else if (step === "bdtemplate") {
+      wide = true;
+      sub = isFacil ? "Completá la apuesta con el equipo." : "El equipo diseña la apuesta. Sugerí por voz/reacción.";
+      const ta: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" };
+      const Field = ({ k, label, placeholder, rows }: { k: string; label: string; placeholder?: string; rows?: number }) => (
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 5 }}>{label}</div>
+          {isFacil
+            ? (rows ? <textarea defaultValue={f(k)} onBlur={(e) => patchResult({ [k]: e.target.value.trim() })} rows={rows} placeholder={placeholder} style={ta} /> : <input defaultValue={f(k)} onBlur={(e) => patchResult({ [k]: e.target.value.trim() })} placeholder={placeholder} style={ta} />)
+            : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, color: f(k) ? "var(--ink-0)" : "var(--ink-3)" }}>{f(k) || placeholder}</p>}
+        </div>
+      );
+      content = (
+        <Card pad={20}>
+          <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 28%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.7, marginBottom: 16 }}>
+            Creemos que si <b style={{ color: f("bdIf") ? "var(--st-proof)" : "var(--ink-3)" }}>{f("bdIf") || "[acción]"}</b>, lograremos <b style={{ color: f("bdThen") ? "var(--st-proof)" : "var(--ink-3)" }}>{f("bdThen") || "[resultado]"}</b>. Lo mediremos con <b style={{ color: f("bdSignal") ? "var(--st-proof)" : "var(--ink-3)" }}>{f("bdSignal") || "[señal]"}</b>{f("bdDeadline") ? <> antes del <b style={{ color: "var(--st-proof)" }}>{f("bdDeadline")}</b></> : " [fecha]"}.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Field k="bdIf" label="Si… (la acción)" placeholder="¿Qué exactamente vamos a hacer distinto?" rows={2} />
+            <Field k="bdThen" label="…lograremos (el resultado)" placeholder="¿Qué esperamos que cambie?" />
+            {pd?.bullseye && !f("bdSignal") && <p className="muted" style={{ fontSize: "var(--t-xs)" }}>Sugerencia de The Archer: {pd.bullseye}</p>}
+            <Field k="bdSignal" label="Señal de avance" placeholder="¿Qué número/observación nos dice que va bien?" />
+            <Field k="bdThreshold" label="Umbral de éxito (número concreto)" placeholder="Ej: de 5 a 1 por semana" />
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <div className="eyebrow" style={{ marginBottom: 5 }}>Responsable</div>
+                {isFacil
+                  ? <select defaultValue={f("bdResp")} onChange={(e) => patchResult({ bdResp: e.target.value })} style={ta}><option value="">Elegir…</option>{(team?.members ?? []).map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}</select>
+                  : <p style={{ fontSize: "var(--t-sm)" }}>{f("bdResp") || "—"}</p>}
+              </div>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <div className="eyebrow" style={{ marginBottom: 5 }}>Fecha de revisión</div>
+                {isFacil ? <input type="date" defaultValue={f("bdDeadline")} onBlur={(e) => patchResult({ bdDeadline: e.target.value })} style={ta} /> : <p style={{ fontSize: "var(--t-sm)" }}>{f("bdDeadline") || "—"}</p>}
+              </div>
+            </div>
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>Otros involucrados</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {(team?.members ?? []).map((m) => { const on = others.includes(m.name); return (
+                  <button key={m.name} disabled={!isFacil} onClick={() => { const cur = new Set((resultRef.current.bdOthers as string[]) ?? others); if (cur.has(m.name)) cur.delete(m.name); else cur.add(m.name); patchResult({ bdOthers: [...cur] }); }}
+                    style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", border: `1px solid ${on ? "var(--st-proof)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--st-proof) 14%, var(--card))" : "var(--card)", color: on ? "var(--st-proof)" : "var(--ink-2)", fontWeight: 600 }}>{m.name}</button>
+                ); })}
+              </div>
+            </div>
+          </div>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !f("bdIf") || !f("bdThen") || !f("bdSignal")} onClick={async () => { setBusy(true); await setStep(sessionId, "bdfilters", 2); setBusy(false); }}>Validar con los 3 filtros</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador completa la apuesta.</p>;
+    } else if (step === "bdfilters") {
+      sub = "3 filtros obligatorios. No avanzamos hasta que los 3 estén en verde.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {filters.map((flt) => {
+            const v = r[flt.k] as boolean | undefined;
+            return (
+              <Card key={flt.k} pad={16} style={{ border: `1px solid ${v === true ? "var(--green)" : v === false ? "var(--risk)" : "var(--line)"}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 700, fontSize: "var(--t-sm)", flex: 1 }}>{flt.q}</span>
+                  {isFacil ? (
+                    <span style={{ display: "flex", gap: 6 }}>
+                      <Button size="sm" variant={v === true ? "primary" : "secondary"} icon="Check" onClick={() => patchResult({ [flt.k]: true })}>Sí</Button>
+                      <Button size="sm" variant={v === false ? "primary" : "secondary"} icon="X" onClick={() => patchResult({ [flt.k]: false })}>No</Button>
+                    </span>
+                  ) : <span style={{ color: v === true ? "var(--green)" : v === false ? "var(--risk)" : "var(--ink-3)", fontWeight: 700 }}>{v === true ? "✅" : v === false ? "❌" : "○"}</span>}
+                </div>
+                {v === false && (
+                  <div style={{ marginTop: 10, padding: "9px 11px", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 35%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-xs)", lineHeight: 1.5 }}>
+                    <Icon name="Lightbulb" size={13} style={{ color: "var(--warning)" }} /> {flt.fix}<br /><span className="muted">Mal: {flt.bad} · Bien: {flt.good}</span>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+          {!allFilters && <p className="muted" style={{ fontSize: "var(--t-xs)", textAlign: "center" }}><Icon name="Lock" size={12} /> La prueba se confirma cuando los 3 filtros están en verde.</p>}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !allFilters} onClick={async () => { setBusy(true); await setStep(sessionId, "bdconfirm", 3); setBusy(false); }}>{allFilters ? "Pasar a la confirmación" : "Faltan filtros en verde"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador valida los 3 filtros.</p>;
+    } else {
+      sub = "La prueba está lista. Cada uno se compromete a ejecutarla.";
+      content = (
+        <>
+          <Card pad={20} style={{ marginBottom: 14, border: "1.5px solid var(--st-proof)" }}>
+            <div className="eyebrow" style={{ color: "var(--st-proof)", marginBottom: 6 }}>Nuestra apuesta</div>
+            <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.6 }}>Si <b>{f("bdIf")}</b>, lograremos <b>{f("bdThen")}</b>. Lo mediremos con <b>{f("bdSignal")}</b>{f("bdThreshold") ? <> ({f("bdThreshold")})</> : null}{f("bdDeadline") ? <> antes del <b>{f("bdDeadline")}</b></> : null}.</p>
+            {f("bdResp") && <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Responsable: <b style={{ color: "var(--ink-0)" }}>{f("bdResp")}</b>{others.length ? ` · con ${others.join(", ")}` : ""}</p>}
+          </Card>
+          <div style={{ textAlign: "center" }}>
+            {!isFacil
+              ? (iBdOk ? <span style={{ color: "var(--green)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="CircleCheck" size={18} /> Te comprometiste a ejecutarla</span> : <Button size="lg" icon="HandHeart" onClick={() => tapInput("bdok", { ok: true })}>Entiendo la prueba y me comprometo</Button>)
+              : (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                    {(team?.members ?? []).map((m, i) => <span key={m.name} title={m.name} style={{ position: "relative" }}><Avatar name={m.name} initials={m.initials} size={32} idx={i} />{[...bdOks].some((id) => participants.find((p) => p.userId === id)?.name === m.name) && <span style={{ position: "absolute", bottom: -2, right: -2, background: "var(--green)", borderRadius: 99, width: 14, height: 14, display: "grid", placeItems: "center" }}><Icon name="Check" size={9} style={{ color: "#fff" }} /></span>}</span>)}
+                  </div>
+                  <span className="num muted" style={{ fontSize: "var(--t-sm)" }}>{bdOks.size}/{totalInRoom} se comprometieron</span>
+                </div>
+              )}
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Rocket" disabled={busy} onClick={bdFinish}>{busy ? "Guardando…" : bdOks.size >= totalInRoom ? "Cerrar · la prueba arranca" : `Cerrar (${bdOks.size}/${totalInRoom} confirmaron)`}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra cuando el equipo se comprometió.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 760 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
