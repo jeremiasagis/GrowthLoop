@@ -19,6 +19,7 @@ import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage } from "@/lib/retros/registry";
 import { FodaGrid } from "@/components/FodaGrid";
 import { MemoryCard } from "@/components/RetroResult";
+import { teamProgress } from "@/lib/gamification";
 
 function SessionsLog({ team }: { team: Team }) {
   const [n, setN] = useState(8);
@@ -518,6 +519,72 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
 }
 
 /** Columna derecha del equipo: pulso, salud, ritmo y contrato (compartida entre pestañas). */
+/** Panel de gamificación del equipo: nivel, XP, racha, misión y logros. */
+function TeamProgressPanel({ team }: { team: Team }) {
+  const g = teamProgress(team);
+  const next = g.achievements.find((a) => !a.got && a.goal);
+  return (
+    <Card pad={20} style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--green) 7%, var(--card)), var(--card))", borderColor: "color-mix(in srgb, var(--green) 28%, var(--line))" }}>
+      <SectionTitle icon="Trophy" sub={`${g.unlocked.length} logros · ${g.xp} XP`}>Progreso del equipo</SectionTitle>
+
+      {/* Nivel + barra de XP */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+        <span className="num" style={{ fontSize: "var(--t-xs)", fontWeight: 800, color: "var(--green)" }}>NIVEL {g.level.idx + 1}</span>
+        <span style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>{g.level.name}</span>
+      </div>
+      <div style={{ height: 10, borderRadius: 99, background: "var(--card-2)", overflow: "hidden", border: "1px solid var(--line)" }}>
+        <div style={{ height: "100%", width: `${g.pct}%`, background: "linear-gradient(90deg, var(--green), #3B82F6)", borderRadius: 99, transition: "width .6s var(--ease)" }} />
+      </div>
+      <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 5 }}>{g.level.next != null ? `Faltan ${g.toNext} XP para el próximo nivel` : "¡Nivel máximo alcanzado! 🏆"}</div>
+
+      {/* Racha */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, padding: "9px 12px", borderRadius: "var(--r-md)", background: g.streak > 0 ? "color-mix(in srgb, var(--warning) 12%, transparent)" : "var(--card-2)", border: `1px solid ${g.streak > 0 ? "color-mix(in srgb, var(--warning) 35%, transparent)" : "var(--line)"}` }}>
+        <span style={{ fontSize: 20 }}>🔥</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {g.streak > 0
+            ? <><b className="num" style={{ color: "var(--warning)" }}>{g.streak}</b> <span style={{ fontSize: "var(--t-sm)" }}>{g.cadenceDays <= 7 ? (g.streak === 1 ? "semana" : "semanas") : (g.streak === 1 ? "quincena" : "quincenas")} seguidas con ritmo</span></>
+            : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin racha — retomen el ritmo de sesiones</span>}
+        </div>
+      </div>
+
+      {/* Misión actual */}
+      {g.mission && (
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 12 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 99, background: "var(--green-soft)", color: "var(--green)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Target" size={16} /></span>
+          <div style={{ minWidth: 0 }}>
+            <div className="eyebrow" style={{ color: "var(--green)" }}>Misión</div>
+            <div style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>{g.mission.label}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Próximo logro */}
+      {next && (
+        <div style={{ marginTop: 12, padding: "9px 12px", borderRadius: "var(--r-md)", background: "var(--card-2)", border: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+            <Icon name={next.icon} size={14} style={{ color: "var(--ink-2)" }} />
+            <span style={{ fontSize: "var(--t-xs)", fontWeight: 700, flex: 1 }}>Próximo: {next.label}</span>
+            <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{next.progress ?? 0}/{next.goal}</span>
+          </div>
+          <div style={{ height: 5, borderRadius: 99, background: "var(--bg-2)", overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(100, ((next.progress ?? 0) / (next.goal ?? 1)) * 100)}%`, background: "var(--ink-3)", borderRadius: 99 }} /></div>
+        </div>
+      )}
+
+      {/* Insignias */}
+      <div style={{ marginTop: 14 }}>
+        <div className="eyebrow" style={{ marginBottom: 8 }}>Logros</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          {g.achievements.map((a) => (
+            <span key={a.key} title={`${a.label} — ${a.desc}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 600, background: a.got ? "var(--success-bg)" : "var(--card-2)", border: `1px solid ${a.got ? "color-mix(in srgb, var(--green) 40%, transparent)" : "var(--line)"}`, color: a.got ? "var(--green)" : "var(--ink-3)", opacity: a.got ? 1 : 0.6 }}>
+              <Icon name={a.got ? a.icon : "Lock"} size={12} />{a.label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; isFacil: boolean; onOpenPulse: () => void; onChanged: () => void }) {
   const live = getTeam(team.id) ?? team;
   const inits = getInitiatives(team.id);
@@ -526,13 +593,7 @@ function TeamSidebar({ team, isFacil, onOpenPulse, onChanged }: { team: Team; is
   const hasContract = !!live.data?.contract;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <Card pad={20}>
-        <SectionTitle icon="Radar" sub="El radar de la última medición (1-5)"
-          right={<button onClick={onOpenPulse} style={{ color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600 }}>Detalle</button>}>
-          Pulso del equipo
-        </SectionTitle>
-        <PulseRadar values={team.pulse.length ? (team.pulse[team.pulse.length - 1].dims ?? {}) : {}} size={300} />
-      </Card>
+      <TeamProgressPanel team={live} />
       <Card pad={20}>
         <SectionTitle icon="HeartPulse">Salud rápida</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

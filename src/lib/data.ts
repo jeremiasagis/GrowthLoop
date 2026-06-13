@@ -141,6 +141,7 @@ export interface PulsePoint {
 export interface SessionLog {
   id: string;
   date: string;
+  createdAt?: string;   // ISO (para racha y orden real)
   stage: StageKey;
   retro: string;
   pulse: number;

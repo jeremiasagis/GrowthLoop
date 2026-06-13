@@ -86,7 +86,7 @@ function mapTeam(t: any, initiatives: Initiative[] = []): Team {
     .sort((a: PulsePoint, b: PulsePoint) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   const sessions: SessionLog[] = (t.session_logs ?? [])
     .map((s: any): SessionLog => ({
-      id: s.id, date: s.date, stage: s.stage as StageKey, retro: s.retro,
+      id: s.id, date: s.date, createdAt: s.created_at ?? undefined, stage: s.stage as StageKey, retro: s.retro,
       pulse: s.pulse, delta: s.delta, out: s.out_text, initiativeId: s.initiative_id ?? undefined,
     }))
     .sort((a: SessionLog, b: SessionLog) => numId(b.id) - numId(a.id));
