@@ -143,6 +143,7 @@ const STEP_SEQ: Record<string, string[]> = {
   lwhappened: ["lwresult", "lwsilence", "lwreact", "lwreveal", "lwnarrative", "lwclose"],
   lwlearned: ["lwldistinct", "lwlwrite", "lwlread", "lwlclassify", "lwlhighlight", "lwlclose"],
   lwnext: ["lwnopts", "lwndebate", "lwndecide", "lwnclose"],
+  lwteam: ["lwtframe", "lwteval", "lwtreveal", "lwtadjust", "lwtprivate", "lwtclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -268,6 +269,7 @@ export default function SalaPage() {
         "blclass", "blvote", "blplan", "fpactions",
         "lwreveal", "lwnarrative",
         "lwlread", "lwlclassify", "lwlhighlight",
+        "lwtreveal", "lwtadjust",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -6061,6 +6063,173 @@ export default function SalaPage() {
         </>
       );
       controls = learnCloseControls(lnFinish);
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 820 : 600 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿CÓMO ESTAMOS COMO EQUIPO? · proceso + reflexión privada (Aprendizaje D) ════════
+  if (session.type === "lwteam") {
+    const r = session.result;
+    const TCOLS = [
+      { key: "ltwork", label: "✅ ¿Qué funciona de cómo hacemos estas sesiones?", color: "var(--success)" },
+      { key: "ltchg", label: "🔧 ¿Qué cambiaríamos del formato o la dinámica?", color: "var(--warning)" },
+      { key: "ltneed", label: "🌱 ¿Qué necesitamos para que siga siendo útil?", color: "var(--st-proof)" },
+    ];
+    const evalCount = TCOLS.reduce((a, c) => a + (counts[c.key] ?? 0), 0);
+    const adjusts = (r.ltAdjust as string[]) ?? ["", ""];
+    const setAdjust = (i: number, val: string) => { const arr = (((resultRef.current.ltAdjust as string[]) ?? adjusts)).slice(); while (arr.length <= i) arr.push(""); arr[i] = val; patchResult({ ltAdjust: arr }); };
+    const myOks = ((inputs.find((i) => i.userId === user.id && i.key === "ltok")?.value as { ids?: string[] } | undefined)?.ids) ?? [];
+    const okOf = (i: number) => inputs.filter((x) => x.key === "ltok").reduce((a, x) => a + (((x.value as { ids?: string[] }).ids ?? []).includes(String(i)) ? 1 : 0), 0);
+    const toggleOk = (i: number) => { const cur = new Set(myOks); const k = String(i); if (cur.has(k)) cur.delete(k); else cur.add(k); tapInput("ltok", { ids: [...cur] }); };
+    const realAdjusts = adjusts.map((t, i) => ({ t, i })).filter((a) => a.t.trim());
+    const approvedAdjusts = realAdjusts.filter((a) => okOf(a.i) > totalInRoom / 2).map((a) => a.t);
+    const myPriv = (inputs.find((i) => i.userId === user.id && i.key === "ltprivate")?.value as { a?: string; b?: string; c?: string } | undefined) ?? {};
+    const privDone = inputs.some((i) => i.userId === user.id && i.key === "ltdone");
+    const privCount = inputs.filter((i) => i.key === "ltdone").length;
+    const setPriv = (patch: Record<string, string>) => setMyInput(sessionId, "ltprivate", { ...myPriv, ...patch }, true);
+    const ltFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: evalCount,
+        summaryText: `Proceso del equipo · ${approvedAdjusts.length} ajustes acordados`,
+        dataKey: "learn", dataValue: { processAdjustments: approvedAdjusts, closeWords },
+        noAdvance: true,
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "lwtframe") {
+      sub = "No sobre qué mejoramos, sino sobre cómo lo hacemos juntos.";
+      content = (
+        <Card pad={28} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 34, marginBottom: 12 }}>🧩</div>
+          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, lineHeight: 1.5 }}>¿Está funcionando la forma en que trabajamos en este proceso?</p>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 10 }}>Miramos la dinámica del equipo, no el resultado de la prueba.</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwteval", 1); setBusy(false); }}>Evaluar el proceso</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el ejercicio.</p>;
+    } else if (step === "lwteval") {
+      sub = "Tu mirada sobre el proceso, en anónimo.";
+      content = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 12 }}>
+          {TCOLS.map((col) => {
+            const mine = myCards.filter((c) => c.columnKey === col.key);
+            return (
+              <Card key={col.key} pad={14} style={{ borderTop: `3px solid ${col.color}` }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8, lineHeight: 1.35 }}>{col.label}</div>
+                <HiddenDots n={counts[col.key] ?? 0} label="ocultas" color={col.color} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                  {mine.map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 4 }}>· tuya</span></div>)}
+                </div>
+                {!isFacil && (
+                  <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+                    <input value={cardDraft[col.key] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, [col.key]: e.target.value }))} onKeyDown={async (e) => { if (e.key === "Enter") { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, true); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); } }} placeholder="Sumar…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "7px 9px", fontSize: "var(--t-xs)", outline: "none" }} />
+                    <button onClick={async () => { const t = (cardDraft[col.key] ?? "").trim(); if (!t) return; await addCard(sessionId, col.key, t, true); setCardDraft((d) => ({ ...d, [col.key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); }} style={{ width: 30, borderRadius: "var(--r-sm)", background: col.color, color: "#08120c", border: "none", display: "grid", placeItems: "center" }}><Icon name="Plus" size={14} /></button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || evalCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "lwtreveal", 2); setBusy(false); }}>Revelar y leer ({evalCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escribí tu mirada del proceso, en anónimo.</p>;
+    } else if (step === "lwtreveal") {
+      wide = true;
+      sub = isFacil ? "Leé las tarjetas. Prestá atención a los patrones que se repiten." : "Lectura del proceso del equipo.";
+      content = (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))", gap: 12 }}>
+          {TCOLS.map((col) => {
+            const cs = allCards.filter((c) => c.columnKey === col.key);
+            return (
+              <div key={col.key} style={{ background: "var(--bg-2)", border: `1px solid color-mix(in srgb, ${col.color} 30%, var(--line))`, borderTop: `3px solid ${col.color}`, borderRadius: "var(--r-lg)", padding: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8, lineHeight: 1.35 }}>{col.label} <span className="num muted">{cs.length}</span></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {cs.map((c, i) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${col.color}`, borderRadius: "var(--r-sm)", padding: "8px 10px", fontSize: "var(--t-sm)", animation: `pop-in .4s var(--spring) ${i * 0.04}s both` }}>{c.text}</div>)}
+                  {!cs.length && <div className="faint" style={{ fontSize: "var(--t-xs)", textAlign: "center", padding: 12 }}>Sin tarjetas</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwtadjust", 3); setBusy(false); }}>Proponer ajustes</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Escuchá la lectura del facilitador.</p>;
+    } else if (step === "lwtadjust") {
+      sub = "Uno o dos ajustes concretos al proceso. El equipo vota si los implementamos.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[0, 1].map((i) => {
+            const text = adjusts[i] ?? "";
+            const votes = okOf(i);
+            const on = myOks.includes(String(i));
+            const approved = votes > totalInRoom / 2;
+            return (
+              <Card key={i} pad={16}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Ajuste {i + 1}{approved && text.trim() ? " · acordado ✓" : ""}</div>
+                {isFacil
+                  ? <textarea defaultValue={text} onBlur={(e) => setAdjust(i, e.target.value)} rows={2} placeholder={i === 0 ? "A partir de la próxima sesión vamos a…" : "(Opcional) Otro ajuste…"} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+                  : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, color: text ? "var(--ink-0)" : "var(--ink-3)" }}>{text || "—"}</p>}
+                {text.trim() && (
+                  <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    {!isFacil
+                      ? <Button size="sm" variant={on ? "primary" : "secondary"} icon={on ? "Check" : "ThumbsUp"} onClick={() => toggleOk(i)}>{on ? "Lo implementamos" : "Implementarlo"}</Button>
+                      : <span className="muted" style={{ fontSize: "var(--t-xs)" }}>¿Lo implementamos?</span>}
+                    <span className="num" style={{ marginLeft: "auto", fontWeight: 700, color: approved ? "var(--green)" : "var(--ink-2)" }}>{votes}/{totalInRoom} {approved ? "· acordado" : ""}</span>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwtprivate", 4); setBusy(false); }}>Reflexión privada</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Votá los ajustes que quieras implementar.</p>;
+    } else if (step === "lwtprivate") {
+      sub = "Un momento para vos. Esto es privado: nadie más —ni el facilitador— lo lee.";
+      content = isFacil ? (
+        <Card pad={24} style={{ textAlign: "center" }}>
+          <div style={{ width: 52, height: 52, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-learn) 16%, transparent)", color: "var(--st-learn)", display: "grid", placeItems: "center", margin: "0 auto 12px" }}><Icon name="Lock" size={24} /></div>
+          <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-learn)" }}>{privCount}/{totalInRoom}</div>
+          <div className="muted" style={{ fontSize: "var(--t-sm)" }}>reflexionaron en privado</div>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, lineHeight: 1.5 }}>Cada reflexión queda guardada solo para su autor. Protege la honestidad del equipo.</p>
+        </Card>
+      ) : (
+        <Card pad={20}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: "var(--st-learn)" }}><Icon name="Lock" size={16} /><span className="eyebrow" style={{ color: "var(--st-learn)" }}>Tu reflexión privada</span></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {[{ k: "a", q: "¿Qué aprendí yo en este ciclo sobre cómo trabajo?" }, { k: "b", q: "¿Qué quiero hacer diferente en el próximo?" }, { k: "c", q: "¿Cómo me siento con el equipo hoy?" }].map((f) => (
+              <div key={f.k}>
+                <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 5 }}>{f.q}</div>
+                <textarea defaultValue={(myPriv as Record<string, string>)[f.k] ?? ""} onBlur={(e) => setPriv({ [f.k]: e.target.value })} rows={2} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+              </div>
+            ))}
+          </div>
+          <Button full icon={privDone ? "Check" : "Lock"} variant={privDone ? "secondary" : "primary"} onClick={() => tapInput("ltdone", { ok: true })} style={{ marginTop: 12 }}>{privDone ? "Guardado en privado" : "Guardar mi reflexión"}</Button>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>Nadie más puede leer esto.</p>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "lwtclose", 5); setBusy(false); }}>Cerrar con una palabra</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Tomate tu momento. El facilitador sigue cuando estén.</p>;
+    } else {
+      sub = "El ritual de cierre del ciclo.";
+      content = learnClosing();
+      controls = learnCloseControls(ltFinish);
     }
     return (
       <Shell onExit={exit} mood={teamMood}>

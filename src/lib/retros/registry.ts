@@ -674,7 +674,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Ajustes acordados (votados)", minutes: 4 },
       { name: "Reflexión privada", minutes: 3 },
     ],
-    sessionType: "lwteam", entryStep: "lwtframe", implemented: false,
+    sessionType: "lwteam", entryStep: "lwtframe", implemented: true,
   },
 
   // ── APRENDIZAJE · retros clásicas ──
