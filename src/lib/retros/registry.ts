@@ -489,7 +489,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Coincidencias y divergencias", minutes: 8 },
       { name: "Storyboard consensuado", minutes: 5 },
     ],
-    sessionType: "storyboard", implemented: false,
+    sessionType: "storyboard", entryStep: "sbframe", implemented: true,
   },
   {
     id: "ideation-the-archer", name: "The Archer", stage: "ideation", category: "classic",

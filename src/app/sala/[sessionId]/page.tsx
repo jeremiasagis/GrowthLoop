@@ -21,6 +21,7 @@ import { FishboneDiagram } from "@/components/FishboneDiagram";
 import { OpposingScale } from "@/components/OpposingScales";
 import { JourneyBoard, type JourneyCol } from "@/components/JourneyBoard";
 import { StaceyMatrix, STACEY_ZONES, zoneOf } from "@/components/StaceyMatrix";
+import { StoryboardCanvas } from "@/components/StoryboardCanvas";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -119,6 +120,7 @@ const STEP_SEQ: Record<string, string[]> = {
   ideachoose: ["icpresent", "icmatrix", "icice", "icconfirm"],
   premortem: ["pmframe", "pmwrite", "pmcat", "pmvote", "pmmitigate", "pmclose"],
   betdesign: ["bdcontext", "bdtemplate", "bdfilters", "bdconfirm"],
+  storyboard: ["sbframe", "sbdraw", "sbpresent", "sbconsensus"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -195,6 +197,8 @@ export default function SalaPage() {
   const [ieDrag, setIeDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   // ¿Cuál elegimos?: ficha que el facilitador arrastra en la matriz impacto/esfuerzo.
   const [icDrag, setIcDrag] = useState<{ i: number; x: number; y: number } | null>(null);
+  // Storyboarding: borrador local de los 6 cuadros del miembro.
+  const [sbDraft, setSbDraft] = useState<string[]>(() => ["", "", "", "", "", ""]);
   // Timeline: hito y emoción elegidos para el próximo evento del miembro.
   const [tlPick, setTlPick] = useState<{ m: number; emo: "pos" | "neu" | "neg" }>({ m: 0, emo: "pos" });
   const sessionId = params.sessionId;
@@ -237,6 +241,7 @@ export default function SalaPage() {
         "sdanalyze", "sdvote", "sddeep", "sdsynth", "wbdeep",
         "hmwreveal", "hmwread", "hmwcluster", "hmwvote",
         "pmcat", "pmvote", "pmmitigate", "pmclose",
+        "sbdraw", "sbpresent", "sbconsensus",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -3266,6 +3271,106 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 860 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ DESIGN STORYBOARDING · dibujar la solución en 6 cuadros ════════
+  if (session.type === "storyboard") {
+    const parseFrames = (s: string): string[] => { try { const a = JSON.parse(s); return Array.isArray(a) ? a : ["", "", "", "", "", ""]; } catch { return ["", "", "", "", "", ""]; } };
+    const myBoard = myCards.find((c) => c.columnKey === "sb");
+    const boards = allCards.filter((c) => c.columnKey === "sb");
+    const sbFinal = (session.result.sbFinal as string[]) ?? ["", "", "", "", "", ""];
+    const saveBoard = async () => {
+      setBusy(true);
+      if (myBoard) await deleteCard(myBoard.id);
+      await addCard(sessionId, "sb", JSON.stringify(sbDraft), false);
+      if (user) setMyCards(await getMyCards(sessionId, user.id));
+      setBusy(false);
+    };
+    const sbFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: boards.length,
+        summaryText: `Storyboard consensuado · ${boards.length} aportes`,
+        dataKey: "proof", dataValue: { chosenIdea: sbFinal.filter(Boolean).join(" → ") || undefined },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "sbframe") {
+      sub = "Vamos a dibujar cómo se ve la idea en acción, paso a paso.";
+      content = (
+        <Card pad={26} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🎬</div>
+          <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, lineHeight: 1.4 }}>Dibujá la solución en 6 cuadros</h2>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, lineHeight: 1.55 }}>No importa si sabés dibujar: escribí con palabras y emojis. Cuadro 1: cómo es hoy. Cuadros 2-5: los pasos. Cuadro 6: el resultado.</p>
+          {initiative?.data?.proof?.chosenIdea && <p style={{ fontSize: "var(--t-sm)", marginTop: 12, padding: "10px 14px", background: "var(--card)", borderRadius: "var(--r-md)" }}><b>La idea:</b> {initiative.data.proof.chosenIdea}</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sbdraw", 1); setBusy(false); }}>Empezar a dibujar</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el ejercicio.</p>;
+    } else if (step === "sbdraw") {
+      wide = true;
+      sub = isFacil ? "Cada uno arma su storyboard. Vos ves cuántos terminaron." : "Armá tu storyboard de 6 cuadros y guardalo.";
+      content = isFacil ? (
+        <Card pad={24}><div style={{ textAlign: "center", padding: "8px 0" }}><div className="num" style={{ fontSize: "var(--t-3xl)", fontWeight: 800, color: "var(--green)" }}>{boards.length}/{totalInRoom}</div><div className="muted" style={{ fontSize: "var(--t-sm)" }}>storyboards listos</div></div></Card>
+      ) : (
+        <Card pad={16}>
+          <StoryboardCanvas frames={sbDraft} editable onChange={(i, v) => setSbDraft((d) => d.map((x, k) => k === i ? v : x))} />
+          <div style={{ marginTop: 12, textAlign: "center" }}>
+            {myBoard && <span className="muted" style={{ fontSize: "var(--t-xs)", display: "block", marginBottom: 6 }}><Icon name="Check" size={12} style={{ color: "var(--green)" }} /> Guardado · podés seguir editando y volver a guardar</span>}
+            <Button icon="Save" disabled={busy || !sbDraft.some((f) => f.trim())} onClick={saveBoard}>{busy ? "Guardando…" : myBoard ? "Actualizar mi storyboard" : "Guardar mi storyboard"}</Button>
+          </div>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || boards.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "sbpresent", 2); setBusy(false); }}>Ver los storyboards ({boards.length})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Guardá tu storyboard. El facilitador avanza cuando estén.</p>;
+    } else if (step === "sbpresent") {
+      wide = true;
+      sub = "Cada uno presenta el suyo (2 min). Miren coincidencias y diferencias.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {boards.map((b) => {
+            const author = b.authorId ? participants.find((p) => p.userId === b.authorId)?.name : undefined;
+            return (
+              <Card key={b.id} pad={14}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>{author ?? "Storyboard"}</div>
+                <StoryboardCanvas frames={parseFrames(b.text)} size="sm" />
+              </Card>
+            );
+          })}
+          {!boards.length && <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Sin storyboards.</p>}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "sbconsensus", 3); setBusy(false); }}>Armar el storyboard consensuado</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Presenten y comparen. ¿Dónde coinciden? ¿Dónde difieren?</p>;
+    } else {
+      wide = true;
+      sub = "El storyboard final del equipo, combinando lo mejor de cada uno.";
+      content = (
+        <Card pad={16}>
+          {isFacil
+            ? <StoryboardCanvas frames={sbFinal} editable onChange={(i, v) => patchResult({ sbFinal: sbFinal.map((x, k) => k === i ? v : x) })} />
+            : <StoryboardCanvas frames={sbFinal} />}
+          {isFacil && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10, textAlign: "center" }}>Combiná los pasos más acordados. El equipo valida cada cuadro.</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !sbFinal.some((f) => f.trim())} onClick={sbFinish}>{busy ? "Guardando…" : "Cerrar con el storyboard consensuado"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador arma el storyboard final.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 820 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
