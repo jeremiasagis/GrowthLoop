@@ -502,7 +502,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Alineación del equipo", minutes: 8 },
       { name: "Cierre: objetivo definido", minutes: 3 },
     ],
-    sessionType: "archer", entryStep: "arframe", implemented: false,
+    sessionType: "archer", entryStep: "arframe", implemented: true,
   },
   {
     id: "ideation-lean-coffee", name: "Lean Coffee", stage: "ideation", category: "classic",

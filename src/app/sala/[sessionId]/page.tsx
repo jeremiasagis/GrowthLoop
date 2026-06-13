@@ -22,6 +22,7 @@ import { OpposingScale } from "@/components/OpposingScales";
 import { JourneyBoard, type JourneyCol } from "@/components/JourneyBoard";
 import { StaceyMatrix, STACEY_ZONES, zoneOf } from "@/components/StaceyMatrix";
 import { StoryboardCanvas } from "@/components/StoryboardCanvas";
+import { ArcherTarget } from "@/components/ArcherTarget";
 import { useToast } from "@/components/Toast";
 import { PULSE_DIMS, FOUNDING_QUESTIONS, overallOf, to5, to100 } from "@/lib/data";
 import {
@@ -121,6 +122,7 @@ const STEP_SEQ: Record<string, string[]> = {
   premortem: ["pmframe", "pmwrite", "pmcat", "pmvote", "pmmitigate", "pmclose"],
   betdesign: ["bdcontext", "bdtemplate", "bdfilters", "bdconfirm"],
   storyboard: ["sbframe", "sbdraw", "sbpresent", "sbconsensus"],
+  archer: ["arframe", "arbuild", "aralign", "arclose"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -3271,6 +3273,96 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: wide ? 860 : 620 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ THE ARCHER · la diana: definir el objetivo con precisión ════════
+  if (session.type === "archer") {
+    const arOuter = (session.result.arOuter as string) ?? "";
+    const arMetrics = (session.result.arMetrics as string[]) ?? [];
+    const arBull = (session.result.arBull as string) ?? "";
+    const arOks = new Set(inputs.filter((i) => i.key === "arok").map((i) => i.userId));
+    const iArOk = arOks.has(user.id);
+    const arFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        pulseAvg: avg,
+        summaryText: `Objetivo: ${arBull || arOuter || "definido"}`,
+        dataKey: "proof", dataValue: { bullseye: arBull },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "";
+    if (step === "arframe") {
+      sub = "Antes de decidir qué hacer, definamos con precisión a dónde apuntamos.";
+      content = (
+        <Card pad={26} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🎯</div>
+          <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, lineHeight: 1.4 }}>¿Qué queremos lograr, exactamente?</h2>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, lineHeight: 1.55 }}>Vamos a armar una diana: el resultado general, las métricas posibles y el centro — una sola métrica con un número.</p>
+          {initiative?.data?.focus?.rootCause && <p style={{ fontSize: "var(--t-sm)", marginTop: 12, padding: "10px 14px", background: "var(--card)", borderRadius: "var(--r-md)" }}><b>La causa raíz:</b> {initiative.data.focus.rootCause}</p>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "arbuild", 1); setBusy(false); }}>Construir la diana</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el ejercicio.</p>;
+    } else if (step === "arbuild") {
+      sub = isFacil ? "Completá la diana de afuera hacia adentro." : "El equipo arma la diana del objetivo.";
+      const ip: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" };
+      content = (
+        <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 18, alignItems: "start" }}>
+          {isFacil ? (
+            <Card pad={18}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div><div className="eyebrow" style={{ marginBottom: 5 }}>Anillo exterior · Resultado general</div><input defaultValue={arOuter} onBlur={(e) => patchResult({ arOuter: e.target.value.trim() })} placeholder="Ej: que las entregas lleguen a tiempo" style={ip} /></div>
+                <div>
+                  <div className="eyebrow" style={{ marginBottom: 5 }}>Anillo medio · Métricas posibles</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {arMetrics.map((m, i) => <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}><input defaultValue={m} onBlur={(e) => patchResult({ arMetrics: arMetrics.map((x, k) => k === i ? e.target.value.trim() : x) })} style={{ ...ip, flex: 1 }} /><button onClick={() => patchResult({ arMetrics: arMetrics.filter((_, k) => k !== i) })} style={{ color: "var(--ink-3)" }}><Icon name="X" size={14} /></button></div>)}
+                    {arMetrics.length < 4 && <Button size="sm" variant="secondary" icon="Plus" onClick={() => patchResult({ arMetrics: [...arMetrics, ""] })}>Métrica</Button>}
+                  </div>
+                </div>
+                <div><div className="eyebrow" style={{ marginBottom: 5, color: "var(--green)" }}>🎯 Centro · El bullseye (una métrica, un número)</div><input defaultValue={arBull} onBlur={(e) => patchResult({ arBull: e.target.value.trim() })} placeholder="Ej: reducir entregas tarde de 5 a 1 por semana" style={{ ...ip, border: "1px solid color-mix(in srgb, var(--green) 45%, var(--line-2))" }} /></div>
+              </div>
+            </Card>
+          ) : <Card pad={16}><ArcherTarget outer={arOuter} metrics={arMetrics} bull={arBull} /></Card>}
+          <Card pad={16}><ArcherTarget outer={arOuter} metrics={arMetrics} bull={arBull} /></Card>
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !arBull.trim()} onClick={async () => { setBusy(true); await setStep(sessionId, "aralign", 2); setBusy(false); }}>Alinear al equipo</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador completa la diana con el equipo.</p>;
+    } else if (step === "aralign") {
+      sub = "¿Todos apuntan al mismo centro?";
+      content = (
+        <>
+          <Card pad={18} style={{ marginBottom: 14 }}><ArcherTarget outer={arOuter} metrics={arMetrics} bull={arBull} /></Card>
+          <div style={{ textAlign: "center" }}>
+            {!isFacil
+              ? (iArOk ? <span style={{ color: "var(--green)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="CircleCheck" size={18} /> Apuntás al mismo centro</span> : <Button size="lg" icon="Target" onClick={() => tapInput("arok", { ok: true })}>Sí, este es el centro</Button>)
+              : <span className="muted num" style={{ fontSize: "var(--t-sm)" }}>{arOks.size}/{totalInRoom} confirmaron el bullseye</span>}
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "arclose", 3); setBusy(false); }}>Cerrar el objetivo</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Si no apuntás al mismo centro, decilo en voz alta antes de cerrar.</p>;
+    } else {
+      sub = "El objetivo del equipo queda definido. Pre-carga la señal de Diseño de la prueba.";
+      content = <Card pad={20}><ArcherTarget outer={arOuter} metrics={arMetrics} bull={arBull} hit /></Card>;
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy || !arBull.trim()} onClick={arFinish}>{busy ? "Guardando…" : "Cerrar con este objetivo"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador cierra el objetivo.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: step === "arbuild" ? 820 : 560 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
