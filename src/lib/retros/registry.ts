@@ -545,7 +545,7 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
       { name: "Priorización · 2 puntos", minutes: 3 },
       { name: "Plan de destrabe (48hs)", minutes: 8 },
     ],
-    sessionType: "blocking", entryStep: "blframe", implemented: false,
+    sessionType: "blocking", entryStep: "blframe", implemented: true,
   },
   {
     id: "follow-roti", name: "ROTI", stage: "follow", category: "classic",

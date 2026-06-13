@@ -126,6 +126,7 @@ const STEP_SEQ: Record<string, string[]> = {
   archer: ["arframe", "arbuild", "aralign", "arclose"],
   leancoffee: ["lctopics", "lcvote", "lcwork", "lcclose"],
   follow: ["fwcard", "fwreport", "fwunblock", "fwdecision", "fwhonesty"],
+  blocking: ["blframe", "blmap", "blclass", "blvote", "blplan"],
   explore: STEPS,
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
@@ -248,6 +249,7 @@ export default function SalaPage() {
         "pmcat", "pmvote", "pmmitigate", "pmclose",
         "sbdraw", "sbpresent", "sbconsensus",
         "lctopics", "lcvote", "lcwork", "lcclose",
+        "blclass", "blvote", "blplan",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -3956,6 +3958,181 @@ export default function SalaPage() {
     return (
       <Shell onExit={exit} mood={teamMood}>
         <div style={{ width: "100%", maxWidth: 600 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ ¿QUÉ NOS ESTÁ FRENANDO? · mapear, clasificar y destrabar (48hs) ════════
+  if (session.type === "blocking") {
+    const obs = allCards.filter((c) => c.columnKey === "obs");
+    const obsCount = counts["obs"] ?? 0;
+    const priorBlockers = (initiative?.data?.follow?.blockers as string[] | undefined) ?? [];
+    const BL_CATS = [
+      { k: "internal", label: "🟢 Internos", desc: "depende de nosotros", color: "var(--success)" },
+      { k: "system", label: "🟡 Del sistema", desc: "procesos, otras áreas, herramientas", color: "var(--warning)" },
+      { k: "external", label: "⚪ Externos", desc: "fuera de nuestro alcance", color: "#94A3B8" },
+    ];
+    const blCat = (session.result.blCat as Record<string, string>) ?? {};
+    const cycleBlCat = (id: string) => { const order = BL_CATS.map((c) => c.k); const cur = blCat[id]; const next = cur ? order[(order.indexOf(cur) + 1) % order.length] : order[0]; patchResult({ blCat: { ...((resultRef.current.blCat as Record<string, string>) ?? {}), [id]: next } }); };
+    const myBlIds = ((inputs.find((x) => x.userId === user.id && x.key === "blv")?.value as { ids?: string[] } | undefined)?.ids) ?? [];
+    const blVotesOf = (id: string) => inputs.filter((x) => x.key === "blv").reduce((a, x) => a + (((x.value as { ids?: string[] }).ids ?? []).includes(id) ? 1 : 0), 0);
+    const toggleBlVote = (id: string) => { const cur = new Set(myBlIds); if (cur.has(id)) cur.delete(id); else if (cur.size < 2) cur.add(id); tapInput("blv", { ids: [...cur] }); };
+    const blVoters = new Set(inputs.filter((x) => x.key === "blv" && ((x.value as { ids?: string[] }).ids ?? []).length).map((x) => x.voterKey)).size;
+    const topObs = [...obs].sort((a, b) => blVotesOf(b.id) - blVotesOf(a.id)).slice(0, 3);
+    const blPlan = (session.result.blPlan as Record<string, { text?: string; who?: string; due?: string }>) ?? {};
+    const setPlan = (id: string, patch: Record<string, string>) => patchResult({ blPlan: { ...((resultRef.current.blPlan as Record<string, unknown>) ?? {}), [id]: { ...(blPlan[id] ?? {}), ...patch } } });
+    const addObs = async () => { const t = (cardDraft.obs ?? "").trim(); if (!t) return; await addCard(sessionId, "obs", t, true); setCardDraft((d) => ({ ...d, obs: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const blFinish = async () => {
+      setBusy(true);
+      const newActions = topObs.map((o) => ({ text: blPlan[o.id]?.text ?? "", who: blPlan[o.id]?.who ?? "" })).filter((a) => a.text.trim());
+      await finalizeSession(session, {
+        pulseAvg: avg, cardCount: obs.length,
+        summaryText: `Destrabe: ${obs.length} obstáculos · ${newActions.length} acciones a 48hs`,
+        dataKey: "follow",
+        dataValue: { blockers: topObs.map((o) => o.text), newActions },
+      });
+      setBusy(false); leave();
+    };
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "blframe") {
+      sub = "Vamos a mirar de frente lo que nos está frenando.";
+      content = (
+        <Card pad={26} style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🚧</div>
+          <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, lineHeight: 1.4 }}>¿Qué nos está frenando<br />para que la prueba avance?</h2>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 12, lineHeight: 1.5 }}>Los mapeamos en anónimo, los clasificamos por tipo, priorizamos y salimos con un plan de 48 horas.</p>
+          {priorBlockers.length > 0 && (
+            <div style={{ marginTop: 16, textAlign: "left", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 35%, transparent)", borderRadius: "var(--r-md)", padding: "12px 14px" }}>
+              <div className="eyebrow" style={{ color: "var(--warning)", marginBottom: 6 }}>Obstáculos del último check-in</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: "var(--t-sm)", lineHeight: 1.6 }}>{priorBlockers.map((b, i) => <li key={i}>{b}</li>)}</ul>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "blmap", 1); setBusy(false); }}>Mapear los obstáculos</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el ejercicio.</p>;
+    } else if (step === "blmap") {
+      sub = "¿Qué te está frenando? — anónimo, todas las que se te ocurran.";
+      content = (
+        <Card pad={20}>
+          <HiddenDots n={obsCount} label="obstáculos · ocultos hasta revelar" color="var(--warning)" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+            {myCards.filter((c) => c.columnKey === "obs").map((c) => <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid var(--warning)", borderRadius: "var(--r-md)", padding: "9px 11px", fontSize: "var(--t-sm)" }}>{c.text}<span className="faint" style={{ fontSize: 10, marginLeft: 5 }}>· tuya</span></div>)}
+          </div>
+          {!isFacil && (
+            <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+              <input value={cardDraft.obs ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, obs: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addObs()} placeholder="Nos está frenando…" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="sm" icon="Plus" onClick={addObs}>Sumar</Button>
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || obsCount === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "blclass", 2); setBusy(false); }}>Revelar y clasificar ({obsCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Anotá lo que te frena. El facilitador revela cuando todos terminen.</p>;
+    } else if (step === "blclass") {
+      wide = true;
+      sub = isFacil ? "Tocá cada obstáculo para clasificarlo por tipo." : "El facilitador clasifica cada obstáculo por tipo.";
+      content = (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 14 }}>
+            {BL_CATS.map((c) => <span key={c.k} title={c.desc} style={{ fontSize: "var(--t-xs)", padding: "4px 10px", borderRadius: "var(--r-full)", background: `color-mix(in srgb, ${c.color} 12%, var(--card))`, border: `1px solid ${c.color}`, color: c.color, fontWeight: 700 }}>{c.label}</span>)}
+          </div>
+          <div className="cards-cols" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {BL_CATS.map((cat) => (
+              <div key={cat.k} style={{ background: "var(--bg-2)", border: `1px solid color-mix(in srgb, ${cat.color} 35%, var(--line))`, borderTop: `3px solid ${cat.color}`, borderRadius: "var(--r-lg)", padding: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", marginBottom: 8 }}>{cat.label} <span className="num muted">{obs.filter((o) => blCat[o.id] === cat.k).length}</span></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {obs.filter((o) => blCat[o.id] === cat.k).map((o) => (
+                    <button key={o.id} disabled={!isFacil} onClick={() => cycleBlCat(o.id)} style={{ textAlign: "left", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${cat.color}`, borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)", lineHeight: 1.4, cursor: isFacil ? "pointer" : "default" }}>{o.text}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          {obs.some((o) => !blCat[o.id]) && (
+            <Card pad={12} style={{ marginTop: 12 }}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Sin clasificar ({obs.filter((o) => !blCat[o.id]).length})</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 7 }}>
+                {obs.filter((o) => !blCat[o.id]).map((o) => <button key={o.id} disabled={!isFacil} onClick={() => cycleBlCat(o.id)} title={isFacil ? "Tocar para clasificar" : undefined} style={{ textAlign: "left", background: "var(--card)", border: "1px dashed var(--line-2)", borderRadius: "var(--r-sm)", padding: "7px 9px", fontSize: "var(--t-xs)", lineHeight: 1.4, cursor: isFacil ? "pointer" : "default" }}>{o.text}</button>)}
+              </div>
+            </Card>
+          )}
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "blvote", 3); setBusy(false); }}>Priorizar los más urgentes</Button>
+        : null;
+    } else if (step === "blvote") {
+      const shown = !!session.result.voteShown;
+      sub = shown ? "Los obstáculos a destrabar primero." : "¿Cuáles nos frenan más? 2 puntos por persona.";
+      const max = Math.max(1, ...obs.map((o) => blVotesOf(o.id)));
+      const ranked = [...obs].sort((a, b) => blVotesOf(b.id) - blVotesOf(a.id));
+      content = (
+        <>
+          {!shown && !isFacil && <div style={{ textAlign: "center", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><span className="muted" style={{ fontSize: "var(--t-sm)" }}>Tus puntos:</span>{Array.from({ length: 2 }).map((_, i) => <span key={i} style={{ width: 16, height: 16, borderRadius: 99, background: i < (2 - myBlIds.length) ? "var(--warning)" : "var(--card-2)", border: `1px solid ${i < (2 - myBlIds.length) ? "var(--warning)" : "var(--line-2)"}` }} />)}</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {(shown ? ranked : obs).map((o, i) => { const v = blVotesOf(o.id); const on = myBlIds.includes(o.id); const top = shown && i < 3 && v > 0; const cat = BL_CATS.find((c) => c.k === blCat[o.id]); return (
+              <button key={o.id} disabled={isFacil || shown} onClick={() => toggleBlVote(o.id)}
+                style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: top ? "color-mix(in srgb, var(--warning) 9%, var(--card))" : on && !shown ? "color-mix(in srgb, var(--warning) 6%, var(--card))" : "var(--card)", border: `1px solid ${top || (on && !shown) ? "var(--warning)" : "var(--line)"}`, borderRadius: "var(--r-md)", cursor: isFacil || shown ? "default" : "pointer" }}>
+                {shown && <span className="num" style={{ width: 18, fontWeight: 700, color: i < 3 ? "var(--warning)" : "var(--ink-3)" }}>{i + 1}</span>}
+                {cat && <span style={{ width: 8, height: 8, borderRadius: 99, background: cat.color, flexShrink: 0 }} />}
+                <span style={{ flex: 1, fontSize: "var(--t-sm)", fontWeight: 600 }}>{o.text}</span>
+                {!shown && on && <Icon name="CheckCircle2" size={15} style={{ color: "var(--warning)" }} />}
+                {shown && <div style={{ width: 70 }}><Bar value={(v / max) * 100} color={i < 3 ? "var(--warning)" : "var(--violet)"} height={6} /></div>}
+                {shown && <span className="num" style={{ fontWeight: 700, width: 18, textAlign: "right" }}>{v}</span>}
+              </button>
+            ); })}
+          </div>
+          {!shown && <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", marginTop: 12 }}><Icon name="EyeOff" size={13} /> {blVoters} de {totalInRoom} votaron</p>}
+        </>
+      );
+      controls = isFacil
+        ? (shown
+          ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "blplan", 4); setBusy(false); }}>Plan de destrabe</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy || blVoters === 0} onClick={() => setResult(sessionId, { voteShown: true })}>Mostrar prioridades ({blVoters}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus 2 puntos.</p>;
+    } else {
+      sub = "Para cada obstáculo: qué hacemos en las próximas 48 horas y quién.";
+      content = (
+        <>
+          <div style={{ padding: "10px 14px", marginBottom: 14, background: "color-mix(in srgb, var(--st-follow) 9%, transparent)", border: "1px solid color-mix(in srgb, var(--st-follow) 28%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
+            <Icon name="Clock" size={14} style={{ color: "var(--st-follow)" }} /> Acciones chicas y concretas para los próximos 2 días. No planes largos: lo mínimo para destrabar.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {topObs.map((o, i) => (
+              <Card key={o.id} pad={16}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}><span className="num" style={{ width: 22, height: 22, borderRadius: 99, background: "var(--st-follow)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 11 }}>{i + 1}</span><b style={{ fontSize: "var(--t-sm)" }}>{o.text}</b></div>
+                {isFacil ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input defaultValue={blPlan[o.id]?.text ?? ""} onBlur={(e) => setPlan(o.id, { text: e.target.value })} placeholder="En 48hs vamos a…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                    <select defaultValue={blPlan[o.id]?.who ?? ""} onChange={(e) => setPlan(o.id, { who: e.target.value })} style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }}>
+                      <option value="">Responsable…</option>
+                      {(team?.members ?? []).map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "var(--t-sm)" }}>{blPlan[o.id]?.text ? <>{blPlan[o.id]?.text}{blPlan[o.id]?.who ? ` · ${blPlan[o.id]?.who}` : ""}</> : <span className="muted">El facilitador está definiendo el destrabe…</span>}</div>
+                )}
+              </Card>
+            ))}
+            {!topObs.length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin obstáculos votados.</p>}
+          </div>
+        </>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Check" disabled={busy} onClick={blFinish}>{busy ? "Guardando…" : "Cerrar y guardar el plan"}</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador define el plan de destrabe.</p>;
+    }
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 860 : 620 }}>
           {Header(sub)}
           <div style={{ marginBottom: 16 }}>{facBar}</div>
           {content}
