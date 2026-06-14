@@ -1168,18 +1168,35 @@ export default function TeamPage() {
     if (!team) return;
     const g = teamProgress(team);
     const cel = team.data?.celebrated;
-    if (!cel) { markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles }); return; }
-    if (g.cycles > cel.cycles) {
+    let fired = false;
+    if (!cel) { markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles }); }
+    else if (g.cycles > cel.cycles) {
       setCeleb({ title: "¡Ciclo de mejora cerrado! 🎉", subtitle: `El equipo completó ${g.cycles} ${g.cycles === 1 ? "mejora" : "mejoras"} de punta a punta`, emoji: "🏆" });
-      markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles });
+      markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles }); fired = true;
     } else if (g.level.idx > cel.level) {
       setCeleb({ title: `¡Subieron a Nivel ${g.level.idx + 1}!`, subtitle: g.level.name, emoji: "⭐" });
-      markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles });
+      markCelebrated(team.id, { level: g.level.idx, cycles: g.cycles }); fired = true;
     }
+    // Logro recién desbloqueado (recordado por navegador para no repetir).
+    try {
+      const key = `gl_ach_${team.id}`;
+      const prevRaw = localStorage.getItem(key);
+      const nowKeys = g.unlocked.map((a) => a.key);
+      if (prevRaw === null) { localStorage.setItem(key, JSON.stringify(nowKeys)); }
+      else {
+        const prev = JSON.parse(prevRaw) as string[];
+        const fresh = nowKeys.filter((k) => !prev.includes(k));
+        if (fresh.length) {
+          localStorage.setItem(key, JSON.stringify(nowKeys));
+          if (!fired) { const a = g.achievements.find((x) => x.key === fresh[0]); if (a) setCeleb({ title: "¡Logro desbloqueado! 🏅", subtitle: a.label, emoji: "🏅" }); }
+        }
+      }
+    } catch { /* localStorage no disponible */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [team?.id, team?.sessions.length, team?.initiatives?.filter((i) => i.status === "done").length]);
+  }, [team?.id, team?.sessions.length, team?.initiatives?.filter((i) => i.status === "done").length, team?.initiatives?.length, team?.data?.library?.length]);
 
   if (!team) return <div className="screen-pad">Equipo no encontrado.</div>;
+  const g = teamProgress(team);
   const lead = team.facilitatorId ? getFacilitators().find((f) => f.id === team.facilitatorId) : undefined;
   const doDeleteTeam = async () => { setDelBusy(true); const res = await deleteTeam(team.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Equipo eliminado", "Trash2"); router.push("/organizaciones"); };
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
@@ -1208,6 +1225,10 @@ export default function TeamPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>{team.name}</h1>
             <StageBadge stage={teamLiveStage(team) ?? "queue"} />
+            <span title={`${g.xp} XP · ${g.pct}% al próximo nivel`} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--green)", background: "var(--green-soft)", border: "1px solid color-mix(in srgb, var(--green) 30%, transparent)", padding: "4px 11px", borderRadius: "var(--r-full)" }}>
+              <Icon name="Trophy" size={13} /> {g.level.name}
+              {g.streak > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--warning)" }}><Icon name="Flame" size={12} /> {g.streak}</span>}
+            </span>
           </div>
           <p className="muted" style={{ marginTop: 6, maxWidth: 560, display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="Quote" size={15} /> {team.purpose}
