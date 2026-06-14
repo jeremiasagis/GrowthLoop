@@ -196,9 +196,9 @@ export default function Home() {
 
       {/* por qué */}
       <Section style={{ paddingTop: 40, paddingBottom: 64 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
           {WHY.map((w) => (
-            <Card key={w.title} pad={24}>
+            <Card key={w.title} pad={24} style={{ flex: "1 1 240px", maxWidth: 340 }}>
               <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "var(--green-soft)", color: "var(--green)", display: "grid", placeItems: "center", marginBottom: 14 }}>
                 <Icon name={w.icon} size={22} />
               </div>
@@ -238,9 +238,9 @@ export default function Home() {
             La IA hace el trabajo pesado de la facilitación: sintetiza, redacta y resume — vos revisás y decidís. Incluida en los planes Pro y Business.
           </p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
           {AI_USES.map((a) => (
-            <Card key={a.title} pad={22} style={{ border: "1px solid color-mix(in srgb, var(--violet) 22%, var(--line))" }}>
+            <Card key={a.title} pad={22} style={{ flex: "0 1 280px", maxWidth: 320, border: "1px solid color-mix(in srgb, var(--violet) 22%, var(--line))" }}>
               <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--violet) 14%, transparent)", color: "var(--violet)", display: "grid", placeItems: "center", marginBottom: 14 }}>
                 <Icon name={a.icon} size={22} />
               </div>
