@@ -300,7 +300,20 @@ export interface Org {
   status: "Activo" | "Piloto";
   ownerId?: string;
   ownerEmail?: string;
+  plan?: PlanKey;
+  kind?: "solo" | "company"; // cuenta de un coach (solo) o de una empresa
 }
+
+// ── Planes (la "cuenta" = organization lleva el plan) ──
+export type PlanKey = "starter" | "pro" | "business";
+export interface PlanLimits { teams: number; facilitators: number; retros: "starter" | "all"; }
+export const PLANS: Record<PlanKey, { label: string; color: string; limits: PlanLimits }> = {
+  starter:  { label: "Starter",  color: "var(--ink-2)",  limits: { teams: 1,        facilitators: 1,        retros: "starter" } },
+  pro:      { label: "Pro",      color: "var(--green)",  limits: { teams: 10,       facilitators: 1,        retros: "all" } },
+  business: { label: "Business", color: "var(--violet)", limits: { teams: Infinity, facilitators: Infinity, retros: "all" } },
+};
+export function planOf(plan?: PlanKey): PlanKey { return plan ?? "starter"; }
+export function planLimits(plan?: PlanKey): PlanLimits { return PLANS[planOf(plan)].limits; }
 export const ORGS: Org[] = [
   { id: "o1", name: "Banco Andino", sector: "Servicios financieros", teams: 2, leader: "Roberto Méndez", leaderRole: "Gerente de Operaciones", contract: "6 meses", since: "feb 2026", status: "Activo" },
   { id: "o2", name: "Logística del Sur", sector: "Logística", teams: 1, leader: "Ana Belmonte", leaderRole: "Directora de Operaciones", contract: "3 meses", since: "abr 2026", status: "Activo" },

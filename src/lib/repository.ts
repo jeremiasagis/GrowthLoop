@@ -136,6 +136,15 @@ export async function updateOrg(id: string, fields: { name?: string; sector?: st
   return {};
 }
 
+/** Cambia el plan de una cuenta (organización). Solo superadmin/dueño. */
+export async function setOrgPlan(id: string, plan: "starter" | "pro" | "business"): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("organizations").update({ plan }).eq("id", id);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
 /** Mergea datos a nivel equipo (teams.data jsonb) sin pisar lo demás. */
 async function mergeTeamData(teamId: string, patch: Record<string, unknown>): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();

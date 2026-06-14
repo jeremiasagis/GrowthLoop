@@ -6,11 +6,34 @@ import { Icon } from "@/components/icon";
 import { AvatarStack, Button, Card, CopyLink, EmptyState, Pill, Sparkline, StageBadge } from "@/components/ui";
 import {
   assignFacilitatorToOrg, assignOrgAdmin, createOrg, getAdmins, getCoordinatorsForOrg, getFacilitators,
-  getOrgs, getTeams, inviteCoordinator, removeFacilitatorFromOrg, revokeInvitation, updateOrg,
+  getOrgs, getTeams, inviteCoordinator, removeFacilitatorFromOrg, revokeInvitation, setOrgPlan, updateOrg,
 } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
-import { overallOf, teamLiveStage, to5, type Facilitator, type Org, type Team } from "@/lib/data";
+import { overallOf, PLANS, planOf, teamLiveStage, to5, type Facilitator, type Org, type PlanKey, type Team } from "@/lib/data";
+
+/** Badge + (opcional) selector de plan de una cuenta. */
+function PlanControl({ org, editable, onChanged }: { org: Org; editable?: boolean; onChanged?: () => void }) {
+  const { show } = useToast();
+  const [busy, setBusy] = useState(false);
+  const plan = planOf(org.plan);
+  const meta = PLANS[plan];
+  if (!editable) return <Pill color={meta.color} bg={`color-mix(in srgb, ${meta.color} 16%, transparent)`} icon="CreditCard">{meta.label}</Pill>;
+  const change = async (p: PlanKey) => {
+    if (p === plan || busy) return;
+    setBusy(true);
+    const res = await setOrgPlan(org.id, p);
+    setBusy(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    show(`Plan: ${PLANS[p].label}`, "Check"); onChanged?.();
+  };
+  return (
+    <select value={plan} disabled={busy} onChange={(e) => change(e.target.value as PlanKey)}
+      style={{ background: `color-mix(in srgb, ${meta.color} 12%, var(--card))`, border: `1px solid ${meta.color}`, color: meta.color, borderRadius: "var(--r-full)", padding: "3px 10px", fontSize: "var(--t-xs)", fontWeight: 700, outline: "none", cursor: "pointer" }}>
+      {(Object.keys(PLANS) as PlanKey[]).map((k) => <option key={k} value={k} style={{ background: "var(--card)", color: "var(--ink-0)" }}>{PLANS[k].label}</option>)}
+    </select>
+  );
+}
 
 /* ── Tarjeta rica de equipo (vista del facilitador) ───────── */
 function TeamRichCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
@@ -160,6 +183,8 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
   org: Org; orgs: Org[]; teams: Team[]; facilitators: Facilitator[]; onClose: () => void; onOpenTeam: (id: string) => void; onChanged: () => void;
 }) {
   const { show } = useToast();
+  const { user } = useAuth();
+  const isSuper = user?.role === "superadmin";
   const [coords, setCoords] = useState<{ token: string; email: string; name?: string; status: string }[]>([]);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -219,9 +244,10 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
           <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "var(--violet-soft)", color: "var(--violet)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Building2" size={22} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{org.name}</h3>
               <Pill color={org.status === "Activo" ? "var(--success)" : "var(--warning)"} bg={org.status === "Activo" ? "var(--success-bg)" : "var(--warning-bg)"}>{org.status}</Pill>
+              <PlanControl org={org} editable={isSuper} onChanged={onChanged} />
             </div>
             <div className="muted" style={{ fontSize: "var(--t-sm)" }}>{org.sector}</div>
           </div>
@@ -463,6 +489,7 @@ export default function OrganizacionesPage() {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "none" }}>
+                  <PlanControl org={o} />
                   <Pill color={o.status === "Activo" ? "var(--success)" : "var(--warning)"} bg={o.status === "Activo" ? "var(--success-bg)" : "var(--warning-bg)"}>{o.status}</Pill>
                   <button onClick={() => setViewing(o)} title="Ver organización"
                     style={{ color: "var(--ink-2)", padding: 6, borderRadius: "var(--r-sm)", display: "inline-flex" }}

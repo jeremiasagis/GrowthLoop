@@ -38,6 +38,21 @@ export interface RetroDefinition {
   implemented: boolean;
 }
 
+/** IDs de las retros incluidas en el plan Starter (2 por etapa + la única de Objetivos). */
+export const STARTER_RETRO_IDS = new Set<string>([
+  "exploration-where-are-we", "exploration-foda",
+  "objectives-tensions",
+  "focus-impact-effort", "focus-why-is-it-happening",
+  "ideation-how-might-we", "ideation-experiment-design",
+  "follow-how-are-we-doing", "follow-what-is-blocking-us",
+  "learn-cycle-close", "learn-kudos",
+]);
+
+/** ¿Esta retro está disponible para un plan dado? Starter solo las básicas; Pro/Business todas. */
+export function retroInPlan(retroId: string, plan: string | undefined): boolean {
+  return plan !== "starter" || STARTER_RETRO_IDS.has(retroId);
+}
+
 export const RETRO_REGISTRY: RetroDefinition[] = [
   // ══════════ EXPLORACIÓN · módulo de diagnóstico ══════════
   {
