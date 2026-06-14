@@ -9,7 +9,8 @@ import { SessionTimer } from "@/components/session/Timer";
 import { JoinModal } from "@/components/session/JoinModal";
 import { HiddenDots, Cascade, RevealHeader, RevealPop } from "@/components/session/RevealFx";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { createInitiative, getInitiatives, getTeam } from "@/lib/repository";
+import { createInitiative, getInitiatives, getTeam, getOrg } from "@/lib/repository";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { retroByKey } from "@/lib/retros";
 import { retroById } from "@/lib/retros/registry";
 import { WordCloud } from "@/components/WordCloud";
@@ -28,7 +29,7 @@ import { OneWordClosing } from "@/components/OneWordClosing";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { KudosCard, KUDO_EMOJIS } from "@/components/KudosCard";
 import { useToast } from "@/components/Toast";
-import { PULSE_DIMS, FOUNDING_QUESTIONS, LEARNING_TYPES, overallOf, to5, to100, type LearningEntry } from "@/lib/data";
+import { PULSE_DIMS, FOUNDING_QUESTIONS, LEARNING_TYPES, overallOf, planLimits, to5, to100, type LearningEntry } from "@/lib/data";
 import {
   addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster, pulseOverall,
   finalizeSession, getCardCounts, getCards, getClusters, getInitiativeSessions, getInputs, getMyCards, getParticipants, getSessionContent,
@@ -214,6 +215,7 @@ export default function SalaPage() {
   const [cardDraft, setCardDraft] = useState<Record<string, string>>({ works: "", blocks: "", unsaid: "" });
   const [anon, setAnon] = useState(true);
   const [sel, setSel] = useState<string[]>([]);
+  const [aiBusy, setAiBusy] = useState(false);
   const [iceDraft, setIceDraft] = useState<Record<string, { i: number; c: number; e: number }>>({});
   const joinedRef = useRef(false);
   const movedRef = useRef(false);
@@ -7256,6 +7258,27 @@ export default function SalaPage() {
   const goNext = async () => { const idx = seq.indexOf(step); const nextKey = seq[Math.min(seq.length - 1, idx + 1)]; setBusy(true); await setStep(sessionId, nextKey, idx + 1); setBusy(false); };
   const clusterNoun = session.type === "explore" ? "Tensión" : "Grupo";
   const group = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `${clusterNoun} ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
+  // IA (Pro+): agrupa automáticamente las tarjetas sueltas y propone nombres. El facilitador edita después.
+  const aiEnabled = planLimits(team?.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
+  const aiGroup = async () => {
+    if (aiBusy || loose.length < 2) return;
+    setAiBusy(true);
+    try {
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/cluster", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ cards: loose.map((c) => ({ id: c.id, text: c.text })), context: `Retro: ${retroById(session.retro)?.name ?? session.type}.` }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo agrupar con IA.", "TriangleAlert"); setAiBusy(false); return; }
+      const aiClusters = (json.clusters ?? []) as { name: string; cardIds: string[] }[];
+      for (const cl of aiClusters) { const id = await createCluster(sessionId, cl.name); if (id) for (const cid of cl.cardIds) await assignCardToCluster(cid, id); }
+      setSel([]); await load();
+      show(aiClusters.length ? `La IA armó ${aiClusters.length} ${aiClusters.length === 1 ? "grupo" : "grupos"}. Revisalos y ajustá.` : "La IA no encontró grupos claros.", "Sparkles");
+    } catch { show("No se pudo agrupar con IA.", "TriangleAlert"); }
+    setAiBusy(false);
+  };
   const finish = async () => {
     setBusy(true);
     // Retros clásicas de tablero: guardan el top votado por sección, sin tocar la iniciativa.
@@ -7437,9 +7460,17 @@ export default function SalaPage() {
     content = (
       <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
             <span className="eyebrow">Sueltas ({loose.length})</span>
-            {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={group}>Agrupar {sel.length}</Button>}
+            <div style={{ display: "flex", gap: 8 }}>
+              {isFacil && aiEnabled && loose.length >= 2 && (
+                <button onClick={aiGroup} disabled={aiBusy || busy} title="Agrupar automáticamente con IA"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: "1px solid color-mix(in srgb, var(--violet) 45%, var(--line-2))", background: "color-mix(in srgb, var(--violet) 12%, var(--card))", color: "var(--violet)", cursor: aiBusy ? "default" : "pointer", opacity: aiBusy ? 0.7 : 1 }}>
+                  <Icon name={aiBusy ? "Loader" : "Sparkles"} size={14} /> {aiBusy ? "Agrupando…" : "Agrupar con IA"}
+                </button>
+              )}
+              {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={group}>Agrupar {sel.length}</Button>}
+            </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px,1fr))", gap: 10 }}>
             {loose.map((c) => {

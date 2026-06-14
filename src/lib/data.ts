@@ -306,11 +306,11 @@ export interface Org {
 
 // ── Planes (la "cuenta" = organization lleva el plan) ──
 export type PlanKey = "starter" | "pro" | "business";
-export interface PlanLimits { teams: number; facilitators: number; retros: "starter" | "all"; }
+export interface PlanLimits { teams: number; facilitators: number; retros: "starter" | "all"; ai: boolean; }
 export const PLANS: Record<PlanKey, { label: string; color: string; limits: PlanLimits }> = {
-  starter:  { label: "Starter",  color: "var(--ink-2)",  limits: { teams: 1,        facilitators: 1,        retros: "starter" } },
-  pro:      { label: "Pro",      color: "var(--green)",  limits: { teams: 10,       facilitators: 1,        retros: "all" } },
-  business: { label: "Business", color: "var(--violet)", limits: { teams: Infinity, facilitators: Infinity, retros: "all" } },
+  starter:  { label: "Starter",  color: "var(--ink-2)",  limits: { teams: 1,        facilitators: 1,        retros: "starter", ai: false } },
+  pro:      { label: "Pro",      color: "var(--green)",  limits: { teams: 10,       facilitators: 1,        retros: "all",     ai: true } },
+  business: { label: "Business", color: "var(--violet)", limits: { teams: Infinity, facilitators: Infinity, retros: "all",     ai: true } },
 };
 export function planOf(plan?: PlanKey): PlanKey { return plan ?? "starter"; }
 export function planLimits(plan?: PlanKey): PlanLimits { return PLANS[planOf(plan)].limits; }
