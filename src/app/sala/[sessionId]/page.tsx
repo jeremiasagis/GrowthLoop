@@ -397,6 +397,24 @@ export default function SalaPage() {
   );
 
   const team = getTeam(session.teamId);
+  // IA (Pro+): ¿la cuenta del equipo tiene IA habilitada?
+  const aiEnabled = planLimits(team?.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
+  // Borrador con IA: pide a Claude un texto sugerido (causa raíz, narrativa, etc.). Devuelve null si falla.
+  const aiDraft = async (kind: string, context: string): Promise<string | null> => {
+    setAiBusy(true);
+    try {
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/draft", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ kind, context }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo redactar con IA.", "TriangleAlert"); return null; }
+      return (json.text as string)?.trim() || null;
+    } catch { show("No se pudo redactar con IA.", "TriangleAlert"); return null; }
+    finally { setAiBusy(false); }
+  };
   // Atmósfera de la sala: el último pulso del equipo tiñe sutilmente el fondo.
   const lastPulsePt = team?.pulse?.length ? team.pulse[team.pulse.length - 1] : undefined;
   const teamMood = lastPulsePt ? overallOf(lastPulsePt) : null;
@@ -1866,9 +1884,17 @@ export default function SalaPage() {
         <>
           {TroubleChip}
           <Card pad={20}>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>La causa raíz, en una oración</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+              <div className="eyebrow">La causa raíz, en una oración</div>
+              {isFacil && aiEnabled && (() => {
+                const causes = tree.filter((n) => n.text.trim()).map((n) => `- ${n.text}`).join("\n") || "(sin causas)";
+                const ctx = `La traba que estamos analizando: ${subject}.\n\nCausas que el equipo identificó (de más general a más profunda):\n${causes}`;
+                const fill = async () => { const t = await aiDraft("rootcause", ctx); if (t) { await setResult(sessionId, { whRoot: t }); resultRef.current.whRoot = t; await load(); } };
+                return <button onClick={fill} disabled={aiBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: "1px solid color-mix(in srgb, var(--violet) 45%, var(--line-2))", background: "color-mix(in srgb, var(--violet) 12%, var(--card))", color: "var(--violet)", cursor: aiBusy ? "default" : "pointer", opacity: aiBusy ? 0.7 : 1 }}><Icon name={aiBusy ? "Loader" : "Sparkles"} size={13} /> {aiBusy ? "Redactando…" : "Sugerir con IA"}</button>;
+              })()}
+            </div>
             {isFacil
-              ? <textarea defaultValue={template} onBlur={(e) => patchResult({ whRoot: e.target.value.trim() })} rows={3} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
+              ? <textarea key={template} defaultValue={template} onBlur={(e) => patchResult({ whRoot: e.target.value.trim() })} rows={3} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
               : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.55, color: whRoot ? "var(--ink-0)" : "var(--ink-3)" }}>{whRoot || "El facilitador está redactando…"}</p>}
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {!isFacil ? (
@@ -5776,9 +5802,17 @@ export default function SalaPage() {
       sub = "La narrativa compartida del ciclo. El facilitador redacta, el equipo aprueba.";
       content = (
         <Card pad={20}>
-          <div className="eyebrow" style={{ marginBottom: 8 }}>Lo que pasó, en palabras del equipo</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+            <div className="eyebrow">Lo que pasó, en palabras del equipo</div>
+            {isFacil && aiEnabled && (() => {
+              const colTxt = (k: string) => allCards.filter((c) => c.columnKey === k).map((c) => `- ${c.text}`).join("\n") || "(sin tarjetas)";
+              const ctx = `Resultado de la prueba: ${ACH.find((a) => a.k === achieved)?.t ?? "—"}. Ejecución: ${EXEC_LABEL[executed] ?? "—"}.\n\n¿Qué funcionó?:\n${colTxt("lhwork")}\n\n¿Qué no funcionó?:\n${colTxt("lhfail")}\n\n¿Qué sorprendió?:\n${colTxt("lhsurp")}`;
+              const fill = async () => { const t = await aiDraft("narrative", ctx); if (t) { await setResult(sessionId, { lhNarrative: t }); resultRef.current.lhNarrative = t; await load(); } };
+              return <button onClick={fill} disabled={aiBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: "1px solid color-mix(in srgb, var(--violet) 45%, var(--line-2))", background: "color-mix(in srgb, var(--violet) 12%, var(--card))", color: "var(--violet)", cursor: aiBusy ? "default" : "pointer", opacity: aiBusy ? 0.7 : 1 }}><Icon name={aiBusy ? "Loader" : "Sparkles"} size={13} /> {aiBusy ? "Redactando…" : "Redactar con IA"}</button>;
+            })()}
+          </div>
           {isFacil
-            ? <textarea defaultValue={narrative} onBlur={(e) => patchResult({ lhNarrative: e.target.value })} rows={6} placeholder={"Lo que pasó fue…\nFuncionó…\nNo funcionó…\nLo más sorprendente fue…"} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.6, resize: "vertical" }} />
+            ? <textarea key={narrative} defaultValue={narrative} onBlur={(e) => patchResult({ lhNarrative: e.target.value })} rows={6} placeholder={"Lo que pasó fue…\nFuncionó…\nNo funcionó…\nLo más sorprendente fue…"} style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.6, resize: "vertical" }} />
             : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap", color: narrative ? "var(--ink-0)" : "var(--ink-3)" }}>{narrative || "El facilitador está redactando la narrativa…"}</p>}
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             {!isFacil
@@ -7259,7 +7293,6 @@ export default function SalaPage() {
   const clusterNoun = session.type === "explore" ? "Tensión" : "Grupo";
   const group = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `${clusterNoun} ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
   // IA (Pro+): agrupa automáticamente las tarjetas sueltas y propone nombres. El facilitador edita después.
-  const aiEnabled = planLimits(team?.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
   const aiGroup = async () => {
     if (aiBusy || loose.length < 2) return;
     setAiBusy(true);
