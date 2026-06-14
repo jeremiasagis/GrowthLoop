@@ -7,7 +7,7 @@
    Usa Sonnet (más calidad; se llama 1 vez por ciclo).
    ============================================================ */
 
-import { createClient } from "@supabase/supabase-js";
+import { authAndPlan } from "@/lib/ai-guard";
 
 export const runtime = "nodejs";
 
@@ -22,11 +22,9 @@ export async function POST(req: Request) {
   if (!apiKey) return Response.json({ error: "La IA no está configurada (falta ANTHROPIC_API_KEY)." }, { status: 500 });
 
   const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!token || !url || !anon) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: auth } = await createClient(url, anon).auth.getUser(token);
-  if (!auth?.user) return Response.json({ error: "No autorizado." }, { status: 401 });
+  const guard = await authAndPlan(token);
+  if (!guard.ok) return Response.json({ error: "No autorizado." }, { status: 401 });
+  if (!guard.aiAllowed) return Response.json({ error: "La IA está disponible en el plan Pro." }, { status: 403 });
 
   let body: { context?: string };
   try { body = await req.json(); } catch { return Response.json({ error: "Body inválido." }, { status: 400 }); }

@@ -517,8 +517,8 @@ export default function InitiativeDetailPage() {
     if (team.pulse?.length) L.push(`Clima del equipo (pulso 0-100): de ${overallOf(team.pulse[0])} a ${overallOf(team.pulse[team.pulse.length - 1])}.`);
     return L.join("\n");
   };
-  const genReport = async () => {
-    if (aiReportBusy) return;
+  const requestReport = async (): Promise<string | null> => {
+    if (aiReportBusy) return null;
     setAiReportBusy(true);
     try {
       const { data: s } = await getSupabaseBrowserClient().auth.getSession();
@@ -528,11 +528,23 @@ export default function InitiativeDetailPage() {
         body: JSON.stringify({ context: buildReportCtx() }),
       });
       const json = await res.json();
-      if (!res.ok || json.error) { show(json.error ?? "No se pudo generar el informe.", "TriangleAlert"); setAiReportBusy(false); return; }
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo generar el informe.", "TriangleAlert"); return null; }
       setAiReport(json.text ?? "");
-    } catch { show("No se pudo generar el informe.", "TriangleAlert"); }
-    setAiReportBusy(false);
+      return json.text ?? "";
+    } catch { show("No se pudo generar el informe.", "TriangleAlert"); return null; }
+    finally { setAiReportBusy(false); }
   };
+  const genReport = () => { requestReport(); };
+  // Export: abre una ventana imprimible (el navegador permite "Guardar como PDF").
+  const printReport = (text: string) => {
+    const w = window.open("", "_blank", "width=820,height=900");
+    if (!w) { show("Permití las ventanas emergentes para exportar.", "TriangleAlert"); return; }
+    const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] ?? c));
+    w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Informe · ${esc(init.title)}</title><style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:720px;margin:48px auto;padding:0 28px;color:#0f172a;line-height:1.65}h1{font-size:24px;margin:0 0 4px}.meta{color:#64748b;font-size:13px;margin-bottom:28px}pre{white-space:pre-wrap;font-family:inherit;font-size:15px;margin:0}</style></head><body><h1>${esc(init.title)}</h1><div class="meta">${esc(team.name)} · ${new Date().toLocaleDateString("es", { day: "2-digit", month: "long", year: "numeric" })}</div><pre>${esc(text)}</pre></body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => w.print(), 350);
+  };
+  const exportReport = async () => { const t = aiReport ?? await requestReport(); if (t) printReport(t); };
+  const shareReport = async () => { const t = aiReport ?? await requestReport(); if (t) { try { await navigator.clipboard.writeText(t); show("Informe copiado · pegáselo al líder", "Check"); } catch { show("No se pudo copiar.", "TriangleAlert"); } } };
   // Consolidación: estado post-Implementar (30 días). Indicador in-app + disparo manual del check.
   const con = init.data?.consolidate;
   const conPending = !!con?.pending;
@@ -757,8 +769,8 @@ export default function InitiativeDetailPage() {
             <SectionTitle icon="Share2">Informe</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {isFacil && aiEnabled && <Button icon={aiReportBusy ? "Loader" : "Sparkles"} full disabled={aiReportBusy} onClick={genReport}>{aiReportBusy ? "Generando…" : "Generar resumen con IA"}</Button>}
-              <Button variant="secondary" icon="FileDown" full onClick={() => show("Exportando informe de la iniciativa…", "FileDown")}>Exportar PDF</Button>
-              <Button variant="secondary" icon="Share2" full onClick={() => show("Compartido con el líder del equipo.", "Share2")}>Compartir con líder</Button>
+              <Button variant="secondary" icon="FileDown" full disabled={aiReportBusy} onClick={exportReport}>Exportar PDF</Button>
+              <Button variant="secondary" icon="Share2" full disabled={aiReportBusy} onClick={shareReport}>Compartir con líder</Button>
             </div>
           </Card>
         </div>
@@ -900,6 +912,7 @@ export default function InitiativeDetailPage() {
             <div style={{ padding: "16px 18px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{aiReport}</div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
               <Button variant="secondary" icon="Copy" onClick={() => { navigator.clipboard?.writeText(aiReport); show("Informe copiado", "Check"); }}>Copiar</Button>
+              <Button variant="secondary" icon="Printer" onClick={() => printReport(aiReport)}>Imprimir / PDF</Button>
               <Button icon="RefreshCw" variant="ghost" disabled={aiReportBusy} onClick={genReport}>Regenerar</Button>
               <Button icon="Check" onClick={() => setAiReport(null)}>Listo</Button>
             </div>
