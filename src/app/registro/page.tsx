@@ -79,7 +79,7 @@ export default function RegistroPage() {
               {error && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#ff8b8b", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="TriangleAlert" size={16} /> {error}</div>}
               <Button full size="lg" icon="Rocket" disabled={!valid || busy} onClick={submit}>{busy ? "Creando tu cuenta…" : "Crear mi cuenta gratis"}</Button>
               <p className="faint" style={{ fontSize: "var(--t-xs)", textAlign: "center" }}>
-                ¿Sos una empresa? Escribinos a <b style={{ color: "var(--ink-1)" }}>consultas@teamcookgame.com</b> para el plan Business.
+                ¿Sos una empresa? Escribinos a <b style={{ color: "var(--ink-1)" }}>consultas@growthloop.com</b> para el plan Business.
               </p>
             </div>
           )}

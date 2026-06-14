@@ -11,7 +11,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { STAGES, type StageKey } from "@/lib/data";
 
 // ⚠️ Reemplazar por el número real (formato internacional sin +, ej: 5491122334455)
-const WHATSAPP = "5491100000000";
+const WHATSAPP = "5491140794823";
 const waLink = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent("Hola, me interesa llevar Growthloop a mi organización.")}`;
 
 // Posiciones de los 5 nodos alrededor del círculo (en % del contenedor cuadrado), desde arriba en sentido horario.
@@ -307,7 +307,7 @@ export default function Home() {
       <footer style={{ borderTop: "1px solid var(--line)" }}>
         <Section style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "22px 24px", flexWrap: "wrap" }}>
           <Logo />
-          <span className="faint" style={{ fontSize: "var(--t-xs)" }}>© 2026 Growthloop · consultas@teamcookgame.com</span>
+          <span className="faint" style={{ fontSize: "var(--t-xs)" }}>© 2026 Growthloop · consultas@growthloop.com</span>
         </Section>
       </footer>
     </div>
