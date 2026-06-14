@@ -65,6 +65,7 @@ function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
   const activeInits = (team.initiatives ?? []).filter((i) => i.status === "active");
   const focusInit = activeInits[0];
+  const g = teamProgress(team);
   return (
     <Card hover onClick={() => go(`/equipos/${team.id}`)} pad={18} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -75,6 +76,12 @@ function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
           <div style={{ fontWeight: 700, fontSize: "var(--t-md)", letterSpacing: "-0.01em" }}>{team.name}</div>
         </div>
         <StageBadge stage={teamLiveStage(team) ?? "queue"} size="sm" />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--green)", background: "var(--green-soft)", padding: "3px 9px", borderRadius: "var(--r-full)" }}><Icon name="Trophy" size={12} /> {g.level.name}</span>
+        {g.streak > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--warning)" }}><Icon name="Flame" size={12} /> {g.streak}</span>}
+        {g.cycles > 0 && <span className="muted" style={{ fontSize: "var(--t-xs)" }}>· {g.cycles} {g.cycles === 1 ? "ciclo" : "ciclos"}</span>}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", border: "1px solid var(--line)" }}>

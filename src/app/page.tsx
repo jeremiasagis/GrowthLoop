@@ -66,6 +66,7 @@ const WHY = [
   { icon: "Radio", title: "En vivo y facilitado", desc: "Todos en la misma pantalla, conducidos por un facilitador. Nada de planillas que nadie completa." },
   { icon: "EyeOff", title: "Anónimo y seguro", desc: "Las votaciones son anónimas y ocultas hasta que el facilitador las revela. Se dice lo que hay que decir." },
   { icon: "Library", title: "Queda registrado", desc: "Cada ciclo deja aprendizajes, apuestas y causas raíz guardados. La mejora se vuelve memoria del equipo." },
+  { icon: "Trophy", title: "Gamificada", desc: "El equipo sube de nivel, mantiene su racha y desbloquea logros a medida que mejora. La constancia se vuelve hábito, con energía." },
 ];
 
 function Section({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -106,7 +107,7 @@ export default function Home() {
       {/* hero */}
       <Section style={{ paddingTop: 72, paddingBottom: 64, textAlign: "center" }}>
         <span className="eyebrow" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: "var(--r-full)", background: "var(--green-soft)", color: "var(--green)", marginBottom: 22 }}>
-          <Icon name="Sprout" size={14} /> Mejora continua para equipos
+          <Icon name="Sprout" size={14} /> Mejora continua · gamificada · con IA
         </span>
         <h1 style={{ fontSize: "clamp(2.2rem, 5vw, 3.6rem)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.05, maxWidth: 880, margin: "0 auto 20px" }}>
           El <span style={{ color: "var(--green)" }}>loop</span> que convierte las reuniones en mejoras reales
