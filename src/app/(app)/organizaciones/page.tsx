@@ -496,37 +496,39 @@ export default function OrganizacionesPage() {
           const ots = teams.filter((t) => t.orgId === o.id);
           return (
             <Card key={o.id} pad={20} hover style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0, flex: 1 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                   <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "var(--violet-soft)", color: "var(--violet)", display: "grid", placeItems: "center", flex: "none" }}>
                     <Icon name="Building2" size={22} />
                   </div>
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: "var(--t-md)", overflowWrap: "anywhere" }}>{o.name}</div>
                     <div className="muted" style={{ fontSize: "var(--t-sm)" }}>{o.sector}</div>
                   </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "none" }}>
+                    <button onClick={() => setViewing(o)} title="Ver organización"
+                      style={{ color: "var(--ink-2)", padding: 6, borderRadius: "var(--r-sm)", display: "inline-flex" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.color = "var(--ink-0)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-2)"; }}>
+                      <Icon name="Eye" size={15} />
+                    </button>
+                    <button onClick={() => setEditing(o)} title="Editar organización"
+                      style={{ color: "var(--ink-2)", padding: 6, borderRadius: "var(--r-sm)", display: "inline-flex" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.color = "var(--ink-0)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-2)"; }}>
+                      <Icon name="Pencil" size={15} />
+                    </button>
+                    <button onClick={() => handleDelete(o)} title="Eliminar organización"
+                      style={{ color: "var(--ink-3)", padding: 6, borderRadius: "var(--r-sm)", display: "inline-flex" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--risk-bg)"; e.currentTarget.style.color = "var(--risk)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-3)"; }}>
+                      <Icon name="Trash2" size={15} />
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, flexWrap: "wrap", flex: "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <PlanControl org={o} />
                   <Pill color={o.status === "Activo" ? "var(--success)" : "var(--warning)"} bg={o.status === "Activo" ? "var(--success-bg)" : "var(--warning-bg)"}>{o.status}</Pill>
-                  <button onClick={() => setViewing(o)} title="Ver organización"
-                    style={{ color: "var(--ink-2)", padding: 6, borderRadius: "var(--r-sm)", display: "inline-flex" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.color = "var(--ink-0)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-2)"; }}>
-                    <Icon name="Eye" size={15} />
-                  </button>
-                  <button onClick={() => setEditing(o)} title="Editar organización"
-                    style={{ color: "var(--ink-2)", padding: 6, borderRadius: "var(--r-sm)", display: "inline-flex" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.color = "var(--ink-0)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-2)"; }}>
-                    <Icon name="Pencil" size={15} />
-                  </button>
-                  <button onClick={() => handleDelete(o)} title="Eliminar organización"
-                    style={{ color: "var(--ink-3)", padding: 6, borderRadius: "var(--r-sm)", display: "inline-flex" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--risk-bg)"; e.currentTarget.style.color = "var(--risk)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-3)"; }}>
-                    <Icon name="Trash2" size={15} />
-                  </button>
                 </div>
               </div>
 
