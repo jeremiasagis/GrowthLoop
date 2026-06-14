@@ -48,7 +48,7 @@ const AUDIENCE = [
 const PRICING: { plan: string; price: string; tagline: string; features: string[]; cta: string; to: "registro" | "wa"; highlight?: boolean }[] = [
   { plan: "Starter", price: "Gratis", tagline: "Para empezar solo, hoy", to: "registro", cta: "Empezá gratis",
     features: ["1 equipo", "2 retros esenciales por etapa", "Sesiones en vivo y anónimas", "Biblioteca de aprendizajes"] },
-  { plan: "Pro", price: "Para coaches", tagline: "Acompañá a varios clientes", to: "wa", cta: "Quiero Pro", highlight: true,
+  { plan: "Pro", price: "Para facilitadores", tagline: "Acompañá a varios equipos", to: "wa", cta: "Quiero Pro", highlight: true,
     features: ["Hasta 10 equipos", "Las 49 retros, todas desbloqueadas", "✨ Copiloto de IA en cada sesión", "Reporte ejecutivo con IA", "Modo escenario + reacciones en vivo"] },
   { plan: "Business", price: "A medida", tagline: "Para empresas y sus líderes", to: "wa", cta: "Hablar con ventas",
     features: ["Equipos y facilitadores ilimitados", "Tus líderes facilitan sus equipos", "Panel de organización + coordinadores", "Onboarding y soporte"] },
