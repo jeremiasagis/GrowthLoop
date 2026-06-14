@@ -1,0 +1,87 @@
+/* ============================================================
+   IA · Sugerir qué retro hacer
+   ------------------------------------------------------------
+   Recomienda 1-2 retros de la etapa para este equipo, según su
+   situación y (opcional) lo que el facilitador quiere trabajar.
+   Elige solo de la lista provista (retros habilitadas por el plan).
+   Server-side; API key solo acá; usuario autenticado.
+   ============================================================ */
+
+import { createClient } from "@supabase/supabase-js";
+
+export const runtime = "nodejs";
+
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const MODEL = "claude-haiku-4-5";
+
+type Retro = { id: string; name: string; purpose: string };
+
+export async function POST(req: Request) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return Response.json({ error: "La IA no está configurada (falta ANTHROPIC_API_KEY)." }, { status: 500 });
+
+  const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!token || !url || !anon) return Response.json({ error: "No autorizado." }, { status: 401 });
+  const { data: auth } = await createClient(url, anon).auth.getUser(token);
+  if (!auth?.user) return Response.json({ error: "No autorizado." }, { status: 401 });
+
+  let body: { stage?: string; intent?: string; state?: string; retros?: Retro[] };
+  try { body = await req.json(); } catch { return Response.json({ error: "Body inválido." }, { status: 400 }); }
+  const retros = (body.retros ?? []).filter((r) => r && r.id && r.name).slice(0, 30);
+  if (retros.length === 0) return Response.json({ picks: [] });
+  const intent = (body.intent ?? "").trim();
+
+  const tool = {
+    name: "recomendar",
+    description: "Recomienda 1 o 2 retros de la lista.",
+    input_schema: {
+      type: "object",
+      properties: {
+        picks: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "El id EXACTO de una retro de la lista." },
+              reason: { type: "string", description: "Una sola oración, concreta, de por qué conviene a este equipo ahora." },
+            },
+            required: ["id", "reason"],
+          },
+        },
+      },
+      required: ["picks"],
+    },
+  };
+  const system =
+    "Sos un facilitador experto de equipos. Recomendá 1 o 2 retrospectivas de la LISTA provista para este equipo. Elegí SOLO por el id exacto de la lista. Si el facilitador escribió qué quiere trabajar hoy, esa intención manda; si no, guiate por el estado del equipo. Razones de una sola línea, en español rioplatense, concretas (no genéricas).";
+  const userMsg =
+    `Etapa: ${body.stage ?? "—"}.\n` +
+    (intent ? `El facilitador quiere trabajar hoy: "${intent}".\n` : "El facilitador no especificó un foco; recomendá según el estado del equipo.\n") +
+    `\nEstado del equipo:\n${(body.state ?? "Sin datos.").slice(0, 2000)}\n` +
+    `\nRetros disponibles (id · nombre · para qué):\n${retros.map((r) => `${r.id} · ${r.name} · ${r.purpose}`).join("\n")}`;
+
+  let res: Response;
+  try {
+    res = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: MODEL, max_tokens: 600, system,
+        tools: [tool], tool_choice: { type: "tool", name: "recomendar" },
+        messages: [{ role: "user", content: userMsg }],
+      }),
+    });
+  } catch { return Response.json({ error: "No se pudo contactar a la IA." }, { status: 502 }); }
+  if (!res.ok) return Response.json({ error: "La IA no respondió bien.", detail: (await res.text()).slice(0, 300) }, { status: 502 });
+
+  const data = await res.json();
+  const toolUse = (data.content ?? []).find((b: { type?: string }) => b.type === "tool_use") as { input?: { picks?: { id?: string; reason?: string }[] } } | undefined;
+  const valid = new Set(retros.map((r) => r.id));
+  const picks = (toolUse?.input?.picks ?? [])
+    .filter((p) => p.id && valid.has(p.id))
+    .slice(0, 2)
+    .map((p) => ({ id: p.id as string, reason: (p.reason ?? "").trim() }));
+  return Response.json({ picks });
+}

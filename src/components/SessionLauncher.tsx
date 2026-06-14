@@ -13,14 +13,19 @@ import { Icon } from "./icon";
 import { Button, Pill } from "./ui";
 import { useToast } from "./Toast";
 import { createLiveSession } from "@/lib/session";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { retrosForStage, retroInPlan, type RetroDefinition } from "@/lib/retros/registry";
 import { getOrg } from "@/lib/repository";
-import { CYCLE_STAGES, STAGES, normalizeStage, planOf, type Initiative, type StageKey, type Team } from "@/lib/data";
+import { CYCLE_STAGES, STAGES, normalizeStage, planOf, planLimits, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 export function SessionLauncher({ team, initiative, initialStage, onClose }: { team: Team; initiative?: Initiative; initialStage?: StageKey; onClose: () => void }) {
   const router = useRouter();
   const { show } = useToast();
   const plan = planOf(getOrg(team.orgId)?.plan);
+  const aiEnabled = planLimits(getOrg(team.orgId)?.plan).ai;
+  const [intent, setIntent] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiPicks, setAiPicks] = useState<Record<string, string> | null>(null);
   const curIdx = initiative ? CYCLE_STAGES.indexOf(normalizeStage(initiative.stage)) : -1;
   const [stage, setStage] = useState<StageKey | null>(initialStage ?? (initiative ? normalizeStage(initiative.stage) : null));
   const [retro, setRetro] = useState<RetroDefinition | null>(null);
@@ -30,6 +35,40 @@ export function SessionLauncher({ team, initiative, initialStage, onClose }: { t
   // Retros ya hechas por el equipo (por nombre en el historial de sesiones).
   const doneByName = new Map<string, string>();
   for (const s of [...team.sessions].reverse()) doneByName.set(s.retro, s.date);
+
+  // IA: sugerir qué retro hacer (Pro+), según estado del equipo + intención del facilitador.
+  const teamStateText = () => {
+    const L: string[] = [];
+    if (team.psychSafety > 0) L.push(`Seguridad psicológica del equipo: ${team.psychSafety}/100.`);
+    const done = [...doneByName.keys()];
+    if (done.length) L.push(`Retros ya hechas: ${done.slice(0, 12).join(", ")}.`); else L.push("El equipo todavía no hizo retros.");
+    const d = initiative?.data;
+    if (d?.focus?.rootCause) L.push(`Causa raíz detectada: ${d.focus.rootCause}.`);
+    if (d?.proof?.betThen) L.push(`Apuesta en juego: ${d.proof.betThen}.`);
+    if (d?.follow?.blockers?.length) L.push(`Obstáculos recientes: ${d.follow.blockers.join("; ")}.`);
+    if (d?.learn?.decision) L.push(`Última decisión: ${d.learn.decision}.`);
+    return L.join("\n");
+  };
+  const suggest = async () => {
+    if (!stage || aiBusy) return;
+    const allowed = retrosForStage(stage).filter((r) => r.implemented && retroInPlan(r.id, plan));
+    if (!allowed.length) return;
+    setAiBusy(true);
+    try {
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/suggest", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ stage: STAGES[stage].label, intent, state: teamStateText(), retros: allowed.map((r) => ({ id: r.id, name: r.name, purpose: r.purpose })) }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo sugerir.", "TriangleAlert"); setAiBusy(false); return; }
+      const picks = (json.picks ?? []) as { id: string; reason: string }[];
+      setAiPicks(Object.fromEntries(picks.map((p) => [p.id, p.reason])));
+      if (!picks.length) show("La IA no encontró una recomendación clara.", "Info");
+    } catch { show("No se pudo sugerir.", "TriangleAlert"); }
+    setAiBusy(false);
+  };
 
   const launch = async () => {
     if (!retro || busy) return;
@@ -96,27 +135,39 @@ export function SessionLauncher({ team, initiative, initialStage, onClose }: { t
             <button onClick={() => setStep(1)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 8 }}><Icon name="ChevronLeft" size={13} /> Etapas</button>
             <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, marginBottom: 4 }}>¿Qué retro hacen hoy en {STAGES[stage].label}?</h2>
             <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 16 }}>El output de cada retro se acumula en la etapa.</p>
+            {aiEnabled && (
+              <div style={{ marginBottom: 16, padding: 14, borderRadius: "var(--r-md)", border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))", background: "color-mix(in srgb, var(--violet) 6%, var(--card))" }}>
+                <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--violet)" }}><Icon name="Sparkles" size={13} /> ¿No sabés cuál? Que la IA te recomiende</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input value={intent} onChange={(e) => setIntent(e.target.value)} onKeyDown={(e) => e.key === "Enter" && suggest()} placeholder="¿Qué querés trabajar hoy? (opcional)" style={{ flex: 1, minWidth: 180, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+                  <Button icon={aiBusy ? "Loader" : "Sparkles"} disabled={aiBusy} onClick={suggest}>{aiBusy ? "Pensando…" : "Recomendar"}</Button>
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {retrosForStage(stage).map((r) => {
+              {(aiPicks ? [...retrosForStage(stage)].sort((a, b) => (aiPicks[b.id] ? 1 : 0) - (aiPicks[a.id] ? 1 : 0)) : retrosForStage(stage)).map((r) => {
                 const doneAt = doneByName.get(r.name);
                 const locked = !retroInPlan(r.id, plan);
+                const aiReason = aiPicks?.[r.id];
                 const disabled = !r.implemented || locked;
                 return (
                   <button key={r.id} disabled={disabled} title={locked ? "Disponible en el plan Pro" : undefined} onClick={() => { if (locked) { show("Esta retro está disponible en el plan Pro.", "Lock"); return; } setRetro(r); setStep(3); }}
-                    style={{ display: "flex", gap: 12, padding: "14px", borderRadius: "var(--r-md)", textAlign: "left", background: "var(--card)", border: `1px solid ${locked ? "color-mix(in srgb, var(--violet) 30%, var(--line-2))" : "var(--line-2)"}`, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1 }}>
+                    style={{ display: "flex", gap: 12, padding: "14px", borderRadius: "var(--r-md)", textAlign: "left", background: aiReason && !locked ? "color-mix(in srgb, var(--violet) 7%, var(--card))" : "var(--card)", border: `1px solid ${aiReason && !locked ? "var(--violet)" : locked ? "color-mix(in srgb, var(--violet) 30%, var(--line-2))" : "var(--line-2)"}`, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1 }}>
                     <span title={r.category === "growthloop" ? "Retro propia de Growthloop" : "Retro clásica"} style={{ width: 34, height: 34, borderRadius: "var(--r-md)", display: "grid", placeItems: "center", flex: "none", background: r.category === "growthloop" ? "var(--green-soft)" : "var(--card-2)", color: r.category === "growthloop" ? "var(--green)" : "var(--ink-2)" }}>
                       <Icon name={locked ? "Lock" : r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={16} />
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
+                        {aiReason && !locked && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Sparkles">IA recomienda</Pill>}
                         {locked && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}
-                        {!locked && r.recommended && <Pill color="var(--green)" bg="var(--success-bg)" icon="ThumbsUp">Recomendada</Pill>}
+                        {!locked && !aiReason && r.recommended && <Pill color="var(--green)" bg="var(--success-bg)" icon="ThumbsUp">Recomendada</Pill>}
                         {r.sensitive && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="ShieldAlert">Sensible</Pill>}
                         {doneAt && <Pill icon="History">Ya realizada · {doneAt}</Pill>}
                         {!r.implemented && <Pill icon="Clock">Próximamente</Pill>}
                       </div>
                       <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 3 }}>{r.description}</div>
+                      {aiReason && !locked && <div style={{ fontSize: "var(--t-xs)", marginTop: 4, color: "var(--violet)", display: "flex", gap: 5 }}><Icon name="Sparkles" size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>{aiReason}</span></div>}
                       {r.note && <div style={{ fontSize: "var(--t-xs)", marginTop: 3, color: "var(--ink-2)", fontStyle: "italic" }}>💡 {r.note}</div>}
                     </div>
                     <span className="num muted" style={{ fontSize: "var(--t-xs)", flex: "none", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Timer" size={12} /> {r.duration}′</span>
