@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Button, Card, CopyLink, Pill, SectionTitle } from "@/components/ui";
-import { createTeam, getOrg, getOrgs } from "@/lib/repository";
+import { createTeam, getOrg, getOrgs, getTeams } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { planLimits, planOf, PLANS } from "@/lib/data";
 
 function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
@@ -35,6 +36,12 @@ export default function NuevoEquipoPage() {
   const [invites, setInvites] = useState<{ email: string; token: string }[] | null>(null);
   const [createdTeamId, setCreatedTeamId] = useState<string | null>(null);
 
+  // Límite de equipos según el plan de la cuenta.
+  const teamCount = getTeams().filter((t) => t.orgId === orgId).length;
+  const teamLimit = planLimits(myOrg?.plan).teams;
+  const atTeamLimit = teamCount >= teamLimit;
+  const planLabel = PLANS[planOf(myOrg?.plan)].label;
+
   const valid = /\S+@\S+\.\S+/.test(emailDraft);
   const addEmail = () => {
     if (!valid) { setEmailErr(true); return; }
@@ -61,7 +68,7 @@ export default function NuevoEquipoPage() {
     }
   };
 
-  const canCreate = name.trim().length > 1 && !!orgId && !busy;
+  const canCreate = name.trim().length > 1 && !!orgId && !busy && !atTeamLimit;
 
   if (invites) {
     return (
@@ -105,6 +112,20 @@ export default function NuevoEquipoPage() {
 
       <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 }}>Crear equipo</h1>
       <p className="muted" style={{ marginBottom: 22 }}>Cargá los datos básicos e invitá a los integrantes.</p>
+
+      {atTeamLimit && (
+        <Card pad={16} style={{ marginBottom: 18, border: "1px solid color-mix(in srgb, var(--violet) 40%, var(--line))", background: "color-mix(in srgb, var(--violet) 7%, var(--card))" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <Icon name="Lock" size={20} style={{ color: "var(--violet)", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Llegaste al límite de equipos del plan {planLabel}</div>
+              <div className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>
+                Tu plan permite {teamLimit === Infinity ? "equipos ilimitados" : `${teamLimit} ${teamLimit === 1 ? "equipo" : "equipos"}`} y ya {teamCount === 1 ? "tenés 1" : `tenés ${teamCount}`}. Pasá a Pro para sumar más equipos.
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* datos básicos */}
       <Card pad={22} style={{ marginBottom: 18 }}>

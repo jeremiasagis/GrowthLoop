@@ -13,12 +13,14 @@ import { Icon } from "./icon";
 import { Button, Pill } from "./ui";
 import { useToast } from "./Toast";
 import { createLiveSession } from "@/lib/session";
-import { retrosForStage, type RetroDefinition } from "@/lib/retros/registry";
-import { CYCLE_STAGES, STAGES, normalizeStage, type Initiative, type StageKey, type Team } from "@/lib/data";
+import { retrosForStage, retroInPlan, type RetroDefinition } from "@/lib/retros/registry";
+import { getOrg } from "@/lib/repository";
+import { CYCLE_STAGES, STAGES, normalizeStage, planOf, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 export function SessionLauncher({ team, initiative, initialStage, onClose }: { team: Team; initiative?: Initiative; initialStage?: StageKey; onClose: () => void }) {
   const router = useRouter();
   const { show } = useToast();
+  const plan = planOf(getOrg(team.orgId)?.plan);
   const curIdx = initiative ? CYCLE_STAGES.indexOf(normalizeStage(initiative.stage)) : -1;
   const [stage, setStage] = useState<StageKey | null>(initialStage ?? (initiative ? normalizeStage(initiative.stage) : null));
   const [retro, setRetro] = useState<RetroDefinition | null>(null);
@@ -97,20 +99,22 @@ export function SessionLauncher({ team, initiative, initialStage, onClose }: { t
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {retrosForStage(stage).map((r) => {
                 const doneAt = doneByName.get(r.name);
-                const disabled = !r.implemented;
+                const locked = !retroInPlan(r.id, plan);
+                const disabled = !r.implemented || locked;
                 return (
-                  <button key={r.id} disabled={disabled} onClick={() => { setRetro(r); setStep(3); }}
-                    style={{ display: "flex", gap: 12, padding: "14px", borderRadius: "var(--r-md)", textAlign: "left", background: "var(--card)", border: "1px solid var(--line-2)", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1 }}>
+                  <button key={r.id} disabled={disabled} title={locked ? "Disponible en el plan Pro" : undefined} onClick={() => { if (locked) { show("Esta retro está disponible en el plan Pro.", "Lock"); return; } setRetro(r); setStep(3); }}
+                    style={{ display: "flex", gap: 12, padding: "14px", borderRadius: "var(--r-md)", textAlign: "left", background: "var(--card)", border: `1px solid ${locked ? "color-mix(in srgb, var(--violet) 30%, var(--line-2))" : "var(--line-2)"}`, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1 }}>
                     <span title={r.category === "growthloop" ? "Retro propia de Growthloop" : "Retro clásica"} style={{ width: 34, height: 34, borderRadius: "var(--r-md)", display: "grid", placeItems: "center", flex: "none", background: r.category === "growthloop" ? "var(--green-soft)" : "var(--card-2)", color: r.category === "growthloop" ? "var(--green)" : "var(--ink-2)" }}>
-                      <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={16} />
+                      <Icon name={locked ? "Lock" : r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={16} />
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
-                        {r.recommended && <Pill color="var(--green)" bg="var(--success-bg)" icon="ThumbsUp">Recomendada</Pill>}
+                        {locked && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}
+                        {!locked && r.recommended && <Pill color="var(--green)" bg="var(--success-bg)" icon="ThumbsUp">Recomendada</Pill>}
                         {r.sensitive && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="ShieldAlert">Sensible</Pill>}
                         {doneAt && <Pill icon="History">Ya realizada · {doneAt}</Pill>}
-                        {disabled && <Pill icon="Clock">Próximamente</Pill>}
+                        {!r.implemented && <Pill icon="Clock">Próximamente</Pill>}
                       </div>
                       <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 3 }}>{r.description}</div>
                       {r.note && <div style={{ fontSize: "var(--t-xs)", marginTop: 3, color: "var(--ink-2)", fontStyle: "italic" }}>💡 {r.note}</div>}
