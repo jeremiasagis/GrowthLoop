@@ -46,6 +46,7 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   setRole: (role: RoleKey) => void;
   acceptInvite: (params: InviteParams) => Promise<{ user?: AuthUser; error?: string }>;
+  signupSolo: (params: { name: string; email: string; password: string }) => Promise<{ user?: AuthUser; error?: string }>;
   requestPasswordReset: (email: string) => Promise<{ error?: string }>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateName: (name: string) => Promise<{ error?: string }>;
@@ -165,6 +166,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { user: u ?? undefined };
   }, []);
 
+  // Alta self-serve B2C: un facilitador se registra solo y se le provisiona
+  // su cuenta personal (organización kind=solo, plan starter) vía RPC.
+  const signupSolo = useCallback(async (p: { name: string; email: string; password: string }): Promise<{ user?: AuthUser; error?: string }> => {
+    const supabase = getSupabaseBrowserClient();
+    const name = p.name.trim();
+    const { data, error } = await supabase.auth.signUp({
+      email: p.email.trim(), password: p.password,
+      options: { data: { name, initials: initialsFrom(name), role: "facilitator" } },
+    });
+    if (error) return { error: error.message };
+    if (!data.session) return { error: "Revisá tu correo para confirmar la cuenta y después iniciá sesión." };
+    if (data.user) {
+      await supabase.from("profiles").upsert({
+        id: data.user.id, email: p.email.trim(), name, initials: initialsFrom(name), role: "facilitator",
+      });
+      const { error: provErr } = await supabase.rpc("signup_solo_facilitator", { p_name: name });
+      if (provErr) return { error: provErr.message };
+    }
+    const u = await buildUser(data.session);
+    setBaseUser(u);
+    setPreviewRole(null);
+    return { user: u ?? undefined };
+  }, []);
+
   const requestPasswordReset = useCallback(async (email: string): Promise<{ error?: string }> => {
     const supabase = getSupabaseBrowserClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -211,6 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     setRole,
     acceptInvite,
+    signupSolo,
     requestPasswordReset,
     updatePassword,
     updateName,
