@@ -107,6 +107,40 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
     ? <button onClick={() => onOpenInitiative(init)} className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {init.title}</button>
     : <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {init.title}</span>;
 
+  const LibEntry = (e: LearningEntry, i: number) => { const tm = typeMeta(e.type); return (
+    <div key={e.id ?? i} style={{ padding: "12px 14px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: `3px solid ${tm?.color ?? "var(--st-learn)"}`, borderRadius: "var(--r-md)" }}>
+      <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5 }}>{e.highlighted && <Icon name="Star" size={13} style={{ color: "var(--st-learn)", marginRight: 4 }} />}{e.text}</p>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8, flexWrap: "wrap" }}>
+        {e.initiativeTitle && (() => { const init = inits.find((x) => x.id === e.initiativeId); return init && onOpenInitiative
+          ? <button onClick={() => onOpenInitiative(init)} className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {e.initiativeTitle}</button>
+          : <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {e.initiativeTitle}</span>; })()}
+        {tm && <span style={{ fontSize: "var(--t-xs)", padding: "2px 8px", borderRadius: "var(--r-full)", background: `color-mix(in srgb, ${tm.color} 14%, transparent)`, color: tm.color, fontWeight: 600 }}>{tm.emoji} {tm.label}</span>}
+        {e.transferable && <Pill color="var(--st-proof)" bg="color-mix(in srgb, var(--st-proof) 14%, transparent)" icon="Share2">transferible</Pill>}
+        {e.urgent && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="Zap">urgente</Pill>}
+        {!!e.resonances && <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>⭐{e.resonances}</span>}
+        {e.date && <span className="num muted" style={{ fontSize: "var(--t-xs)", marginLeft: "auto" }}>{new Date(e.date).toLocaleDateString("es", { day: "2-digit", month: "short", year: "2-digit" })}</span>}
+      </div>
+    </div>
+  ); };
+
+  // Caja de IA (siempre visible — para descubrir la feature y como upsell del free).
+  const AiAskCard = (
+    <Card pad={20} style={{ marginBottom: 22, border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))", background: "color-mix(in srgb, var(--violet) 5%, var(--card))" }}>
+      <SectionTitle icon="Sparkles" sub="Preguntá en lenguaje natural sobre los aprendizajes del equipo">Preguntale a la biblioteca {!aiEnabled && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}</SectionTitle>
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <input value={aiQ} onChange={(e) => setAiQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && aiEnabled && askLibrary()} disabled={!aiEnabled || !library.length} placeholder={!aiEnabled ? "Búsqueda semántica con IA · plan Pro" : !library.length ? "Todavía no hay aprendizajes para consultar" : "Ej: ¿qué aprendimos sobre comunicación con clientes?"} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", opacity: aiEnabled && library.length ? 1 : 0.6 }} />
+        <Button icon={aiBusy ? "Loader" : aiEnabled ? "Sparkles" : "Lock"} disabled={aiBusy || (aiEnabled && !library.length)} onClick={aiEnabled ? askLibrary : () => show("✨ La búsqueda con IA está en el plan Pro.", "Lock")}>{aiBusy ? "Buscando…" : aiEnabled ? "Preguntar" : "Preguntar · Pro"}</Button>
+      </div>
+      {aiAnswer !== null && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--violet) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--violet) 28%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{aiAnswer || "No encontré aprendizajes relacionados."}</div>
+          {aiIds.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>{aiIds.map((id) => library.find((e) => e.id === id)).filter(Boolean).map((e, i) => LibEntry(e as LearningEntry, i))}</div>}
+          <button onClick={() => { setAiAnswer(null); setAiIds([]); setAiQ(""); }} className="muted" style={{ marginTop: 12, fontSize: "var(--t-xs)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="X" size={13} /> Limpiar</button>
+        </div>
+      )}
+    </Card>
+  );
+
   if (empty) {
     return <Card pad={0}><EmptyState icon="Library" title="Todavía no hay aprendizajes">A medida que el equipo cierre ciclos de mejora, sus aprendizajes, apuestas y causas raíz se van a ir guardando acá.</EmptyState></Card>;
   }
@@ -118,40 +152,10 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la biblioteca…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px 10px 36px", fontSize: "var(--t-sm)", outline: "none" }} />
       </div>
 
-      {library.length > 0 && (() => {
-        const LibEntry = (e: LearningEntry, i: number) => { const tm = typeMeta(e.type); return (
-          <div key={e.id ?? i} style={{ padding: "12px 14px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: `3px solid ${tm?.color ?? "var(--st-learn)"}`, borderRadius: "var(--r-md)" }}>
-            <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5 }}>{e.highlighted && <Icon name="Star" size={13} style={{ color: "var(--st-learn)", marginRight: 4 }} />}{e.text}</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8, flexWrap: "wrap" }}>
-              {e.initiativeTitle && (() => { const init = inits.find((x) => x.id === e.initiativeId); return init && onOpenInitiative
-                ? <button onClick={() => onOpenInitiative(init)} className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {e.initiativeTitle}</button>
-                : <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {e.initiativeTitle}</span>; })()}
-              {tm && <span style={{ fontSize: "var(--t-xs)", padding: "2px 8px", borderRadius: "var(--r-full)", background: `color-mix(in srgb, ${tm.color} 14%, transparent)`, color: tm.color, fontWeight: 600 }}>{tm.emoji} {tm.label}</span>}
-              {e.transferable && <Pill color="var(--st-proof)" bg="color-mix(in srgb, var(--st-proof) 14%, transparent)" icon="Share2">transferible</Pill>}
-              {e.urgent && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="Zap">urgente</Pill>}
-              {!!e.resonances && <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>⭐{e.resonances}</span>}
-              {e.date && <span className="num muted" style={{ fontSize: "var(--t-xs)", marginLeft: "auto" }}>{new Date(e.date).toLocaleDateString("es", { day: "2-digit", month: "short", year: "2-digit" })}</span>}
-            </div>
-          </div>
-        ); };
-        return (
+      {AiAskCard}
+
+      {library.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 22, marginBottom: 22 }}>
-            {(
-              <Card pad={20} style={{ border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))", background: "color-mix(in srgb, var(--violet) 5%, var(--card))" }}>
-                <SectionTitle icon="Sparkles" sub="Preguntá en lenguaje natural sobre los aprendizajes del equipo">Preguntale a la biblioteca {!aiEnabled && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}</SectionTitle>
-                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                  <input value={aiQ} onChange={(e) => setAiQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && aiEnabled && askLibrary()} disabled={!aiEnabled} placeholder={aiEnabled ? "Ej: ¿qué aprendimos sobre comunicación con clientes?" : "Búsqueda semántica con IA · plan Pro"} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", opacity: aiEnabled ? 1 : 0.6 }} />
-                  <Button icon={aiBusy ? "Loader" : aiEnabled ? "Sparkles" : "Lock"} disabled={aiBusy} onClick={aiEnabled ? askLibrary : () => show("✨ La búsqueda con IA está en el plan Pro.", "Lock")}>{aiBusy ? "Buscando…" : aiEnabled ? "Preguntar" : "Preguntar · Pro"}</Button>
-                </div>
-                {aiAnswer !== null && (
-                  <div style={{ marginTop: 14 }}>
-                    <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--violet) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--violet) 28%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{aiAnswer || "No encontré aprendizajes relacionados."}</div>
-                    {aiIds.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>{aiIds.map((id) => library.find((e) => e.id === id)).filter(Boolean).map((e, i) => LibEntry(e as LearningEntry, i))}</div>}
-                    <button onClick={() => { setAiAnswer(null); setAiIds([]); setAiQ(""); }} className="muted" style={{ marginTop: 12, fontSize: "var(--t-xs)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="X" size={13} /> Limpiar</button>
-                  </div>
-                )}
-              </Card>
-            )}
             <Card pad={20}>
               <SectionTitle icon="GraduationCap" sub={`${library.length} en total`}>Aprendizajes del equipo</SectionTitle>
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap", margin: "10px 0 4px" }}>
@@ -176,8 +180,7 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
               </Card>
             )}
           </div>
-        );
-      })()}
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
         {contract && (
