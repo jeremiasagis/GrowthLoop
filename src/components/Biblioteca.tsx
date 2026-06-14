@@ -2,9 +2,11 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Icon } from "@/components/icon";
-import { Card, EmptyState, Pill, SectionTitle } from "@/components/ui";
-import { getInitiatives } from "@/lib/repository";
-import { FOUNDING_QUESTIONS, LEARNING_TYPES, type Initiative, type LearningEntry, type Team } from "@/lib/data";
+import { Button, Card, EmptyState, Pill, SectionTitle } from "@/components/ui";
+import { getInitiatives, getOrg } from "@/lib/repository";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/Toast";
+import { FOUNDING_QUESTIONS, LEARNING_TYPES, planLimits, type Initiative, type LearningEntry, type Team } from "@/lib/data";
 
 const RESULT_META: Record<string, { l: string; c: string; i: string }> = {
   yes: { l: "Funcionó", c: "var(--success)", i: "CircleCheck" },
@@ -37,6 +39,7 @@ function Paged<T>({ items, render }: { items: T[]; render: (it: T, i: number) =>
 const typeMeta = (k?: string) => LEARNING_TYPES.find((t) => t.k === k);
 
 export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOpenInitiative?: (init: Initiative) => void }) {
+  const { show } = useToast();
   const inits = getInitiatives(team.id);
   const [q, setQ] = useState("");
   // Biblioteca estructurada (LearningEntry con metadata). Filtros completos.
@@ -44,6 +47,29 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
   const [fType, setFType] = useState<string>("");
   const [fFlag, setFFlag] = useState<"" | "transferable" | "urgent">("");
   const [fInit, setFInit] = useState<string>("");
+  // IA · Preguntarle a la biblioteca (Pro+).
+  const aiEnabled = planLimits(team.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
+  const [aiQ, setAiQ] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [aiIds, setAiIds] = useState<string[]>([]);
+  const askLibrary = async () => {
+    const question = aiQ.trim();
+    if (!question || aiBusy) return;
+    setAiBusy(true);
+    try {
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/library", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ question, items: library.map((e) => ({ id: e.id, text: e.text, type: e.type })) }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo consultar la biblioteca.", "TriangleAlert"); setAiBusy(false); return; }
+      setAiAnswer(json.answer ?? ""); setAiIds(json.relevantIds ?? []);
+    } catch { show("No se pudo consultar la biblioteca.", "TriangleAlert"); }
+    setAiBusy(false);
+  };
 
   const { learnings, bets, rootCauses, highlights } = useMemo(() => {
     const learnings: { text: string; init: Initiative; result?: string; decision?: string }[] = [];
@@ -110,6 +136,22 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
         ); };
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 22, marginBottom: 22 }}>
+            {aiEnabled && (
+              <Card pad={20} style={{ border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))" }}>
+                <SectionTitle icon="Sparkles" sub="Preguntá en lenguaje natural sobre los aprendizajes del equipo">Preguntale a la biblioteca</SectionTitle>
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <input value={aiQ} onChange={(e) => setAiQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && askLibrary()} placeholder="Ej: ¿qué aprendimos sobre comunicación con clientes?" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} />
+                  <Button icon={aiBusy ? "Loader" : "Sparkles"} disabled={aiBusy} onClick={askLibrary}>{aiBusy ? "Buscando…" : "Preguntar"}</Button>
+                </div>
+                {aiAnswer !== null && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--violet) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--violet) 28%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{aiAnswer || "No encontré aprendizajes relacionados."}</div>
+                    {aiIds.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>{aiIds.map((id) => library.find((e) => e.id === id)).filter(Boolean).map((e, i) => LibEntry(e as LearningEntry, i))}</div>}
+                    <button onClick={() => { setAiAnswer(null); setAiIds([]); setAiQ(""); }} className="muted" style={{ marginTop: 12, fontSize: "var(--t-xs)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="X" size={13} /> Limpiar</button>
+                  </div>
+                )}
+              </Card>
+            )}
             <Card pad={20}>
               <SectionTitle icon="GraduationCap" sub={`${library.length} en total`}>Aprendizajes del equipo</SectionTitle>
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap", margin: "10px 0 4px" }}>
