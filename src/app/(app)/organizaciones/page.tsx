@@ -497,16 +497,16 @@ export default function OrganizacionesPage() {
           return (
             <Card key={o.id} pad={20} hover style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0, flex: 1 }}>
                   <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "var(--violet-soft)", color: "var(--violet)", display: "grid", placeItems: "center", flex: "none" }}>
                     <Icon name="Building2" size={22} />
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>{o.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: "var(--t-md)", overflowWrap: "anywhere" }}>{o.name}</div>
                     <div className="muted" style={{ fontSize: "var(--t-sm)" }}>{o.sector}</div>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "none" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, flexWrap: "wrap", flex: "none" }}>
                   <PlanControl org={o} />
                   <Pill color={o.status === "Activo" ? "var(--success)" : "var(--warning)"} bg={o.status === "Activo" ? "var(--success-bg)" : "var(--warning-bg)"}>{o.status}</Pill>
                   <button onClick={() => setViewing(o)} title="Ver organización"
