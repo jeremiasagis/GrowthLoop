@@ -415,6 +415,22 @@ export default function SalaPage() {
     } catch { show("No se pudo redactar con IA.", "TriangleAlert"); return null; }
     finally { setAiBusy(false); }
   };
+  // Borrador con IA con salida estructurada (ej: la apuesta → {betIf, betThen, signal, threshold}).
+  const aiFields = async (kind: string, context: string): Promise<Record<string, string> | null> => {
+    setAiBusy(true);
+    try {
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/draft", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ kind, context }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo redactar con IA.", "TriangleAlert"); return null; }
+      return (json.fields as Record<string, string>) ?? null;
+    } catch { show("No se pudo redactar con IA.", "TriangleAlert"); return null; }
+    finally { setAiBusy(false); }
+  };
   // Atmósfera de la sala: el último pulso del equipo tiñe sutilmente el fondo.
   const lastPulsePt = team?.pulse?.length ? team.pulse[team.pulse.length - 1] : undefined;
   const teamMood = lastPulsePt ? overallOf(lastPulsePt) : null;
@@ -3758,12 +3774,26 @@ export default function SalaPage() {
         <div>
           <div className="eyebrow" style={{ marginBottom: 5 }}>{label}</div>
           {isFacil
-            ? (rows ? <textarea defaultValue={f(k)} onBlur={(e) => patchResult({ [k]: e.target.value.trim() })} rows={rows} placeholder={placeholder} style={ta} /> : <input defaultValue={f(k)} onBlur={(e) => patchResult({ [k]: e.target.value.trim() })} placeholder={placeholder} style={ta} />)
+            ? (rows ? <textarea key={f(k)} defaultValue={f(k)} onBlur={(e) => patchResult({ [k]: e.target.value.trim() })} rows={rows} placeholder={placeholder} style={ta} /> : <input key={f(k)} defaultValue={f(k)} onBlur={(e) => patchResult({ [k]: e.target.value.trim() })} placeholder={placeholder} style={ta} />)
             : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, color: f(k) ? "var(--ink-0)" : "var(--ink-3)" }}>{f(k) || placeholder}</p>}
         </div>
       );
+      const aiBet = async () => {
+        const ctx = `Idea elegida a probar: ${pd?.chosenIdea || "(no definida)"}.\nCausa raíz (de Foco): ${initiative?.data?.focus?.rootCause || "(no definida)"}.\nTensión priorizada: ${subject}.\n\nDiseñá la apuesta para probar esta idea.`;
+        const fields = await aiFields("bet", ctx);
+        if (fields) {
+          await setResult(sessionId, { bdIf: fields.betIf ?? "", bdThen: fields.betThen ?? "", bdSignal: fields.signal ?? "", bdThreshold: fields.threshold ?? "" });
+          Object.assign(resultRef.current, { bdIf: fields.betIf, bdThen: fields.betThen, bdSignal: fields.signal, bdThreshold: fields.threshold });
+          await load();
+        }
+      };
       content = (
         <Card pad={20}>
+          {isFacil && aiEnabled && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+              <button onClick={aiBet} disabled={aiBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: "1px solid color-mix(in srgb, var(--violet) 45%, var(--line-2))", background: "color-mix(in srgb, var(--violet) 12%, var(--card))", color: "var(--violet)", cursor: aiBusy ? "default" : "pointer", opacity: aiBusy ? 0.7 : 1 }}><Icon name={aiBusy ? "Loader" : "Sparkles"} size={13} /> {aiBusy ? "Diseñando…" : "Sugerir apuesta con IA"}</button>
+            </div>
+          )}
           <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-proof) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--st-proof) 28%, transparent)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.7, marginBottom: 16 }}>
             Creemos que si <b style={{ color: f("bdIf") ? "var(--st-proof)" : "var(--ink-3)" }}>{f("bdIf") || "[acción]"}</b>, lograremos <b style={{ color: f("bdThen") ? "var(--st-proof)" : "var(--ink-3)" }}>{f("bdThen") || "[resultado]"}</b>. Lo mediremos con <b style={{ color: f("bdSignal") ? "var(--st-proof)" : "var(--ink-3)" }}>{f("bdSignal") || "[señal]"}</b>{f("bdDeadline") ? <> antes del <b style={{ color: "var(--st-proof)" }}>{f("bdDeadline")}</b></> : " [fecha]"}.
           </div>

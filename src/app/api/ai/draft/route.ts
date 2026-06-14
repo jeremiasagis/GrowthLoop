@@ -39,10 +39,48 @@ export async function POST(req: Request) {
 
   let body: { kind?: string; context?: string };
   try { body = await req.json(); } catch { return Response.json({ error: "Body inválido." }, { status: 400 }); }
-  const cfg = PROMPTS[body.kind ?? ""];
+  const kind = body.kind ?? "";
   const context = (body.context ?? "").trim();
-  if (!cfg || !context) return Response.json({ error: "Pedido inválido." }, { status: 400 });
+  if (!context) return Response.json({ error: "Pedido inválido." }, { status: 400 });
 
+  // ── Salida estructurada (apuesta): devuelve campos ──
+  if (kind === "bet") {
+    const tool = {
+      name: "disenar_apuesta",
+      description: "Diseña una apuesta de mejora concreta y testeable.",
+      input_schema: {
+        type: "object",
+        properties: {
+          betIf: { type: "string", description: "La acción concreta que el equipo va a hacer distinto (qué exactamente)." },
+          betThen: { type: "string", description: "El resultado esperado si la acción funciona." },
+          signal: { type: "string", description: "Qué observar o medir para saber si avanza." },
+          threshold: { type: "string", description: "Umbral numérico concreto y alcanzable en ~15 días. Ej: 'de 5 a 1 por semana'." },
+        },
+        required: ["betIf", "betThen", "signal", "threshold"],
+      },
+    };
+    const system = "Sos un facilitador experto en experimentos de mejora. A partir del contexto (idea elegida, causa raíz, tensión), diseñá UNA apuesta concreta y testeable. Español rioplatense, frases cortas y sin jerga. El umbral debe ser un número concreto y realista para ~15 días.";
+    let res: Response;
+    try {
+      res = await fetch(ANTHROPIC_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: MODEL, max_tokens: 500, system,
+          tools: [tool], tool_choice: { type: "tool", name: "disenar_apuesta" },
+          messages: [{ role: "user", content: context.slice(0, 6000) }],
+        }),
+      });
+    } catch { return Response.json({ error: "No se pudo contactar a la IA." }, { status: 502 }); }
+    if (!res.ok) return Response.json({ error: "La IA no respondió bien.", detail: (await res.text()).slice(0, 300) }, { status: 502 });
+    const data = await res.json();
+    const toolUse = (data.content ?? []).find((b: { type?: string }) => b.type === "tool_use") as { input?: Record<string, string> } | undefined;
+    return Response.json({ fields: toolUse?.input ?? {} });
+  }
+
+  // ── Texto libre (causa raíz, narrativa) ──
+  const cfg = PROMPTS[kind];
+  if (!cfg) return Response.json({ error: "Pedido inválido." }, { status: 400 });
   let res: Response;
   try {
     res = await fetch(ANTHROPIC_URL, {
