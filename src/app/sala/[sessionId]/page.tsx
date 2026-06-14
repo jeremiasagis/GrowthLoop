@@ -437,7 +437,7 @@ export default function SalaPage() {
   const initiative = session.initiativeId ? getInitiatives(session.teamId).find((i) => i.id === session.initiativeId) : undefined;
   const focusPriority = (initiative?.data?.focus as { priority?: string } | undefined)?.priority;
   const subject = focusPriority || (initiative?.data?.explore?.priority as string) || initiative?.title || "la tensión priorizada";
-  const isFacil = user.role !== "member";
+  const isFacil = user.role === "facilitator"; // solo el facilitador conduce; admin/superadmin/coordinador no facilitan
   const step = session.stepKey ?? "pulse";
   const closed = session.status === "closed";
   const avg = averagePulse(responses);
