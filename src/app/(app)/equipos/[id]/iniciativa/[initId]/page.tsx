@@ -675,11 +675,31 @@ export default function InitiativeDetailPage() {
                     )}
                   </>
                 ); })()}
+                {current && (() => {
+                  const retros = retrosForStage(st).filter((r) => r.implemented);
+                  if (!retros.length) return null;
+                  return (
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed var(--line)" }}>
+                      <div className="eyebrow" style={{ marginBottom: 8 }}>Retros de esta etapa · {retros.length}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px,1fr))", gap: 10 }}>
+                        {retros.map((r) => (
+                          <button key={r.id} disabled={!isFacil || done} onClick={() => { if (isFacil && !done) startLive(); }}
+                            style={{ textAlign: "left", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: `3px solid ${r.category === "growthloop" ? "var(--green)" : "var(--ink-3)"}`, borderRadius: "var(--r-md)", padding: "10px 12px", cursor: isFacil && !done ? "pointer" : "default" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                              <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={13} style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
+                              <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
+                              <span className="num muted" style={{ marginLeft: "auto", fontSize: "var(--t-xs)" }}>{r.duration}′</span>
+                            </div>
+                            <div className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.4 }}>{r.description}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {current && isFacil && (
                   <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    {st === "follow"
-                      ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic", margin: 0 }}>Las retros de Seguimiento llegan en el próximo paso.</p>
-                      : <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>}
+                    <Button size="sm" icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>
                     <Button size="sm" variant="secondary" icon={nextSt ? "ArrowRight" : "CircleCheck"} onClick={() => setCloseStageOpen(true)}>
                       {nextSt ? `Cerrar etapa y avanzar` : "Cerrar ciclo"}
                     </Button>
