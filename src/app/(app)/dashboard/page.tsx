@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
@@ -9,6 +10,53 @@ import { STAGES, overallOf, teamLiveStage, to5, type Team } from "@/lib/data";
 import { getFacilitators, getTeams } from "@/lib/repository";
 import { teamProgress } from "@/lib/gamification";
 import { useAuth } from "@/lib/auth/AuthContext";
+
+/* ── Onboarding del facilitador: primeros pasos guiados ─────── */
+function CoachOnboarding({ teams, go }: { teams: Team[]; go: (href: string) => void }) {
+  const [dismissed, setDismissed] = useState(() => typeof window !== "undefined" && localStorage.getItem("gl_coach_onboarded") === "1");
+  const t0 = teams[0];
+  const teamPath = t0 ? `/equipos/${t0.id}` : "/equipos/nuevo";
+  const steps = [
+    { done: teams.length > 0, label: "Creá tu primer equipo", desc: "Tu espacio de trabajo con sus integrantes.", cta: "Crear equipo", to: "/equipos/nuevo" },
+    { done: teams.some((t) => !!t.data?.contract), label: "Hagan la Sesión Fundacional", desc: "El acuerdo de cómo van a trabajar juntos.", cta: "Ir al equipo", to: teamPath },
+    { done: teams.some((t) => !!(t.data as { explorationClosedAt?: string } | undefined)?.explorationClosedAt), label: "Exploren: ¿dónde estamos?", desc: "El diagnóstico que abre el primer ciclo.", cta: "Ir al equipo", to: teamPath },
+    { done: teams.some((t) => (t.initiatives?.length ?? 0) > 0), label: "Arranquen su primera iniciativa", desc: "Lo que el equipo va a mejorar.", cta: "Ir al equipo", to: teamPath },
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  if (dismissed || doneCount === steps.length) return null;
+  const next = steps.find((s) => !s.done)!;
+  const dismiss = () => { try { localStorage.setItem("gl_coach_onboarded", "1"); } catch {} setDismissed(true); };
+  return (
+    <Card pad={22} glow style={{ marginBottom: 24, background: "linear-gradient(180deg, rgba(0,232,122,0.07), var(--card))", borderColor: "color-mix(in srgb, var(--green) 35%, transparent)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div className="eyebrow" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--green)", marginBottom: 6 }}><Icon name="Rocket" size={14} /> Primeros pasos</div>
+          <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, letterSpacing: "-0.02em" }}>Poné en marcha tu primer equipo</h2>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>{doneCount} de {steps.length} listos · te toma unos minutos por paso.</p>
+        </div>
+        <button onClick={dismiss} title="Ocultar" style={{ color: "var(--ink-3)", flex: "none" }}><Icon name="X" size={18} /></button>
+      </div>
+      <div style={{ height: 6, borderRadius: 99, background: "var(--card-2)", overflow: "hidden", margin: "14px 0 16px" }}>
+        <div style={{ height: "100%", width: `${(doneCount / steps.length) * 100}%`, background: "var(--green)", borderRadius: 99, transition: "width .4s var(--ease)" }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {steps.map((s, i) => {
+          const isNext = s === next;
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: "var(--r-md)", background: isNext ? "var(--card)" : "transparent", border: `1px solid ${isNext ? "color-mix(in srgb, var(--green) 35%, var(--line))" : "transparent"}` }}>
+              <Icon name={s.done ? "CheckCircle2" : isNext ? "Circle" : "Circle"} size={20} style={{ color: s.done ? "var(--green)" : isNext ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "var(--t-sm)", fontWeight: s.done ? 500 : 700, textDecoration: s.done ? "line-through" : "none", color: s.done ? "var(--ink-2)" : "var(--ink-0)" }}>{s.label}</div>
+                {isNext && <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{s.desc}</div>}
+              </div>
+              {isNext && <Button size="sm" icon="ArrowRight" onClick={() => go(s.to)}>{s.cta}</Button>}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
 
 /* ── Team card ────────────────────────────────────────────── */
 function TeamCard({ team, go }: { team: Team; go: (href: string) => void }) {
@@ -183,6 +231,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* onboarding del coach */}
+      {isFacil && <CoachOnboarding teams={teams} go={go} />}
 
       {/* stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }} className="stagger">
