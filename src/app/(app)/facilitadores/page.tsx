@@ -6,7 +6,7 @@ import { Icon } from "@/components/icon";
 import { Avatar, Button, Card, CopyLink, EmptyState, Pill, StageBadge } from "@/components/ui";
 import { createInvitation, deleteFacilitator, getFacilitators, getOrg, getOrgs, getTeams, inviteFacilitator } from "@/lib/repository";
 import { useToast } from "@/components/Toast";
-import { teamLiveStage, type Facilitator } from "@/lib/data";
+import { PLANS, planLimits, planOf, teamLiveStage, type Facilitator } from "@/lib/data";
 
 function MiniStat({ value, label, color, border }: { value: React.ReactNode; label: string; color?: string; border?: boolean }) {
   return (
@@ -25,7 +25,10 @@ function InviteModal({ onClose, onInvite }: { onClose: () => void; onInvite: (em
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const valid = /\S+@\S+\.\S+/.test(email) && !!orgId;
+  const facInOrg = getFacilitators().filter((f) => (f.orgIds ?? (f.orgId ? [f.orgId] : [])).includes(orgId)).length;
+  const facLimit = planLimits(getOrg(orgId)?.plan).facilitators;
+  const atFacLimit = !!orgId && facInOrg >= facLimit;
+  const valid = /\S+@\S+\.\S+/.test(email) && !!orgId && !atFacLimit;
 
   const send = async () => {
     if (!valid || busy) return;
@@ -61,6 +64,12 @@ function InviteModal({ onClose, onInvite }: { onClose: () => void; onInvite: (em
                 style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "11px 13px", fontSize: "var(--t-base)", outline: "none", marginBottom: 22 }}>
                 {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </select>
+            )}
+            {atFacLimit && (
+              <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 13px", marginBottom: 18, borderRadius: "var(--r-md)", border: "1px solid color-mix(in srgb, var(--violet) 35%, var(--line))", background: "color-mix(in srgb, var(--violet) 7%, var(--card))" }}>
+                <Icon name="Lock" size={16} style={{ color: "var(--violet)", flexShrink: 0 }} />
+                <span style={{ fontSize: "var(--t-xs)", lineHeight: 1.45 }}>El plan <b>{PLANS[planOf(getOrg(orgId)?.plan)].label}</b> permite {facLimit === Infinity ? "facilitadores ilimitados" : `${facLimit} facilitador${facLimit === 1 ? "" : "es"}`} en esta cuenta. Pasala a Business para sumar más.</span>
+              </div>
             )}
             {error && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#ff8b8b", fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 14 }}>

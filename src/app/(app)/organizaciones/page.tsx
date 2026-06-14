@@ -10,7 +10,7 @@ import {
 } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
-import { overallOf, PLANS, planOf, teamLiveStage, to5, type Facilitator, type Org, type PlanKey, type Team } from "@/lib/data";
+import { overallOf, PLANS, planLimits, planOf, teamLiveStage, to5, type Facilitator, type Org, type PlanKey, type Team } from "@/lib/data";
 
 /** Badge + (opcional) selector de plan de una cuenta. */
 function PlanControl({ org, editable, onChanged }: { org: Org; editable?: boolean; onChanged?: () => void }) {
@@ -292,8 +292,18 @@ function OrgViewModal({ org, orgs, teams, facilitators, onClose, onOpenTeam, onC
           ))}
         </div>
 
+        {/* límite de facilitadores del plan */}
+        {ofacs.length >= planLimits(org.plan).facilitators && (
+          <div style={{ marginBottom: 18, padding: "11px 13px", borderRadius: "var(--r-md)", border: "1px solid color-mix(in srgb, var(--violet) 35%, var(--line))", background: "color-mix(in srgb, var(--violet) 7%, var(--card))", display: "flex", alignItems: "center", gap: 10 }}>
+            <Icon name="Lock" size={16} style={{ color: "var(--violet)", flexShrink: 0 }} />
+            <div style={{ fontSize: "var(--t-xs)", lineHeight: 1.45 }}>
+              <b>El plan {PLANS[planOf(org.plan)].label} permite {planLimits(org.plan).facilitators === Infinity ? "facilitadores ilimitados" : `${planLimits(org.plan).facilitators} facilitador${planLimits(org.plan).facilitators === 1 ? "" : "es"}`}.</b> {isSuper ? "Pasá la cuenta a Business para sumar más." : "Pedile al admin que actualice el plan."}
+            </div>
+          </div>
+        )}
+
         {/* asignar facilitador existente */}
-        {assignable.length > 0 && (
+        {assignable.length > 0 && ofacs.length < planLimits(org.plan).facilitators && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", gap: 8 }}>
               <select value={assignId} onChange={(e) => setAssignId(e.target.value)}
