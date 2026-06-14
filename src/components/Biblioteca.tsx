@@ -136,12 +136,12 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
         ); };
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 22, marginBottom: 22 }}>
-            {aiEnabled && (
-              <Card pad={20} style={{ border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))" }}>
-                <SectionTitle icon="Sparkles" sub="Preguntá en lenguaje natural sobre los aprendizajes del equipo">Preguntale a la biblioteca</SectionTitle>
+            {(
+              <Card pad={20} style={{ border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))", background: "color-mix(in srgb, var(--violet) 5%, var(--card))" }}>
+                <SectionTitle icon="Sparkles" sub="Preguntá en lenguaje natural sobre los aprendizajes del equipo">Preguntale a la biblioteca {!aiEnabled && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}</SectionTitle>
                 <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                  <input value={aiQ} onChange={(e) => setAiQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && askLibrary()} placeholder="Ej: ¿qué aprendimos sobre comunicación con clientes?" style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" }} />
-                  <Button icon={aiBusy ? "Loader" : "Sparkles"} disabled={aiBusy} onClick={askLibrary}>{aiBusy ? "Buscando…" : "Preguntar"}</Button>
+                  <input value={aiQ} onChange={(e) => setAiQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && aiEnabled && askLibrary()} disabled={!aiEnabled} placeholder={aiEnabled ? "Ej: ¿qué aprendimos sobre comunicación con clientes?" : "Búsqueda semántica con IA · plan Pro"} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", opacity: aiEnabled ? 1 : 0.6 }} />
+                  <Button icon={aiBusy ? "Loader" : aiEnabled ? "Sparkles" : "Lock"} disabled={aiBusy} onClick={aiEnabled ? askLibrary : () => show("✨ La búsqueda con IA está en el plan Pro.", "Lock")}>{aiBusy ? "Buscando…" : aiEnabled ? "Preguntar" : "Preguntar · Pro"}</Button>
                 </div>
                 {aiAnswer !== null && (
                   <div style={{ marginTop: 14 }}>

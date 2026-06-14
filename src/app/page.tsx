@@ -49,9 +49,17 @@ const PRICING: { plan: string; price: string; tagline: string; features: string[
   { plan: "Starter", price: "Gratis", tagline: "Para empezar solo, hoy", to: "registro", cta: "Empezá gratis",
     features: ["1 equipo", "2 retros esenciales por etapa", "Sesiones en vivo y anónimas", "Biblioteca de aprendizajes"] },
   { plan: "Pro", price: "Para coaches", tagline: "Acompañá a varios clientes", to: "wa", cta: "Quiero Pro", highlight: true,
-    features: ["Hasta 10 equipos", "Las 49 retros, todas desbloqueadas", "Modo escenario + reacciones en vivo", "Reportes por iniciativa y ciclo"] },
+    features: ["Hasta 10 equipos", "Las 49 retros, todas desbloqueadas", "✨ Copiloto de IA en cada sesión", "Reporte ejecutivo con IA", "Modo escenario + reacciones en vivo"] },
   { plan: "Business", price: "A medida", tagline: "Para empresas y sus líderes", to: "wa", cta: "Hablar con ventas",
     features: ["Equipos y facilitadores ilimitados", "Tus líderes facilitan sus equipos", "Panel de organización + coordinadores", "Onboarding y soporte"] },
+];
+
+const AI_USES = [
+  { icon: "Layers", title: "Agrupa las tarjetas", desc: "Junta lo que el equipo escribe por tema y le pone nombre, en segundos." },
+  { icon: "Lightbulb", title: "Sugiere qué retro hacer", desc: "Según el estado del equipo y lo que querés trabajar hoy." },
+  { icon: "PenLine", title: "Redacta por vos", desc: "Causa raíz, narrativa del resultado y la apuesta — borradores que editás." },
+  { icon: "FileText", title: "Arma el informe del ciclo", desc: "Un resumen ejecutivo listo para compartir con el líder o la empresa." },
+  { icon: "Search", title: "Responde tu biblioteca", desc: "Preguntás en lenguaje natural y encuentra los aprendizajes que importan." },
 ];
 
 const WHY = [
@@ -105,7 +113,7 @@ export default function Home() {
         </h1>
         <p className="muted" style={{ fontSize: "var(--t-lg)", lineHeight: 1.6, maxWidth: 660, margin: "0 auto 32px" }}>
           Growthloop hace que tu equipo detecte lo que lo traba, pruebe soluciones y deje aprendizajes —
-          en sesiones en vivo, facilitadas y anónimas. Sin planillas que nadie mira.
+          en sesiones en vivo, facilitadas y anónimas, <b style={{ color: "var(--violet)" }}>con un copiloto de IA</b>. Sin planillas que nadie mira.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <Button size="lg" icon="Rocket" onClick={() => router.push("/registro")}>Empezá gratis</Button>
@@ -212,6 +220,30 @@ export default function Home() {
                 <span style={{ color: "var(--violet)", display: "inline-flex" }}><Icon name={a.icon} size={22} /></span>
                 <h3 style={{ fontSize: "var(--t-md)", fontWeight: 700 }}>{a.title}</h3>
               </div>
+              <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.6 }}>{a.desc}</p>
+            </Card>
+          ))}
+        </div>
+      </Section>
+
+      {/* IA */}
+      <Section style={{ paddingTop: 40, paddingBottom: 64 }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <span className="eyebrow" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: "var(--r-full)", background: "color-mix(in srgb, var(--violet) 14%, transparent)", color: "var(--violet)", marginBottom: 18 }}>
+            <Icon name="Sparkles" size={14} /> Con inteligencia artificial
+          </span>
+          <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Un copiloto que facilita con vos</h2>
+          <p className="muted" style={{ fontSize: "var(--t-base)", maxWidth: 600, margin: "0 auto", lineHeight: 1.6 }}>
+            La IA hace el trabajo pesado de la facilitación: sintetiza, redacta y resume — vos revisás y decidís. Incluida en los planes Pro y Business.
+          </p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+          {AI_USES.map((a) => (
+            <Card key={a.title} pad={22} style={{ border: "1px solid color-mix(in srgb, var(--violet) 22%, var(--line))" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--violet) 14%, transparent)", color: "var(--violet)", display: "grid", placeItems: "center", marginBottom: 14 }}>
+                <Icon name={a.icon} size={22} />
+              </div>
+              <h3 style={{ fontSize: "var(--t-md)", fontWeight: 700, marginBottom: 6 }}>{a.title}</h3>
               <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.6 }}>{a.desc}</p>
             </Card>
           ))}

@@ -720,6 +720,15 @@ export default function InitiativeDetailPage() {
 
         {/* columna lateral */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {isFacil && (
+            <Card pad={20} glow style={{ border: "1px solid color-mix(in srgb, var(--violet) 35%, var(--line))", background: "linear-gradient(180deg, color-mix(in srgb, var(--violet) 9%, transparent), var(--card))" }}>
+              <SectionTitle icon="Sparkles" sub="Convertí el ciclo en un informe ejecutivo listo para compartir">Asistente IA{!aiEnabled && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}</SectionTitle>
+              <Button icon={aiReportBusy ? "Loader" : aiEnabled ? "Sparkles" : "Lock"} variant="violet" full disabled={aiReportBusy} style={{ marginTop: 8 }}
+                onClick={aiEnabled ? genReport : () => show("✨ El resumen con IA está en el plan Pro.", "Lock")}>
+                {aiReportBusy ? "Generando…" : aiEnabled ? "Generar resumen del ciclo" : "Resumen con IA · Pro"}
+              </Button>
+            </Card>
+          )}
           <Card pad={20}>
             <SectionTitle icon="Radar" sub="El radar de la última medición (1-5)">Pulso del equipo</SectionTitle>
             <PulseRadar values={team.pulse.length ? (team.pulse[team.pulse.length - 1].dims ?? {}) : {}} size={300} />
@@ -768,7 +777,6 @@ export default function InitiativeDetailPage() {
           <Card pad={20}>
             <SectionTitle icon="Share2">Informe</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {isFacil && aiEnabled && <Button icon={aiReportBusy ? "Loader" : "Sparkles"} full disabled={aiReportBusy} onClick={genReport}>{aiReportBusy ? "Generando…" : "Generar resumen con IA"}</Button>}
               <Button variant="secondary" icon="FileDown" full disabled={aiReportBusy} onClick={exportReport}>Exportar PDF</Button>
               <Button variant="secondary" icon="Share2" full disabled={aiReportBusy} onClick={shareReport}>Compartir con líder</Button>
             </div>

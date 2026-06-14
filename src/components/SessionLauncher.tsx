@@ -135,15 +135,13 @@ export function SessionLauncher({ team, initiative, initialStage, onClose }: { t
             <button onClick={() => setStep(1)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 8 }}><Icon name="ChevronLeft" size={13} /> Etapas</button>
             <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, marginBottom: 4 }}>¿Qué retro hacen hoy en {STAGES[stage].label}?</h2>
             <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 16 }}>El output de cada retro se acumula en la etapa.</p>
-            {aiEnabled && (
-              <div style={{ marginBottom: 16, padding: 14, borderRadius: "var(--r-md)", border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))", background: "color-mix(in srgb, var(--violet) 6%, var(--card))" }}>
-                <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--violet)" }}><Icon name="Sparkles" size={13} /> ¿No sabés cuál? Que la IA te recomiende</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <input value={intent} onChange={(e) => setIntent(e.target.value)} onKeyDown={(e) => e.key === "Enter" && suggest()} placeholder="¿Qué querés trabajar hoy? (opcional)" style={{ flex: 1, minWidth: 180, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
-                  <Button icon={aiBusy ? "Loader" : "Sparkles"} disabled={aiBusy} onClick={suggest}>{aiBusy ? "Pensando…" : "Recomendar"}</Button>
-                </div>
+            <div style={{ marginBottom: 16, padding: 14, borderRadius: "var(--r-md)", border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))", background: "color-mix(in srgb, var(--violet) 6%, var(--card))" }}>
+              <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--violet)" }}><Icon name="Sparkles" size={13} /> ¿No sabés cuál? Que la IA te recomiende {!aiEnabled && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input value={intent} onChange={(e) => setIntent(e.target.value)} onKeyDown={(e) => e.key === "Enter" && aiEnabled && suggest()} disabled={!aiEnabled} placeholder={aiEnabled ? "¿Qué querés trabajar hoy? (opcional)" : "Recomendación inteligente · plan Pro"} style={{ flex: 1, minWidth: 180, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", opacity: aiEnabled ? 1 : 0.6 }} />
+                <Button icon={aiBusy ? "Loader" : aiEnabled ? "Sparkles" : "Lock"} disabled={aiBusy} onClick={aiEnabled ? suggest : () => show("✨ La recomendación con IA está en el plan Pro.", "Lock")}>{aiBusy ? "Pensando…" : aiEnabled ? "Recomendar" : "Recomendar · Pro"}</Button>
               </div>
-            )}
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(aiPicks ? [...retrosForStage(stage)].sort((a, b) => (aiPicks[b.id] ? 1 : 0) - (aiPicks[a.id] ? 1 : 0)) : retrosForStage(stage)).map((r) => {
                 const doneAt = doneByName.get(r.name);

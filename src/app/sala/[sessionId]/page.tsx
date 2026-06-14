@@ -7526,10 +7526,10 @@ export default function SalaPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
             <span className="eyebrow">Sueltas ({loose.length})</span>
             <div style={{ display: "flex", gap: 8 }}>
-              {isFacil && aiEnabled && loose.length >= 2 && (
-                <button onClick={aiGroup} disabled={aiBusy || busy} title="Agrupar automáticamente con IA"
+              {isFacil && loose.length >= 2 && (
+                <button onClick={aiEnabled ? aiGroup : () => show("✨ Agrupar con IA está en el plan Pro.", "Lock")} disabled={aiBusy || busy} title={aiEnabled ? "Agrupar automáticamente con IA" : "Disponible en el plan Pro"}
                   style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: "1px solid color-mix(in srgb, var(--violet) 45%, var(--line-2))", background: "color-mix(in srgb, var(--violet) 12%, var(--card))", color: "var(--violet)", cursor: aiBusy ? "default" : "pointer", opacity: aiBusy ? 0.7 : 1 }}>
-                  <Icon name={aiBusy ? "Loader" : "Sparkles"} size={14} /> {aiBusy ? "Agrupando…" : "Agrupar con IA"}
+                  <Icon name={aiBusy ? "Loader" : aiEnabled ? "Sparkles" : "Lock"} size={14} /> {aiBusy ? "Agrupando…" : aiEnabled ? "Agrupar con IA" : "Agrupar con IA · Pro"}
                 </button>
               )}
               {isFacil && sel.length > 0 && <Button size="sm" icon="Group" disabled={busy} onClick={group}>Agrupar {sel.length}</Button>}
