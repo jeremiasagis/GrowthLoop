@@ -267,7 +267,7 @@ export default function Home() {
                   <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{p.plan}</h3>
                   {p.highlight && <span className="eyebrow" style={{ padding: "3px 9px", borderRadius: "var(--r-full)", background: "var(--green-soft)", color: "var(--green)" }}>Popular</span>}
                 </div>
-                <div className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: p.highlight ? "var(--green)" : "var(--ink-0)" }}>{p.price}</div>
+                <div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, lineHeight: 1.15, color: p.highlight ? "var(--green)" : "var(--ink-0)" }}>{p.price}</div>
                 <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 4 }}>{p.tagline}</p>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
