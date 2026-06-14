@@ -10,8 +10,9 @@ import {
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import {
-  deleteInitiative, getFacilitators, getInitiatives, getTeam, patchInitiativeData, setInitiativeStage, setInitiativeStatus,
+  deleteInitiative, getFacilitators, getInitiatives, getOrg, getTeam, patchInitiativeData, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { createLiveSession, getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
@@ -19,7 +20,7 @@ import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { CycleTimeline } from "@/components/CycleTimeline";
 import { WordCloud } from "@/components/WordCloud";
 import { retrosForStage, stageOfSessionType } from "@/lib/retros/registry";
-import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, type Initiative, type StageKey, type Team } from "@/lib/data";
+import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, planLimits, overallOf, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; result?: Record<string, unknown> };
 
@@ -489,6 +490,49 @@ export default function InitiativeDetailPage() {
     refresh();
   };
   const doDelete = async () => { setDelBusy(true); const res = await deleteInitiative(init.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Iniciativa eliminada", "Trash2"); router.push(`/equipos/${team.id}`); };
+  // IA · Reporte ejecutivo del ciclo (Pro+).
+  const aiEnabled = planLimits(team.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [aiReportBusy, setAiReportBusy] = useState(false);
+  const buildReportCtx = (): string => {
+    const d = init.data ?? {};
+    const RES: Record<string, string> = { yes: "alcanzó el umbral", partial: "alcanzó parcialmente", no: "no alcanzó el umbral" };
+    const L: string[] = [];
+    L.push(`Equipo: ${team.name}.`);
+    if (team.data?.objective?.text) L.push(`Objetivo del equipo: ${team.data.objective.text}.`);
+    L.push(`Iniciativa: ${init.title}.${init.description ? " " + init.description : ""}`);
+    const pf = d.proof;
+    if (pf?.betIf || pf?.betThen) L.push(`Apuesta: si ${pf?.betIf || "—"}, lograríamos ${pf?.betThen || "—"}. Señal: ${pf?.signalMetric || "—"}${pf?.signalTarget ? ` (meta ${pf.signalTarget})` : ""}.`);
+    if (pf?.chosenIdea) L.push(`Acción probada: ${pf.chosenIdea}.`);
+    if (d.focus?.rootCause) L.push(`Causa raíz: ${d.focus.rootCause}.`);
+    const fl = d.follow;
+    if (fl?.signalLog?.length) L.push(`Evolución de la señal: ${fl.signalLog.map((s) => `${s.date}: ${s.value}`).join(" → ")}.`);
+    if (fl?.blockers?.length) L.push(`Obstáculos: ${fl.blockers.join("; ")}.`);
+    const lr = d.learn;
+    if (lr?.result) L.push(`Resultado: ${RES[lr.result] ?? lr.result}.`);
+    if (lr?.narrative) L.push(`Narrativa del equipo: ${lr.narrative}`);
+    if (lr?.learnings?.length) L.push(`Aprendizajes:\n${lr.learnings.map((x) => `- ${x}`).join("\n")}`);
+    if (lr?.highlightedLearning) L.push(`Aprendizaje destacado: ${lr.highlightedLearning}.`);
+    if (lr?.decision) L.push(`Decisión: ${lr.decision}${lr.decisionReason ? ` — ${lr.decisionReason}` : ""}.`);
+    if (team.pulse?.length) L.push(`Clima del equipo (pulso 0-100): de ${overallOf(team.pulse[0])} a ${overallOf(team.pulse[team.pulse.length - 1])}.`);
+    return L.join("\n");
+  };
+  const genReport = async () => {
+    if (aiReportBusy) return;
+    setAiReportBusy(true);
+    try {
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/report", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ context: buildReportCtx() }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo generar el informe.", "TriangleAlert"); setAiReportBusy(false); return; }
+      setAiReport(json.text ?? "");
+    } catch { show("No se pudo generar el informe.", "TriangleAlert"); }
+    setAiReportBusy(false);
+  };
   // Consolidación: estado post-Implementar (30 días). Indicador in-app + disparo manual del check.
   const con = init.data?.consolidate;
   const conPending = !!con?.pending;
@@ -712,6 +756,7 @@ export default function InitiativeDetailPage() {
           <Card pad={20}>
             <SectionTitle icon="Share2">Informe</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {isFacil && aiEnabled && <Button icon={aiReportBusy ? "Loader" : "Sparkles"} full disabled={aiReportBusy} onClick={genReport}>{aiReportBusy ? "Generando…" : "Generar resumen con IA"}</Button>}
               <Button variant="secondary" icon="FileDown" full onClick={() => show("Exportando informe de la iniciativa…", "FileDown")}>Exportar PDF</Button>
               <Button variant="secondary" icon="Share2" full onClick={() => show("Compartido con el líder del equipo.", "Share2")}>Compartir con líder</Button>
             </div>
@@ -836,6 +881,27 @@ export default function InitiativeDetailPage() {
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="secondary" full onClick={() => setCloseStageOpen(false)}>Cancelar</Button>
               <Button full icon={nextSt ? "ArrowRight" : "CircleCheck"} disabled={closeBusy || closeBlocked || needsFinalHonesty} onClick={doCloseStage}>{closeBusy ? "Guardando…" : closeBlocked ? (stageNorm === "follow" ? "Falta un check-in" : stageNorm === "learn" ? "Faltan retros" : "Falta la prueba") : needsFinalHonesty ? "Elegí cómo cerramos" : stageNorm === "learn" && ld?.decision && DEC_NEXT[ld.decision] ? DEC_NEXT[ld.decision].label : "Confirmar"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {aiReport !== null && (
+        <div onClick={() => setAiReport(null)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(680px,100%)", maxHeight: "86vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <span style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--violet) 16%, transparent)", color: "var(--violet)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Sparkles" size={20} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: "var(--t-lg)" }}>Informe del ciclo</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Generado con IA · revisalo antes de compartir</div>
+              </div>
+              <button onClick={() => setAiReport(null)} style={{ color: "var(--ink-2)" }}><Icon name="X" size={22} /></button>
+            </div>
+            <div style={{ padding: "16px 18px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{aiReport}</div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+              <Button variant="secondary" icon="Copy" onClick={() => { navigator.clipboard?.writeText(aiReport); show("Informe copiado", "Check"); }}>Copiar</Button>
+              <Button icon="RefreshCw" variant="ghost" disabled={aiReportBusy} onClick={genReport}>Regenerar</Button>
+              <Button icon="Check" onClick={() => setAiReport(null)}>Listo</Button>
             </div>
           </div>
         </div>
