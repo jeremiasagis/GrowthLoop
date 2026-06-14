@@ -1160,6 +1160,7 @@ export default function TeamPage() {
   const [delBusy, setDelBusy] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [protocolOpen, setProtocolOpen] = useState(false);
   const [celeb, setCeleb] = useState<{ title: string; subtitle?: string; emoji: string } | null>(null);
 
   // Celebración: confetti al subir de nivel o cerrar un ciclo (la 1ª vez fija la
@@ -1212,6 +1213,40 @@ export default function TeamPage() {
   return (
     <div className="screen-pad">
       <Celebration show={!!celeb} title={celeb?.title ?? ""} subtitle={celeb?.subtitle} emoji={celeb?.emoji} onDone={() => setCeleb(null)} />
+      {protocolOpen && (
+        <div onClick={() => setProtocolOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(560px,100%)", maxHeight: "86vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              <span style={{ width: 44, height: 44, borderRadius: "var(--r-lg)", background: "var(--warning-bg)", color: "var(--warning)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="ShieldAlert" size={22} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: "var(--t-lg)" }}>Protocolo de clima</div>
+                <div className="muted" style={{ fontSize: "var(--t-sm)" }}>Confianza en <b className="num">{to5(team.psychSafety).toFixed(1)}/5</b> · por debajo del umbral</div>
+              </div>
+              <button onClick={() => setProtocolOpen(false)} style={{ color: "var(--ink-2)" }}><Icon name="X" size={22} /></button>
+            </div>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginBottom: 14 }}>
+              Con la confianza baja, el equipo se va a guardar lo importante. Antes de profundizar en causas o conflictos, conviene recuperar el clima. Pasos sugeridos:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+              {[
+                { n: 1, t: "Reconocé antes de pedir", d: "Arrancá con una retro de reconocimiento (Kudos) o de relación (¿Cómo nos relacionamos?). Suben la confianza sin exponer a nadie." },
+                { n: 2, t: "Volvé al contrato", d: "Recordá en voz alta las reglas de seguridad que el equipo acordó. Si no hay contrato, hacé la Sesión Fundacional." },
+                { n: 3, t: "Evitá lo sensible por ahora", d: "Postergá retros sensibles (ej. Speed Dating) y la profundización de causas hasta que la confianza se recupere." },
+                { n: 4, t: "Volvé a medir", d: "Tomá el pulso de nuevo en la próxima sesión para ver si el clima mejora." },
+              ].map((s) => (
+                <div key={s.n} style={{ display: "flex", gap: 11, padding: "11px 13px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+                  <span className="num" style={{ width: 24, height: 24, borderRadius: 99, background: "var(--warning-bg)", color: "var(--warning)", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{s.n}</span>
+                  <div><div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{s.t}</div><div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2, lineHeight: 1.5 }}>{s.d}</div></div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              {isFacil && <Button variant="secondary" icon="Telescope" onClick={() => { setProtocolOpen(false); setTab("exploracion"); }}>Ir a una retro de clima</Button>}
+              <Button icon="Check" onClick={() => setProtocolOpen(false)}>Entendido</Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", marginBottom: 14 }}>
         <button onClick={() => router.push("/organizaciones")} className="muted">Organizaciones</button>
         <span className="faint"><Icon name="ChevronRight" size={13} /></span>
@@ -1256,7 +1291,7 @@ export default function TeamPage() {
       {lowSafety && (
         <div style={{ marginBottom: 18 }}>
           <AlertBanner type="warning" icon="ShieldAlert" title="Confianza baja en el equipo"
-            action={<Button size="sm" variant="secondary" onClick={() => show("Abriendo el protocolo de clima del equipo…", "ShieldAlert")}>Ver protocolo</Button>}>
+            action={<Button size="sm" variant="secondary" onClick={() => setProtocolOpen(true)}>Ver protocolo</Button>}>
             La confianza entre miembros está en <b className="num">{to5(team.psychSafety).toFixed(1)}/5</b>, por debajo del umbral. Cuidá el clima antes de profundizar en causas.
           </AlertBanner>
         </div>
