@@ -136,6 +136,24 @@ export async function updateOrg(id: string, fields: { name?: string; sector?: st
   return {};
 }
 
+/** Elimina una organización. Bloquea si todavía tiene equipos (hay que moverlos o borrarlos antes). Limpia facilitadores asignados, coordinadores e invitaciones. Irreversible. */
+export async function deleteOrg(id: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { teams } = useGLStore.getState();
+  const orgTeams = teams.filter((t) => t.orgId === id);
+  if (orgTeams.length > 0) {
+    return { error: `La organización tiene ${orgTeams.length} ${orgTeams.length === 1 ? "equipo" : "equipos"}. Eliminá o mové los equipos antes de borrar la organización.` };
+  }
+  // Desvincular facilitadores e invitaciones pendientes de esta organización.
+  await supabase.from("facilitator_orgs").delete().eq("org_id", id);
+  await supabase.from("facilitators").update({ org_id: null }).eq("org_id", id);
+  await supabase.from("invitations").delete().eq("org_id", id);
+  const { error } = await supabase.from("organizations").delete().eq("id", id);
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
 /** Cambia el plan de una cuenta (organización). Solo superadmin/dueño. */
 export async function setOrgPlan(id: string, plan: "starter" | "pro" | "business"): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { AvatarStack, Button, Card, CopyLink, EmptyState, Pill, Sparkline, StageBadge } from "@/components/ui";
 import {
-  assignFacilitatorToOrg, assignOrgAdmin, createOrg, getAdmins, getCoordinatorsForOrg, getFacilitators,
+  assignFacilitatorToOrg, assignOrgAdmin, createOrg, deleteOrg, getAdmins, getCoordinatorsForOrg, getFacilitators,
   getOrgs, getTeams, inviteCoordinator, removeFacilitatorFromOrg, revokeInvitation, setOrgPlan, updateOrg,
 } from "@/lib/repository";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -393,6 +393,14 @@ export default function OrganizacionesPage() {
     return res;
   };
 
+  const handleDelete = async (o: Org) => {
+    if (!window.confirm(`¿Eliminar la organización "${o.name}"? Esta acción es irreversible.`)) return;
+    const res = await deleteOrg(o.id);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setOrgs(getOrgs());
+    show(`Organización "${o.name}" eliminada.`, "Trash2");
+  };
+
   const handleAssign = async (orgId: string, adminEmail: string) => {
     const res = await assignOrgAdmin(orgId, adminEmail || null);
     if (!res.error) {
@@ -512,6 +520,12 @@ export default function OrganizacionesPage() {
                     onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.color = "var(--ink-0)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-2)"; }}>
                     <Icon name="Pencil" size={15} />
+                  </button>
+                  <button onClick={() => handleDelete(o)} title="Eliminar organización"
+                    style={{ color: "var(--ink-3)", padding: 6, borderRadius: "var(--r-sm)", display: "inline-flex" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--risk-bg)"; e.currentTarget.style.color = "var(--risk)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-3)"; }}>
+                    <Icon name="Trash2" size={15} />
                   </button>
                 </div>
               </div>
