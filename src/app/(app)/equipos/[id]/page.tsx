@@ -14,7 +14,8 @@ import {
 import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, teamLiveStage, to5, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
-import { createLiveSession, getClosedTeamSessions, loadSessionMemories, type SessionMemory } from "@/lib/session";
+import { createLiveSession, getClosedTeamSessions, getOpenSessionForTeam, loadSessionMemories, setResult, type LiveSession, type SessionMemory } from "@/lib/session";
+import { JoinModal } from "@/components/session/JoinModal";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage } from "@/lib/retros/registry";
 import { FodaGrid } from "@/components/FodaGrid";
@@ -94,6 +95,14 @@ function PulseDetail({ team, isFacil }: { team: Team; isFacil: boolean }) {
   const router = useRouter();
   const { show } = useToast();
   const [pulsing, setPulsing] = useState(false);
+  const [openPulse, setOpenPulse] = useState<LiveSession | null>(null);
+  const [shareSession, setShareSession] = useState<LiveSession | null>(null);
+  // Detectar si hay un pulso abierto (en vivo o async) para este equipo.
+  useEffect(() => {
+    let active = true;
+    getOpenSessionForTeam(team.id).then((s) => { if (active) setOpenPulse(s && s.type === "pulse" ? s : null); });
+    return () => { active = false; };
+  }, [team.id]);
   const takePulse = async () => {
     if (pulsing) return;
     setPulsing(true);
@@ -102,27 +111,62 @@ function PulseDetail({ team, isFacil }: { team: Team; isFacil: boolean }) {
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir el pulso", "TriangleAlert"); return; }
     router.push(`/sala/${res.session.id}`);
   };
-  const TakePulseBtn = isFacil ? <Button icon="Activity" disabled={pulsing} onClick={takePulse}>Tomar el pulso</Button> : null;
+  const sendPulseAsync = async () => {
+    if (pulsing) return;
+    setPulsing(true);
+    const res = await createLiveSession({ teamId: team.id, type: "pulse", firstStep: "pulse" });
+    if (res.session) await setResult(res.session.id, { async: true });
+    setPulsing(false);
+    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir el pulso", "TriangleAlert"); return; }
+    setOpenPulse(res.session);
+    setShareSession(res.session); // muestra el link/QR para compartir, sin entrar a la sala
+  };
+  const shareUrl = (s: LiveSession) => typeof window !== "undefined" ? `${window.location.origin}/join?code=${s.joinCode ?? ""}` : "";
+  const TakePulseBtns = isFacil ? (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <Button variant="secondary" icon="Send" disabled={pulsing} onClick={sendPulseAsync}>Enviar pulso (async)</Button>
+      <Button icon="Activity" disabled={pulsing} onClick={takePulse}>Tomar en vivo</Button>
+    </div>
+  ) : null;
   const PulseHeader = (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
       <div>
         <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, letterSpacing: "-0.02em" }}>Pulso del equipo</h2>
-        <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Una medición anónima de la salud del equipo. La tomás cuando quieras, en vivo.</p>
+        <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Una medición anónima de la salud del equipo. En vivo, o async para que cada uno responda cuando pueda.</p>
       </div>
-      {TakePulseBtn}
+      {TakePulseBtns}
     </div>
   );
+  // Banner del pulso async en curso (el facilitador entra a ver/cerrar cuando quiera).
+  const OpenPulseBanner = (isFacil && openPulse) ? (
+    <Card pad={16} style={{ border: "1px solid color-mix(in srgb, var(--green) 40%, var(--line))", background: "color-mix(in srgb, var(--green) 7%, var(--card))" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", animation: "pulse-soft 2s infinite", color: "var(--green)" }}><Icon name="Radio" size={20} /></span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Pulso en curso{openPulse.result?.async ? " · async" : " · en vivo"}</div>
+          <div className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Compartí el link para que respondan, y entrá a ver el radar y cerrarlo cuando quieras.</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Button variant="secondary" icon="QrCode" onClick={() => setShareSession(openPulse)}>Compartir</Button>
+          <Button icon="ArrowRight" onClick={() => router.push(`/sala/${openPulse.id}`)}>Ver / cerrar</Button>
+        </div>
+      </div>
+    </Card>
+  ) : null;
+  const ShareModal = shareSession ? <JoinModal url={shareUrl(shareSession)} code={shareSession.joinCode} onClose={() => setShareSession(null)} /> : null;
   if (team.pulse.length === 0) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {PulseHeader}
+        {OpenPulseBanner}
         <HealthCard team={team} />
         <Card pad={0}>
           <EmptyState icon="Activity" title="Sin datos de pulso todavía"
-            action={TakePulseBtn ?? undefined}>
-            El pulso es una sesión en vivo aparte: el equipo puntúa 8 dimensiones del 1 al 5 en anónimo y ves el radar promedio. Tomalo cuando quieras.
+            action={TakePulseBtns ?? undefined}>
+            El pulso es una medición anónima: el equipo puntúa 8 dimensiones del 1 al 5 y ves el radar promedio. Tomalo en vivo, o mandalo async para que respondan cuando puedan.
           </EmptyState>
         </Card>
+        {ShareModal}
       </div>
     );
   }
@@ -130,6 +174,8 @@ function PulseDetail({ team, isFacil }: { team: Team; isFacil: boolean }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {PulseHeader}
+      {OpenPulseBanner}
+      {ShareModal}
       <HealthCard team={team} />
       <Card pad={20}>
         <SectionTitle icon="Radar" sub="El radar promedio de la última medición (escala 1-5)">Radar del equipo</SectionTitle>
