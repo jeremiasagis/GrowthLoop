@@ -352,17 +352,27 @@ export function RetroResult({ snap }: { snap: SessionSnapshot }) {
 }
 
 /** Tarjeta expandible de una sesión cerrada: cabecera (retro + fecha) + su visualización. */
-export function MemoryCard({ mem, defaultOpen = true }: { mem: SessionMemory; defaultOpen?: boolean }) {
+export function MemoryCard({ mem, defaultOpen = true, onDiscard }: { mem: SessionMemory; defaultOpen?: boolean; onDiscard?: () => void }) {
   const [open, setOpen] = useState(defaultOpen);
   const name = retroById(mem.retro)?.name ?? mem.retro ?? "Sesión";
   return (
     <div style={{ border: "1px solid var(--line)", borderRadius: "var(--r-lg)", overflow: "hidden", background: "var(--bg-2)" }}>
-      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", textAlign: "left" }}>
-        <Icon name="Sparkles" size={15} style={{ color: "var(--green)", flexShrink: 0 }} />
-        <span style={{ fontWeight: 700, fontSize: "var(--t-sm)", flex: 1, minWidth: 0 }}>{name}</span>
-        {mem.date && <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{mem.date}</span>}
-        <Icon name={open ? "ChevronUp" : "ChevronDown"} size={16} style={{ color: "var(--ink-3)" }} />
-      </button>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <button onClick={() => setOpen((o) => !o)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", textAlign: "left" }}>
+          <Icon name="Sparkles" size={15} style={{ color: "var(--green)", flexShrink: 0 }} />
+          <span style={{ fontWeight: 700, fontSize: "var(--t-sm)", flex: 1, minWidth: 0 }}>{name}</span>
+          {mem.date && <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{mem.date}</span>}
+          <Icon name={open ? "ChevronUp" : "ChevronDown"} size={16} style={{ color: "var(--ink-3)" }} />
+        </button>
+        {onDiscard && (
+          <button onClick={onDiscard} title="Descartar sesión (prueba o sin resultados)"
+            style={{ color: "var(--ink-3)", padding: "11px 12px", display: "inline-flex", flexShrink: 0 }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--risk)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-3)")}>
+            <Icon name="Trash2" size={15} />
+          </button>
+        )}
+      </div>
       {open && <div style={{ padding: "4px 14px 16px" }}><RetroResult snap={mem} /></div>}
     </div>
   );

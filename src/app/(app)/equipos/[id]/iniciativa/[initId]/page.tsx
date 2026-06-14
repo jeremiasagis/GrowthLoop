@@ -13,7 +13,7 @@ import {
   deleteInitiative, getFacilitators, getInitiatives, getOrg, getTeam, patchInitiativeData, setInitiativeStage, setInitiativeStatus,
 } from "@/lib/repository";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { createLiveSession, getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
+import { createLiveSession, discardSession, getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
@@ -490,6 +490,18 @@ export default function InitiativeDetailPage() {
     refresh();
   };
   const doDelete = async () => { setDelBusy(true); const res = await deleteInitiative(init.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Iniciativa eliminada", "Trash2"); router.push(`/equipos/${team.id}`); };
+
+  const discard = async (sessionId: string) => {
+    if (!window.confirm("¿Descartar esta sesión? Se borra junto con sus aportes. (Solo aplica a sesiones de prueba o sin resultados.)")) return;
+    const res = await discardSession(sessionId);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setStageMemories((prev) => {
+      const next: Record<string, SessionMemory[]> = {};
+      for (const k of Object.keys(prev)) next[k] = prev[k].filter((m) => m.id !== sessionId);
+      return next;
+    });
+    show("Sesión descartada", "Trash2");
+  };
   // IA · Reporte ejecutivo del ciclo (Pro+).
   const aiEnabled = planLimits(team.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
   const [aiReport, setAiReport] = useState<string | null>(null);
@@ -670,7 +682,8 @@ export default function InitiativeDetailPage() {
                     {mems.length > 0 && (
                       <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
                         <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="History" size={13} /> Lo que produjo el equipo · {mems.length} {mems.length === 1 ? "sesión" : "sesiones"}</div>
-                        {mems.map((m) => <MemoryCard key={m.id} mem={m} />)}
+                        {mems.map((m) => <MemoryCard key={m.id} mem={m}
+                          onDiscard={isFacil && !(m.result as { finalized?: boolean } | undefined)?.finalized ? () => discard(m.id) : undefined} />)}
                       </div>
                     )}
                   </>

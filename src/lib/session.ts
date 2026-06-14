@@ -467,7 +467,11 @@ export async function finalizeSession(session: LiveSession, opts: {
     }).eq("id", session.teamId);
   }
 
-  const { error } = await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", session.id);
+  // finalized=true marca que esta sesión dejó resultados (log, datos, etc.):
+  // sirve para protegerla de un descarte accidental.
+  const { error } = await supabase.from("sessions")
+    .update({ status: "closed", closed_at: new Date().toISOString(), result: { ...(session.result ?? {}), finalized: true } })
+    .eq("id", session.id);
   await reloadData();
   return { error: error?.message };
 }
@@ -475,6 +479,25 @@ export async function finalizeSession(session: LiveSession, opts: {
 export async function closeSession(sessionId: string): Promise<void> {
   const supabase = getSupabaseBrowserClient();
   await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", sessionId);
+}
+
+/** Descarta una sesión NO finalizada (prueba, abierta por error o abandonada) junto con sus inputs/tarjetas/votos/clusters.
+ *  Rechaza las sesiones finalizadas (las que dejaron resultados) para no romper el histórico, la biblioteca ni la gamificación. */
+export async function discardSession(sessionId: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: row } = await supabase.from("sessions").select("status,result").eq("id", sessionId).maybeSingle();
+  if (!row) return { error: "La sesión ya no existe." };
+  if ((row.result as { finalized?: boolean } | null)?.finalized) {
+    return { error: "Esta sesión está finalizada y dejó resultados: no se puede descartar." };
+  }
+  // Borrar el contenido capturado antes de la sesión (por si no hay cascada en la BD).
+  await supabase.from("session_votes").delete().eq("session_id", sessionId);
+  await supabase.from("session_clusters").delete().eq("session_id", sessionId);
+  await supabase.from("session_cards").delete().eq("session_id", sessionId);
+  await supabase.from("session_inputs").delete().eq("session_id", sessionId);
+  const { error } = await supabase.from("sessions").delete().eq("id", sessionId);
+  if (error) return { error: error.message };
+  return {};
 }
 
 // ── Realtime ──
