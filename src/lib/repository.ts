@@ -419,6 +419,9 @@ export async function deleteInitiative(id: string): Promise<{ error?: string }> 
 /** Elimina un equipo (en cascada iniciativas, sesiones, pulso, integrantes…). Irreversible. */
 export async function deleteTeam(id: string): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
+  // No hay FK initiatives→teams con cascade: borramos las iniciativas a mano
+  // (sus sesiones sí cascadean por sessions→initiatives) para no dejar huérfanas.
+  await supabase.from("initiatives").delete().eq("team_id", id);
   const { error } = await supabase.from("teams").delete().eq("id", id);
   if (error) return { error: error.message };
   await reloadData();
