@@ -1146,6 +1146,57 @@ function InviteMemberModal({ team, onClose }: { team: Team; onClose: () => void 
   );
 }
 
+/* ── Modal: ver (y quitar) integrantes del equipo ── */
+function MembersModal({ team, isFacil, onInvite, onClose }: { team: Team; isFacil: boolean; onInvite: () => void; onClose: () => void }) {
+  const { show } = useToast();
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const members = team.members.filter((m) => !m.id || !removed.has(m.id));
+
+  const remove = async (m: { id?: string; name: string }) => {
+    if (!m.id) return;
+    if (!window.confirm(`¿Quitar a ${m.name} del equipo?`)) return;
+    const res = await removeTeamMember(m.id);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setRemoved((s) => new Set([...s, m.id!]));
+    show(`${m.name} quitado del equipo.`);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", maxHeight: "86vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--card-2)", color: "var(--ink-1)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Users" size={20} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>Integrantes de {team.name}</h3>
+            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{members.length} {members.length === 1 ? "persona" : "personas"}</div>
+          </div>
+          <button onClick={onClose} style={{ color: "var(--ink-2)" }}><Icon name="X" size={22} /></button>
+        </div>
+
+        {members.length === 0 ? (
+          <p className="muted" style={{ fontSize: "var(--t-sm)", margin: "14px 0" }}>Todavía no hay integrantes en este equipo.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+            {members.map((m, i) => (
+              <div key={m.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)" }}>
+                <Avatar name={m.name} initials={m.initials} size={28} idx={i} />
+                <span style={{ flex: 1, minWidth: 0, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</span>
+                {!m.id && <span className="faint" style={{ fontSize: "var(--t-xs)" }}>pendiente</span>}
+                {isFacil && m.id && <button onClick={() => remove(m)} title="Quitar del equipo" style={{ color: "var(--ink-3)", display: "inline-flex", padding: 4 }}><Icon name="X" size={14} /></button>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+          {isFacil && <Button icon="UserPlus" onClick={onInvite}>Invitar integrante</Button>}
+          <Button variant="ghost" onClick={onClose}>Cerrar</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TeamPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -1156,6 +1207,7 @@ export default function TeamPage() {
   const [tab, setTab] = useState("objetivos");
   const [, setTeamNonce] = useState(0);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delBusy, setDelBusy] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
@@ -1283,6 +1335,7 @@ export default function TeamPage() {
           <Button variant="secondary" icon="Library" onClick={() => router.push(`/equipos/${team.id}/biblioteca`)}>Biblioteca</Button>
           <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
           {isFacil && <Button variant="secondary" icon="Settings" onClick={() => setSettingsOpen(true)}>Ajustes</Button>}
+          <Button variant="secondary" icon="Users" onClick={() => setMembersOpen(true)}>Integrantes</Button>
           {isFacil && <Button icon="UserPlus" onClick={() => setInviteOpen(true)}>Invitar integrante</Button>}
           {isFacil && <Button variant="ghost" icon="Trash2" onClick={() => setDelOpen(true)} style={{ color: "var(--risk)" }}>Eliminar</Button>}
         </div>
@@ -1335,6 +1388,7 @@ export default function TeamPage() {
       )}
 
       {inviteOpen && <InviteMemberModal team={team} onClose={() => setInviteOpen(false)} />}
+      {membersOpen && <MembersModal team={team} isFacil={isFacil} onInvite={() => { setMembersOpen(false); setInviteOpen(true); }} onClose={() => setMembersOpen(false)} />}
       {contractOpen && <ContractModal team={team} onClose={() => setContractOpen(false)} />}
       {settingsOpen && (
         <div onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
