@@ -101,7 +101,7 @@ export function teamProgress(team: Team, nowMs: number = Date.now()): TeamProgre
     A("threecycles", "En marcha", "Repeat", "Cerraron 3 ciclos de mejora", cycles >= 3, cycles, 3),
     A("resilient", "Aprenden y siguen", "RefreshCw", "Iteraron o pivotaron una variable", inits.some((i) => ["iterate", "pivot"].includes(i.data?.learn?.decision ?? ""))),
     A("library", "Biblioteca viva", "Library", "Guardaron 5 aprendizajes en la biblioteca", (data.library?.length ?? 0) >= 5, data.library?.length ?? 0, 5),
-    A("streak4", "Constancia", "Flame", `4 ${cadenceDays <= 7 ? "semanas" : "quincenas"} seguidas`, streak >= 4, streak, 4),
+    A("streak4", "Constancia", "Flame", `4 ${cadenceDays <= 7 ? "semanas" : cadenceDays <= 14 ? "quincenas" : "meses"} seguidas`, streak >= 4, streak, 4),
     A("pulseup", "Clima en alza", "TrendingUp", "El pulso del equipo subió +10", pulseUp >= 10),
     A("sessions10", "Ritmo", "Activity", "10 sesiones realizadas", sessions.length >= 10, sessions.length, 10),
     A("together", "En equipo", "Users", "Participaron de sesiones en vivo", allParticipated),

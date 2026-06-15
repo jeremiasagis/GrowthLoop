@@ -583,7 +583,7 @@ function RitmoCard({ teamId, everyDays, lastSessionAt, isFacil, onSaved }: { tea
       </div>
       {overdue && <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: "var(--r-md)", background: "var(--warning-bg)", color: "var(--warning)", fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 12 }}><Icon name="Bell" size={14} /> Toca una nueva sesión para sostener el ritmo.</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        {[{ d: 7, l: "Semanal" }, { d: 14, l: "Quincenal" }].map((o) => {
+        {[{ d: 7, l: "Semanal" }, { d: 14, l: "Quincenal" }, { d: 30, l: "Mensual" }].map((o) => {
           const on = everyDays === o.d;
           return (
             <button key={o.d} disabled={!isFacil || busy} onClick={() => setCad(o.d)}
@@ -594,6 +594,71 @@ function RitmoCard({ teamId, everyDays, lastSessionAt, isFacil, onSaved }: { tea
         })}
       </div>
     </Card>
+  );
+}
+
+/** Pestaña Ritmo: ritmo declarado + declarado-vs-realizado + racha. */
+function RitmoPanel({ team, isFacil, onSaved }: { team: Team; isFacil: boolean; onSaved: () => void }) {
+  const declared = team.data?.cadence?.everyDays ?? 14;
+  const label = declared <= 7 ? "Semanal" : declared <= 14 ? "Quincenal" : "Mensual";
+  const WIN = 30;
+  const now = Date.now();
+  const recent = (team.sessions ?? []).filter((s) => s.createdAt && now - new Date(s.createdAt).getTime() <= WIN * 86400000);
+  const actual = recent.length;
+  const expected = Math.max(1, Math.round(WIN / declared));
+  const adherence = Math.min(100, Math.round((actual / expected) * 100));
+  const realizedEvery = actual > 0 ? Math.round(WIN / actual) : null;
+  const g = teamProgress(team);
+  const unit = declared <= 7 ? (g.streak === 1 ? "semana" : "semanas") : declared <= 14 ? (g.streak === 1 ? "quincena" : "quincenas") : (g.streak === 1 ? "mes" : "meses");
+  const col = adherence >= 80 ? "var(--green)" : adherence >= 50 ? "var(--warning)" : "var(--risk)";
+
+  return (
+    <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 16 }}>
+      <RitmoCard teamId={team.id} everyDays={declared} lastSessionAt={team.data?.lastSessionAt} isFacil={isFacil} onSaved={onSaved} />
+
+      <Card pad={20}>
+        <SectionTitle icon="ArrowLeftRight" sub="Lo que se propusieron vs lo que realmente hicieron · últimos 30 días">Declarado vs realizado</SectionTitle>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
+          <div style={{ flex: 1, minWidth: 150, background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "12px 14px" }}>
+            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Declarado</div>
+            <div style={{ fontWeight: 800, fontSize: "var(--t-lg)" }}>{label}</div>
+            <div className="faint" style={{ fontSize: "var(--t-xs)" }}>cada {declared} días</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 150, background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "12px 14px" }}>
+            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Realizado</div>
+            <div style={{ fontWeight: 800, fontSize: "var(--t-lg)" }}>{actual} {actual === 1 ? "sesión" : "sesiones"}</div>
+            <div className="faint" style={{ fontSize: "var(--t-xs)" }}>{realizedEvery ? `≈ cada ${realizedEvery} días` : "sin sesiones en el período"}</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-sm)", marginBottom: 6 }}>
+            <span className="muted">Cumplimiento del ritmo</span>
+            <b className="num" style={{ color: col }}>{adherence}%</b>
+          </div>
+          <div style={{ height: 8, borderRadius: 99, background: "var(--card-2)", overflow: "hidden" }}>
+            <div style={{ width: `${adherence}%`, height: "100%", background: col, borderRadius: 99, transition: "width .3s" }} />
+          </div>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 8, lineHeight: 1.5 }}>
+            {actual >= expected
+              ? "Vienen sosteniendo el ritmo que se propusieron. 💪"
+              : `Para el ritmo ${label.toLowerCase()} se esperan ${expected} ${expected === 1 ? "sesión" : "sesiones"} en 30 días y ${actual === 0 ? "todavía no hicieron ninguna" : `hicieron ${actual}`}.${isFacil ? " Abrí una sesión desde una iniciativa para acercarte." : ""}`}
+          </p>
+        </div>
+      </Card>
+
+      <Card pad={20}>
+        <SectionTitle icon="Flame" sub="Períodos seguidos cumpliendo el ritmo">Racha</SectionTitle>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+            <span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: g.streak > 0 ? "var(--warning)" : "var(--ink-3)" }}>{g.streak}</span>
+            <span className="muted" style={{ fontSize: "var(--t-sm)" }}>{unit} seguidas con ritmo</span>
+          </div>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--t-xs)", fontWeight: 700, padding: "5px 11px", borderRadius: "var(--r-full)", color: g.streak >= 4 ? "var(--green)" : "var(--ink-2)", background: g.streak >= 4 ? "var(--green-soft)" : "var(--card-2)", border: `1px solid ${g.streak >= 4 ? "color-mix(in srgb, var(--green) 30%, transparent)" : "var(--line)"}` }}>
+            <Icon name="Flame" size={13} /> {g.streak >= 4 ? "Constancia desbloqueada" : `${g.streak}/4 para Constancia`}
+          </span>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -1252,7 +1317,6 @@ export default function TeamPage() {
   const [delOpen, setDelOpen] = useState(false);
   const [delBusy, setDelBusy] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [protocolOpen, setProtocolOpen] = useState(false);
   const [celeb, setCeleb] = useState<{ title: string; subtitle?: string; emoji: string } | null>(null);
 
@@ -1299,8 +1363,9 @@ export default function TeamPage() {
     { key: "exploracion", label: "Exploración", icon: "Telescope" },
     { key: "objetivos", label: "Objetivos", icon: "Compass" },
     { key: "seguimiento", label: "Iniciativas", icon: "Target" },
-    { key: "pulso", label: "Pulso", icon: "Activity" },
     { key: "sesiones", label: "Sesiones", icon: "History" },
+    { key: "pulso", label: "Pulso", icon: "Activity" },
+    { key: "ritmo", label: "Ritmo", icon: "CalendarClock" },
   ];
 
   return (
@@ -1365,12 +1430,12 @@ export default function TeamPage() {
             <AvatarStack people={team.members} max={6} size={30} />
             <span className="muted" style={{ fontSize: "var(--t-sm)" }}>{team.members.length} integrantes · {team.area} · cliente {team.clientType.toLowerCase()}</span>
             <FacilitatorChip lead={lead} canEdit={isFacil && !!lead && (lead.email ?? "").toLowerCase() === (user?.email ?? "").toLowerCase()} onSaved={() => setTeamNonce((n) => n + 1)} />
-            <button onClick={() => { if (isFacil) setSettingsOpen(true); }} title={isFacil ? "Cambiar el ritmo del equipo" : undefined}
-              style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)", cursor: isFacil ? "pointer" : "default" }}>
+            <button onClick={() => setTab("ritmo")} title="Ver el ritmo del equipo"
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)", cursor: "pointer" }}>
               <Icon name="CalendarClock" size={14} style={{ color: "var(--green)" }} />
               <span className="muted">Ritmo:</span>
-              <b>{(team.data?.cadence?.everyDays ?? 14) <= 7 ? "Semanal" : "Quincenal"}</b>
-              {isFacil && <Icon name="Pencil" size={12} style={{ color: "var(--ink-3)" }} />}
+              <b>{(() => { const d = team.data?.cadence?.everyDays ?? 14; return d <= 7 ? "Semanal" : d <= 14 ? "Quincenal" : "Mensual"; })()}</b>
+              <Icon name="ChevronRight" size={12} style={{ color: "var(--ink-3)" }} />
             </button>
           </div>
         </div>
@@ -1429,17 +1494,11 @@ export default function TeamPage() {
         )
       )}
 
+      {tab === "ritmo" && <RitmoPanel team={team} isFacil={isFacil} onSaved={() => setTeamNonce((n) => n + 1)} />}
+
       {inviteOpen && <InviteMemberModal team={team} onClose={() => setInviteOpen(false)} />}
       {membersOpen && <MembersModal team={team} isFacil={isFacil} onInvite={() => { setMembersOpen(false); setInviteOpen(true); }} onClose={() => setMembersOpen(false)} />}
       {contractOpen && <ContractModal team={team} onClose={() => setContractOpen(false)} />}
-      {settingsOpen && (
-        <div onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 24, animation: "pop-in .25s var(--spring)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}><Icon name="Settings" size={18} style={{ color: "var(--ink-2)" }} /><h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>Ajustes del equipo</h3><button onClick={() => setSettingsOpen(false)} style={{ marginLeft: "auto", color: "var(--ink-2)" }}><Icon name="X" size={18} /></button></div>
-            <RitmoCard teamId={team.id} everyDays={team.data?.cadence?.everyDays ?? 14} lastSessionAt={team.data?.lastSessionAt} isFacil={isFacil} onSaved={() => setTeamNonce((n) => n + 1)} />
-          </div>
-        </div>
-      )}
       {delOpen && (
         <div onClick={() => setDelOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, textAlign: "center", animation: "pop-in .25s var(--spring)" }}>
