@@ -14,9 +14,15 @@ export const runtime = "nodejs";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-type Kind = "orgReport" | "retroPlan" | "libraryDigest";
+type Kind = "triage" | "orgReport" | "retroPlan" | "libraryDigest";
 
 const CFG: Record<Kind, { model: string; max: number; system: string }> = {
+  triage: {
+    model: "claude-haiku-4-5",
+    max: 1200,
+    system:
+      "Sos el asistente de un facilitador de mejora continua con varios equipos. Te paso, agrupadas por equipo, señales de alerta detectadas automáticamente (inactividad, clima bajo, iniciativas frenadas, vencimientos). Tu tarea: priorizar y devolver una lista accionable de 'qué atender' en español rioplatense, en markdown, ordenada de más urgente a menos. Para cada punto: a qué equipo, qué pasa y UNA acción concreta a hacer. Si varios equipos comparten el mismo problema, agrupalos. Sé breve y directo, sin relleno. No agregues equipos ni problemas que no estén en los datos: trabajá solo con lo que te paso.",
+  },
   orgReport: {
     model: "claude-sonnet-4-6",
     max: 1800,

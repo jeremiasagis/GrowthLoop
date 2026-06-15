@@ -4,16 +4,17 @@ import { useMemo, useState } from "react";
 import { Icon } from "@/components/icon";
 import { Button, Card, EmptyState, Pill } from "@/components/ui";
 import { getInitiatives, getOrg, getOrgs, getTeams } from "@/lib/repository";
-import { overallOf, planLimits, STAGES, teamLiveStage, type Org, type Team } from "@/lib/data";
+import { overallOf, planLimits, STAGES, teamLiveStage, to5, type Org, type Team } from "@/lib/data";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 
 type Action = {
-  kind: "orgReport" | "retroPlan" | "libraryDigest";
+  kind: "triage" | "orgReport" | "retroPlan" | "libraryDigest";
   label: string; sub: string; icon: string;
 };
 
 const ACTIONS: Action[] = [
+  { kind: "triage", label: "¿Qué necesita mi atención?", sub: "Norte escanea todos los equipos y prioriza lo urgente: inactividad, clima cayendo, iniciativas frenadas, vencimientos.", icon: "BellRing" },
   { kind: "orgReport", label: "Reporte unificado de la organización", sub: "Un informe ejecutivo con el estado de todos los equipos y los temas que se repiten.", icon: "FileBarChart" },
   { kind: "retroPlan", label: "¿Qué retro le conviene a cada equipo?", sub: "Norte mira la etapa y el clima de cada equipo y recomienda el próximo paso.", icon: "Radio" },
   { kind: "libraryDigest", label: "Resumen de aprendizajes", sub: "Destila la biblioteca de toda la organización en patrones y aprendizajes transferibles.", icon: "Library" },
@@ -56,6 +57,37 @@ function buildRetroPlan(teams: Team[]): string {
   return L.join("\n\n");
 }
 
+const daysSince = (iso?: string): number | null => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null);
+
+/** Alertas calculadas con reglas (determinísticas). La IA después prioriza y redacta. */
+function buildTriage(teams: Team[]): string {
+  const blocks: string[] = [];
+  for (const t of teams) {
+    const al: string[] = [];
+    const last = daysSince(t.data?.lastSessionAt);
+    const cad = t.data?.cadence?.everyDays ?? 7;
+    if (last === null && (t.sessions?.length ?? 0) === 0) al.push("Todavía no hizo ninguna sesión.");
+    else if (last !== null && last >= Math.max(14, cad * 2)) al.push(`Sin sesiones hace ${last} días (ritmo sugerido: cada ${cad}).`);
+
+    if (t.psychSafety > 0 && t.psychSafety < 70) al.push(`Confianza del equipo baja: ${to5(t.psychSafety).toFixed(1)}/5.`);
+    if ((t.pulse?.length ?? 0) >= 2) {
+      const f = overallOf(t.pulse[0]), l = overallOf(t.pulse[t.pulse.length - 1]);
+      if (l < f - 5) al.push(`El clima viene bajando (${f} → ${l} sobre 100).`);
+    }
+
+    const inits = getInitiatives(t.id);
+    const active = inits.filter((i) => i.status === "active");
+    if (active.length && last !== null && last >= 14) al.push(`${active.length} iniciativa(s) activa(s) sin movimiento reciente.`);
+    for (const i of inits) {
+      const overdue = i.data?.consolidate?.pending ? daysSince(i.data.consolidate.due) : null;
+      if (overdue !== null && overdue > 0) al.push(`Consolidación vencida hace ${overdue} días en "${i.title}".`);
+    }
+
+    if (al.length) blocks.push(`## ${t.name} (${t.area || "—"})\n${al.map((x) => `- ${x}`).join("\n")}`);
+  }
+  return blocks.join("\n\n");
+}
+
 function buildLibraryDigest(teams: Team[]): string {
   const L: string[] = ["Aprendizajes registrados por los equipos:"];
   let n = 0;
@@ -83,10 +115,14 @@ export default function NortePage() {
     if (busy) return;
     if (!teams.length) { show("Esta organización todavía no tiene equipos.", "TriangleAlert"); return; }
     let ctx = "";
-    if (a.kind === "orgReport") ctx = buildOrgReport(org!, teams);
+    if (a.kind === "triage") ctx = buildTriage(teams);
+    else if (a.kind === "orgReport") ctx = buildOrgReport(org!, teams);
     else if (a.kind === "retroPlan") ctx = buildRetroPlan(teams);
     else ctx = buildLibraryDigest(teams);
-    if (!ctx.trim()) { show("Todavía no hay aprendizajes registrados para resumir.", "TriangleAlert"); return; }
+    if (!ctx.trim()) {
+      if (a.kind === "triage") { setResult({ title: a.label, text: "✅ Todo en orden.\n\nNingún equipo de esta organización tiene señales de alerta ahora mismo: actividad al día, clima estable y sin vencimientos." }); return; }
+      show("Todavía no hay aprendizajes registrados para resumir.", "TriangleAlert"); return;
+    }
     setBusy(a.kind);
     try {
       const { data: s } = await getSupabaseBrowserClient().auth.getSession();
