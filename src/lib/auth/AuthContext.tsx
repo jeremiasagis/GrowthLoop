@@ -12,6 +12,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { setScope } from "@/lib/repository";
+import { reloadData } from "@/lib/store";
 import type { RoleKey } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
 
@@ -218,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.from("facilitators").update({ name: clean, initials }).eq("email", email);
       await supabase.from("admins").update({ name: clean, initials }).eq("email", email);
     }
+    await reloadData(); // refresca el directorio en memoria (chip de facilitador, listas, etc.)
     setBaseUser((prev) => (prev ? { ...prev, name: clean, initials } : prev));
     return {};
   }, []);

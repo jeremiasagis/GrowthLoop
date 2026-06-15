@@ -1197,6 +1197,47 @@ function MembersModal({ team, isFacil, onInvite, onClose }: { team: Team; isFaci
   );
 }
 
+/* ── Chip del facilitador, editable por el propio facilitador ── */
+function FacilitatorChip({ lead, canEdit, onSaved }: { lead?: { name?: string; email?: string }; canEdit: boolean; onSaved: () => void }) {
+  const { updateName } = useAuth();
+  const { show } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(lead?.name ?? "");
+  const [busy, setBusy] = useState(false);
+  const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" };
+
+  const save = async () => {
+    const clean = draft.trim();
+    if (clean.length < 2) { show("El nombre es muy corto.", "TriangleAlert"); return; }
+    setBusy(true);
+    const res = await updateName(clean);
+    setBusy(false);
+    if (res.error) { show(res.error, "TriangleAlert"); return; }
+    setEditing(false); show("Nombre actualizado."); onSaved();
+  };
+
+  if (editing) {
+    return (
+      <span style={{ ...chip, padding: "3px 6px 3px 10px" }}>
+        <Icon name="UserCog" size={14} style={{ color: "var(--info)" }} />
+        <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }} placeholder="Tu nombre"
+          style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "3px 8px", fontSize: "var(--t-sm)", outline: "none", width: 150 }} />
+        <button onClick={save} disabled={busy} title="Guardar" style={{ color: "var(--green)", display: "inline-flex", padding: 3 }}><Icon name="Check" size={15} /></button>
+        <button onClick={() => { setEditing(false); setDraft(lead?.name ?? ""); }} title="Cancelar" style={{ color: "var(--ink-3)", display: "inline-flex", padding: 3 }}><Icon name="X" size={15} /></button>
+      </span>
+    );
+  }
+  return (
+    <span style={chip}>
+      <Icon name="UserCog" size={14} style={{ color: "var(--info)" }} />
+      <span className="muted">Facilitador:</span>
+      <b style={{ color: lead ? "var(--ink-0)" : "var(--ink-3)" }}>{lead?.name ?? "Sin asignar"}</b>
+      {canEdit && <button onClick={() => { setDraft(lead?.name ?? ""); setEditing(true); }} title="Editar tu nombre" style={{ color: "var(--ink-3)", display: "inline-flex", padding: 2 }}><Icon name="Pencil" size={12} /></button>}
+    </span>
+  );
+}
+
 export default function TeamPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -1323,11 +1364,7 @@ export default function TeamPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
             <AvatarStack people={team.members} max={6} size={30} />
             <span className="muted" style={{ fontSize: "var(--t-sm)" }}>{team.members.length} integrantes · {team.area} · cliente {team.clientType.toLowerCase()}</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>
-              <Icon name="UserCog" size={14} className="" style={{ color: "var(--info)" }} />
-              <span className="muted">Facilitador:</span>
-              <b style={{ color: lead ? "var(--ink-0)" : "var(--ink-3)" }}>{lead?.name ?? "Sin asignar"}</b>
-            </span>
+            <FacilitatorChip lead={lead} canEdit={isFacil && !!lead && (lead.email ?? "").toLowerCase() === (user?.email ?? "").toLowerCase()} onSaved={() => setTeamNonce((n) => n + 1)} />
             <button onClick={() => { if (isFacil) setSettingsOpen(true); }} title={isFacil ? "Cambiar el ritmo del equipo" : undefined}
               style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)", cursor: isFacil ? "pointer" : "default" }}>
               <Icon name="CalendarClock" size={14} style={{ color: "var(--green)" }} />
