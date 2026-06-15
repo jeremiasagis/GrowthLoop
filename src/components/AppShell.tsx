@@ -46,6 +46,7 @@ interface NavItem {
 function navItemsFor(role: RoleKey | null): NavItem[] {
   const inicio = { href: "/dashboard", label: "Inicio", icon: "House" };
   const reportes = { href: "/reportes", label: "Reportes", icon: "FileBarChart" };
+  const norte = { href: "/norte", label: "Norte", icon: "Compass" };
   const ajustes = { href: "/ajustes", label: "Ajustes", icon: "Settings" };
   const facilitadores = { href: "/facilitadores", label: "Facilitadores", icon: "UsersRound" };
 
@@ -55,7 +56,7 @@ function navItemsFor(role: RoleKey | null): NavItem[] {
       inicio,
       { href: "/organizaciones", label: "Mis equipos", icon: "Building2" },
       { href: "/sesiones", label: "Sesiones", icon: "Radio" },
-      reportes, ajustes,
+      reportes, norte, ajustes,
     ];
   }
   // Superadmin: además gestiona los admins de la plataforma. No hace sesiones.
@@ -64,14 +65,14 @@ function navItemsFor(role: RoleKey | null): NavItem[] {
       inicio,
       { href: "/organizaciones", label: "Organizaciones", icon: "Building2" },
       { href: "/admins", label: "Admins", icon: "ShieldCheck" },
-      facilitadores, reportes, ajustes,
+      facilitadores, reportes, norte, ajustes,
     ];
   }
   // Admin: gestiona su organización (orgs + facilitadores). No hace sesiones.
   return [
     inicio,
     { href: "/organizaciones", label: "Organizaciones", icon: "Building2" },
-    facilitadores, reportes, ajustes,
+    facilitadores, reportes, norte, ajustes,
   ];
 }
 
@@ -167,6 +168,7 @@ function MobileChrome() {
           { href: "/dashboard", label: "Inicio", icon: "House" },
           { href: "/organizaciones", label: "Equipos", icon: "Building2" },
           { href: "/sesiones", label: "Sesiones", icon: "Radio" },
+          { href: "/norte", label: "Norte", icon: "Compass" },
           { href: "/reportes", label: "Reportes", icon: "FileBarChart" },
           { href: "/ajustes", label: "Perfil", icon: "User" },
         ]
@@ -175,14 +177,15 @@ function MobileChrome() {
             { href: "/dashboard", label: "Inicio", icon: "House" },
             { href: "/organizaciones", label: "Orgs", icon: "Building2" },
             { href: "/admins", label: "Admins", icon: "ShieldCheck" },
+            { href: "/norte", label: "Norte", icon: "Compass" },
             { href: "/facilitadores", label: "Facilit.", icon: "UsersRound" },
             { href: "/ajustes", label: "Perfil", icon: "User" },
           ]
         : [
             { href: "/dashboard", label: "Inicio", icon: "House" },
             { href: "/organizaciones", label: "Orgs", icon: "Building2" },
+            { href: "/norte", label: "Norte", icon: "Compass" },
             { href: "/facilitadores", label: "Facilit.", icon: "UsersRound" },
-            { href: "/reportes", label: "Reportes", icon: "FileBarChart" },
             { href: "/ajustes", label: "Perfil", icon: "User" },
           ];
 
