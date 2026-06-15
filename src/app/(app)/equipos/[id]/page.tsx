@@ -1328,15 +1328,20 @@ export default function TeamPage() {
               <span className="muted">Facilitador:</span>
               <b style={{ color: lead ? "var(--ink-0)" : "var(--ink-3)" }}>{lead?.name ?? "Sin asignar"}</b>
             </span>
+            <button onClick={() => { if (isFacil) setSettingsOpen(true); }} title={isFacil ? "Cambiar el ritmo del equipo" : undefined}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)", cursor: isFacil ? "pointer" : "default" }}>
+              <Icon name="CalendarClock" size={14} style={{ color: "var(--green)" }} />
+              <span className="muted">Ritmo:</span>
+              <b>{(team.data?.cadence?.everyDays ?? 14) <= 7 ? "Semanal" : "Quincenal"}</b>
+              {isFacil && <Icon name="Pencil" size={12} style={{ color: "var(--ink-3)" }} />}
+            </button>
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Button variant="secondary" icon="Handshake" onClick={() => setContractOpen(true)}>Contrato</Button>
           <Button variant="secondary" icon="Library" onClick={() => router.push(`/equipos/${team.id}/biblioteca`)}>Biblioteca</Button>
           <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
-          {isFacil && <Button variant="secondary" icon="Settings" onClick={() => setSettingsOpen(true)}>Ajustes</Button>}
-          <Button variant="secondary" icon="Users" onClick={() => setMembersOpen(true)}>Integrantes</Button>
-          {isFacil && <Button icon="UserPlus" onClick={() => setInviteOpen(true)}>Invitar integrante</Button>}
+          <Button icon="Users" onClick={() => setMembersOpen(true)}>Integrantes</Button>
           {isFacil && <Button variant="ghost" icon="Trash2" onClick={() => setDelOpen(true)} style={{ color: "var(--risk)" }}>Eliminar</Button>}
         </div>
       </div>
