@@ -37,6 +37,29 @@ export default function SesionesPage() {
         <Button icon="Building2" onClick={() => router.push("/organizaciones")}>Ir a Mis equipos</Button>
       </Card>
 
+      {/* Próximamente: 1 a 1 ─ banner de roadmap */}
+      <Card pad={20} style={{ marginBottom: 26, border: "1px solid color-mix(in srgb, var(--violet) 32%, var(--line))", background: "linear-gradient(180deg, color-mix(in srgb, var(--violet) 9%, var(--card)), var(--card))" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--violet) 18%, transparent)", color: "var(--violet)", display: "grid", placeItems: "center", flex: "none" }}>
+            <Icon name="MessagesSquare" size={22} />
+          </div>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Reuniones 1 a 1</span>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--violet)", background: "color-mix(in srgb, var(--violet) 16%, transparent)", padding: "3px 8px", borderRadius: 99 }}>Próximamente</span>
+            </div>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginTop: 6, maxWidth: 720 }}>
+              Además de las retros del equipo, vas a poder tener <b style={{ color: "var(--ink-1)" }}>charlas individuales</b> con cada integrante: cómo viene, feedback en ambas direcciones, qué lo está frenando y su crecimiento. Con <b style={{ color: "var(--ink-1)" }}>agenda compartida</b>, plantillas guiadas, compromisos que se arrastran y <b style={{ color: "var(--ink-1)" }}>conectadas a las señales del equipo</b> para saber de qué hablar.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 12 }}>
+              {["Cómo venís", "Feedback", "Qué te frena", "Crecimiento", "Prep de la retro"].map((c) => (
+                <span key={c} style={{ fontSize: "var(--t-xs)", fontWeight: 600, color: "var(--ink-2)", background: "var(--card-2)", border: "1px solid var(--line)", padding: "4px 10px", borderRadius: 99 }}>{c}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
         {RETROS.map((r) => (
           <Card key={r.stage} pad={20} style={{ display: "flex", flexDirection: "column", gap: 12 }}>

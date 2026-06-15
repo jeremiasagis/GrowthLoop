@@ -41,7 +41,6 @@ interface NavItem {
   href: string;
   label: string;
   icon: string;
-  soon?: boolean; // ítem de roadmap, atenuado y no clickeable
 }
 
 function navItemsFor(role: RoleKey | null): NavItem[] {
@@ -57,9 +56,7 @@ function navItemsFor(role: RoleKey | null): NavItem[] {
       inicio,
       { href: "/organizaciones", label: "Mis equipos", icon: "Building2" },
       { href: "/sesiones", label: "Sesiones", icon: "Radio" },
-      reportes, norte,
-      { href: "/uno-a-uno", label: "1 a 1", icon: "MessagesSquare", soon: true },
-      ajustes,
+      reportes, norte, ajustes,
     ];
   }
   // Superadmin: además gestiona los admins de la plataforma. No hace sesiones.
@@ -128,20 +125,6 @@ function Sidebar() {
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
         {items.map((item) => {
-          if (item.soon) {
-            return (
-              <div key={item.href} title="Próximamente"
-                style={{
-                  display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: "var(--r-md)",
-                  color: "var(--ink-3)", fontWeight: 500, fontSize: "var(--t-base)", cursor: "default",
-                  borderLeft: "2px solid transparent",
-                }}>
-                <span style={{ display: "inline-flex" }}><Icon name={item.icon} size={19} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--violet)", background: "color-mix(in srgb, var(--violet) 16%, transparent)", padding: "2px 6px", borderRadius: 99, flex: "none" }}>Pronto</span>
-              </div>
-            );
-          }
           const on = isActive(pathname, item.href);
           return (
             <Link
@@ -260,14 +243,6 @@ function MobileChrome() {
             </div>
             <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {navItemsFor(role).map((item) => {
-                if (item.soon) {
-                  return (
-                    <div key={item.href} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 12px", borderRadius: "var(--r-md)", color: "var(--ink-3)", fontWeight: 600 }}>
-                      <Icon name={item.icon} size={20} /><span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>
-                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--violet)", background: "color-mix(in srgb, var(--violet) 16%, transparent)", padding: "2px 6px", borderRadius: 99, flex: "none" }}>Pronto</span>
-                    </div>
-                  );
-                }
                 const on = isActive(pathname, item.href);
                 return (
                   <Link key={item.href} href={item.href} onClick={() => setDrawer(false)}
