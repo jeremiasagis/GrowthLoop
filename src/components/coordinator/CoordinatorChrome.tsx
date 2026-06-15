@@ -28,6 +28,12 @@ export function CoordinatorChrome({ children }: { children: ReactNode }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <ThemeToggle compact />
           <RoleSwitcher compact />
+          <button onClick={() => router.push("/coordinador/perfil")} title="Mi perfil"
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "var(--ink-2)", padding: "7px 10px", borderRadius: "var(--r-md)", border: "1px solid var(--line)", fontSize: "var(--t-sm)", fontWeight: 600 }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--ink-0)"; e.currentTarget.style.borderColor = "var(--line-2)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--ink-2)"; e.currentTarget.style.borderColor = "var(--line)"; }}>
+            <Icon name="UserRound" size={16} /> <span className="hide-sm">Perfil</span>
+          </button>
           <button onClick={doLogout} title="Cerrar sesión"
             style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "var(--ink-2)", padding: "7px 10px", borderRadius: "var(--r-md)", border: "1px solid var(--line)", fontSize: "var(--t-sm)", fontWeight: 600 }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "var(--risk)"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)"; }}

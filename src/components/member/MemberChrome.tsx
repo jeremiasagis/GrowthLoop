@@ -17,6 +17,7 @@ const NAV = [
   { href: "/member/sesiones", label: "Sesiones", icon: "Radio" },
   { href: "/member/biblioteca", label: "Biblioteca", icon: "Library" },
   { href: "/member/reflection", label: "Reflexiones", icon: "BookHeart" },
+  { href: "/member/perfil", label: "Perfil", icon: "UserRound" },
 ];
 
 const isActive = (pathname: string, href: string) =>
@@ -28,11 +29,13 @@ function MemberFooter() {
   const doLogout = () => { logout(); router.replace("/login"); };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px" }}>
-      <Avatar name={user?.name} initials={user?.initials} size={34} idx={4} />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name ?? "Miembro"}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--warning)", flex: "none" }} /><span className="muted" style={{ fontSize: "var(--t-xs)" }}>Miembro</span></div>
-      </div>
+      <Link href="/member/perfil" title="Ver mi perfil" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+        <Avatar name={user?.name} initials={user?.initials} size={34} idx={4} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name ?? "Miembro"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--warning)", flex: "none" }} /><span className="muted" style={{ fontSize: "var(--t-xs)" }}>Miembro</span></div>
+        </div>
+      </Link>
       <ThemeToggle compact />
       <button onClick={doLogout} title="Cerrar sesión" style={{ color: "var(--ink-2)", padding: 8, borderRadius: "var(--r-md)", display: "inline-flex", flex: "none" }}
         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.color = "var(--risk)"; }}
@@ -80,7 +83,7 @@ function MemberMobile() {
         <button onClick={() => setDrawer(true)} style={{ color: "var(--ink-1)", display: "inline-flex", padding: 6 }}><Icon name="Menu" size={24} /></button>
       </header>
       <nav className="gl-mobile-only" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 40, justifyContent: "space-around", alignItems: "center", background: "color-mix(in srgb, var(--bg-2) 94%, transparent)", backdropFilter: "blur(12px)", borderTop: "1px solid var(--line)", padding: "8px 6px calc(8px + env(safe-area-inset-bottom))" }}>
-        {NAV.map((t) => {
+        {NAV.filter((t) => t.href !== "/member/perfil").map((t) => {
           const on = isActive(pathname, t.href);
           return <Link key={t.href} href={t.href} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, color: on ? "var(--green)" : "var(--ink-2)", minWidth: 60, padding: "2px 0" }}><Icon name={t.icon} size={21} /><span style={{ fontSize: 10, fontWeight: 600 }}>{t.label}</span></Link>;
         })}
