@@ -91,14 +91,13 @@
 
 /* ════════ Tema OSCURO / noche (se activa con el botón) ════════ */
 :root[data-theme="dark"] {
-  /* Rampa "Kachiiro" — azul de la victoria. Canvas base #181B39 (RGB 24,27,57). */
-  --bg-0:         #101225;
-  --bg-1:         #181B39;
-  --bg-2:         #1F2349;
-  --card:         #242954;
-  --card-2:       #282E5F98;
-  --card-hover:   #2C3166;
-  --elevated:     #303771;
+  --bg-0:         #070B16;
+  --bg-1:         #0A0F1E;
+  --bg-2:         #0F1526;
+  --card:         #141B2E;
+  --card-2:       #18203598;
+  --card-hover:   #1A2238;
+  --elevated:     #1B2440;
 
   --line:         rgba(255,255,255,0.07);
   --line-2:       rgba(255,255,255,0.12);
