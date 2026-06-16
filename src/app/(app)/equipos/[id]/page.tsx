@@ -687,8 +687,8 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
   const STEPS = [
     { done: membersDone, n: 1, title: "Invitá a los integrantes", desc: "Sumá al equipo para que participen en vivo.", btn: "Invitar", icon: "UserPlus", launch: false, onClick: onInvite },
     { done: fodaDone, n: 2, title: "Hagan el FODA del equipo", desc: "El diagnóstico inicial: fortalezas, oportunidades, debilidades y amenazas, en vivo y anónimo.", btn: launching ? "Abriendo…" : "Iniciar FODA", icon: "Grid2x2", launch: true, onClick: () => startSession("foda") },
-    { done: objectiveDone, n: 3, title: "Definí el primer objetivo", desc: "El Norte al que van a apuntar las iniciativas.", btn: "Ir a Objetivos", icon: "Compass", launch: false, onClick: () => onGoTab("objetivos") },
-    { done: contractDone, n: 4, title: "Hagan la Sesión Fundacional", desc: "Acuerden cómo va a funcionar el equipo y firmen el contrato.", btn: launching ? "Abriendo…" : "Iniciar Fundacional", icon: "Handshake", launch: true, onClick: () => startSession("founding") },
+    { done: contractDone, n: 3, title: "Hagan la Sesión Fundacional", desc: "Acuerden cómo va a funcionar el equipo y firmen el contrato.", btn: launching ? "Abriendo…" : "Iniciar Fundacional", icon: "Handshake", launch: true, onClick: () => startSession("founding") },
+    { done: objectiveDone, n: 4, title: "Definí el primer objetivo", desc: "El Norte al que van a apuntar las iniciativas.", btn: "Ir a Objetivos", icon: "Compass", launch: false, onClick: () => onGoTab("objetivos") },
     { done: initDone, n: 5, title: "Creen la primera iniciativa", desc: "Lo que el equipo va a trabajar para mejorar.", btn: "Ir a Iniciativas", icon: "Target", launch: false, onClick: () => onGoTab("seguimiento") },
   ];
   const doneCount = STEPS.filter((s) => s.done).length;

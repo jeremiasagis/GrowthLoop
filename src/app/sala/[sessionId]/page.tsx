@@ -107,7 +107,7 @@ const STEPS = ["pulse", "pulse_reveal", "cards", "cards_reveal", "cluster", "vot
 const DOTS_PER = 2;
 // Secuencia de pasos por tipo de sesión (para el indicador de progreso y "volver atrás").
 const STEP_SEQ: Record<string, string[]> = {
-  founding: ["welcome", "contract", "sign", "close"],
+  founding: ["welcome", "write", "define", "sign", "close"],
   foda: ["cards", "cards_reveal", "close"],
   madsadglad: ["cards", "cards_reveal", "cluster", "vote", "close"],
   balloon: ["cards", "cards_reveal", "cluster", "vote", "close"],
@@ -771,7 +771,7 @@ export default function SalaPage() {
     const signerNames = participants.filter((p) => signerIds.has(p.userId)).map((p) => p.name);
     const answeredCount = FOUNDING_QUESTIONS.filter((q) => (answers[q.key] ?? "").trim()).length;
     const taF: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" };
-    const fSteps = ["welcome", "contract", "sign", "close"];
+    const fSteps = ["welcome", "write", "define", "sign", "close"];
     const fNext = async () => { const i = fSteps.indexOf(step); setBusy(true); await setStep(sessionId, fSteps[Math.min(fSteps.length - 1, i + 1)], i + 1); setBusy(false); };
     const fFinish = async () => {
       setBusy(true);
@@ -779,7 +779,24 @@ export default function SalaPage() {
       await finalizeSession(session, { summaryText: `Contrato firmado por ${signerIds.size}`, teamData: { contract } });
       setBusy(false); leave();
     };
-    const QuestionCards = (editable: boolean) => (
+
+    // Respuestas individuales de los miembros (con nombre), por pregunta.
+    const nameOf = (uid: string | null) => participants.find((p) => p.userId === uid)?.name ?? "Alguien";
+    const answersFor = (qkey: string) => inputs
+      .filter((i) => i.key === `found:${qkey}` && (((i.value as { text?: string }).text) ?? "").trim())
+      .map((i) => ({ userId: i.userId, name: nameOf(i.userId), text: ((i.value as { text?: string }).text) ?? "" }));
+    const myAnswer = (qkey: string) => ((inputs.find((i) => i.userId === user.id && i.key === `found:${qkey}`)?.value as { text?: string } | undefined)?.text) ?? "";
+    const writeCount = new Set(inputs.filter((i) => i.key.startsWith("found:") && (((i.value as { text?: string }).text) ?? "").trim()).map((i) => i.userId)).size;
+    // El facilitador toma la respuesta de alguien como base de la definitiva.
+    const useAnswer = async (qkey: string, text: string) => {
+      const next = { ...((resultRef.current.answers as Record<string, string>) ?? {}), [qkey]: text };
+      await setResult(sessionId, { answers: next });
+      resultRef.current = { ...resultRef.current, answers: next };
+      load();
+    };
+
+    // Acuerdos definitivos (solo lectura) — para firma y cierre.
+    const ContractView = () => (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {FOUNDING_QUESTIONS.map((q, i) => (
           <Card key={q.key} pad={16}>
@@ -788,9 +805,7 @@ export default function SalaPage() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{q.q}</div>
                 <div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 8 }}>{q.hint}</div>
-                {editable
-                  ? <textarea defaultValue={answers[q.key] ?? ""} onBlur={(e) => patchResult({ answers: { ...((resultRef.current.answers as Record<string, string>) ?? {}), [q.key]: e.target.value.trim() } })} rows={2} placeholder="El acuerdo del equipo…" style={taF} />
-                  : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, color: answers[q.key] ? "var(--ink-0)" : "var(--ink-3)" }}>{answers[q.key] || "Definiendo en equipo…"}</p>}
+                <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, color: answers[q.key] ? "var(--ink-0)" : "var(--ink-3)" }}>{answers[q.key] || "Definiendo en equipo…"}</p>
               </div>
             </div>
           </Card>
@@ -801,23 +816,78 @@ export default function SalaPage() {
     let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
     if (step === "welcome") {
       sub = "Antes de trabajar, acordamos cómo vamos a funcionar como equipo.";
-      content = <Card pad={28} style={{ textAlign: "center" }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 18%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Handshake" size={28} /></div><h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>Sesión Fundacional</h2><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Vamos a construir juntos el contrato del equipo y firmarlo entre todos.</p></Card>;
+      content = <Card pad={28} style={{ textAlign: "center" }}><div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 18%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Handshake" size={28} /></div><h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>Sesión Fundacional</h2><p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8 }}>Cada uno responde, y entre todos armamos el contrato del equipo y lo firmamos.</p></Card>;
       controls = isFacil
-        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Empezar el contrato</Button>
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Empezar — que el equipo responda</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador va a arrancar cuando estén todos.</p>;
-    } else if (step === "contract") {
+    } else if (step === "write") {
       wide = true;
-      sub = isFacil ? "Facilitá la conversación y escribí el acuerdo de cada pregunta." : "El equipo está construyendo el contrato. Lo que se acuerda aparece acá.";
-      content = QuestionCards(isFacil);
+      sub = isFacil ? "El equipo está respondiendo. Cuando estén, pasás a definir el contrato." : "Respondé cada pregunta con tus palabras. Después, entre todos, armamos la versión final.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {FOUNDING_QUESTIONS.map((q, i) => (
+            <Card key={q.key} pad={16}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span className="num" style={{ fontWeight: 800, color: "var(--st-explore)" }}>{i + 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{q.q}</div>
+                  <div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 8 }}>{q.hint}</div>
+                  {isFacil
+                    ? <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{answersFor(q.key).length} {answersFor(q.key).length === 1 ? "respuesta" : "respuestas"} hasta ahora</div>
+                    : <textarea defaultValue={myAnswer(q.key)} onBlur={(e) => tapInput(`found:${q.key}`, { text: e.target.value.trim() }, false)} rows={2} placeholder="Tu respuesta…" style={taF} />}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={fNext}>Definir el contrato ({writeCount}/{totalInRoom} respondieron)</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador pasa a la siguiente etapa cuando estén todos.</p>;
+    } else if (step === "define") {
+      wide = true;
+      sub = isFacil ? "Mirá lo que escribió el equipo y armá la versión definitiva de cada acuerdo." : "El equipo está armando el contrato a partir de lo que escribieron. Fijate que te represente.";
+      content = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {FOUNDING_QUESTIONS.map((q, i) => {
+            const ans = answersFor(q.key);
+            return (
+              <Card key={q.key} pad={16}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span className="num" style={{ fontWeight: 800, color: "var(--st-explore)" }}>{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{q.q}</div>
+                    <div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 8 }}>{q.hint}</div>
+                    {ans.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+                        {ans.map((a) => (
+                          <div key={a.userId} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "7px 10px", fontSize: "var(--t-sm)" }}>
+                            <span style={{ fontWeight: 700, color: "var(--ink-1)", flex: "none" }}>{a.name}:</span>
+                            <span style={{ flex: 1, minWidth: 0, lineHeight: 1.45 }}>{a.text}</span>
+                            {isFacil && <button onClick={() => useAnswer(q.key, a.text)} title="Usar como base de la definitiva" style={{ color: "var(--green)", fontSize: "var(--t-xs)", fontWeight: 700, flex: "none" }}>usar</button>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : <div className="muted" style={{ fontSize: "var(--t-xs)", marginBottom: 10 }}>Nadie respondió esta pregunta.</div>}
+                    {isFacil
+                      ? <textarea key={`${q.key}:${answers[q.key] ?? ""}`} defaultValue={answers[q.key] ?? ""} onBlur={(e) => patchResult({ answers: { ...((resultRef.current.answers as Record<string, string>) ?? {}), [q.key]: e.target.value.trim() } })} rows={2} placeholder="La versión definitiva del equipo…" style={taF} />
+                      : <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, fontWeight: 600, color: answers[q.key] ? "var(--ink-0)" : "var(--ink-3)" }}>{answers[q.key] ? `✓ ${answers[q.key]}` : "Definiendo…"}</p>}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      );
       controls = isFacil
         ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || answeredCount === 0} onClick={fNext}>Pasar a la firma ({answeredCount}/{FOUNDING_QUESTIONS.length})</Button>
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador escribe lo que acuerdan. Fijate que te represente.</p>;
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador arma la versión final. Después la firman.</p>;
     } else if (step === "sign") {
       wide = true;
       sub = "Leé el contrato del equipo. Si estás de acuerdo, firmalo.";
       content = (
         <>
-          {QuestionCards(false)}
+          <ContractView />
           <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}><span className="eyebrow">Firmas</span><span className="num" style={{ fontWeight: 800, color: "var(--green)" }}>{signerIds.size}/{totalInRoom}</span></div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{signerNames.map((n) => <Pill key={n} color="var(--green)" bg="var(--success-bg)" icon="PenLine">{n}</Pill>)}{!signerNames.length && <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Esperando firmas…</span>}</div>
@@ -835,7 +905,7 @@ export default function SalaPage() {
       );
     } else {
       sub = "¡Contrato firmado! Ya pueden arrancar con su primera iniciativa.";
-      content = QuestionCards(false);
+      content = <ContractView />;
       controls = isFacil ? <Button full size="lg" icon="ArrowLeft" onClick={exit}>Volver al equipo</Button> : null;
     }
 
