@@ -256,22 +256,6 @@ function ContractModal({ team, onClose }: { team: Team; onClose: () => void }) {
   );
 }
 
-function FoundingGateModal({ launching, onClose, onStart }: { launching: boolean; onClose: () => void; onStart: () => void }) {
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)", textAlign: "center" }}>
-        <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 18%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="Handshake" size={28} /></div>
-        <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>Antes de arrancar: la Sesión Fundacional</h3>
-        <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, lineHeight: 1.55 }}>Todavía no hicieron la Sesión Fundacional. Es donde el equipo acuerda <b style={{ color: "var(--ink-0)" }}>cómo va a funcionar</b> —propósito, decisiones, comunicación, desacuerdos y compromisos— y firma su contrato. Es el cimiento de todas las iniciativas.</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
-          <Button full size="lg" icon="Handshake" disabled={launching} onClick={onStart}>{launching ? "Abriendo…" : "Iniciar Sesión Fundacional"}</Button>
-          <Button full variant="ghost" onClick={onClose}>Ahora no</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string; editing?: Initiative; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(editing?.title ?? "");
   const [desc, setDesc] = useState(editing?.description ?? "");
@@ -1016,19 +1000,9 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
   const refresh = () => setNonce((n) => n + 1);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Initiative | null>(null);
-  const [gate, setGate] = useState(false);
-  const [launching, setLaunching] = useState(false);
   const [filter, setFilter] = useState<Initiative["status"]>("active");
-  const hasContract = !!team.data?.contract;
-  const startFounding = async () => {
-    if (launching) return;
-    setLaunching(true);
-    const res = await createLiveSession({ teamId: team.id, type: "founding" });
-    setLaunching(false);
-    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
-    router.push(`/sala/${res.session.id}`);
-  };
-  const newInitiative = () => { if (!hasContract) setGate(true); else setModal(true); };
+  // Sin candados: se puede crear una iniciativa sin haber hecho la Sesión Fundacional.
+  const newInitiative = () => setModal(true);
   const live = getTeam(team.id) ?? team;
   const objective = live.data?.objective;
   const cadence = live.data?.cadence?.everyDays ?? 14;
@@ -1134,7 +1108,6 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
 
       {modal && <InitiativeModal teamId={team.id} onClose={() => setModal(false)} onSaved={refresh} />}
       {editing && <InitiativeModal teamId={team.id} editing={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
-      {gate && <FoundingGateModal launching={launching} onClose={() => setGate(false)} onStart={startFounding} />}
     </div>
   );
 }
