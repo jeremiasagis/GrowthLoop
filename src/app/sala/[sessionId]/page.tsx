@@ -281,6 +281,7 @@ export default function SalaPage() {
         "lwtreveal", "lwtadjust",
         "flreveal", "flvote", "fltalk", "flexport",
         "kuddeliver",
+        "arbuild", "bdtemplate",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -3628,11 +3629,26 @@ export default function SalaPage() {
         ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => { setBusy(true); await setStep(sessionId, "arbuild", 1); setBusy(false); }}>Construir la diana</Button>
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador encuadra el ejercicio.</p>;
     } else if (step === "arbuild") {
-      sub = isFacil ? "Completá la diana de afuera hacia adentro." : "El equipo arma la diana del objetivo.";
+      sub = isFacil ? "Mirá los aportes del equipo y armá la diana." : "Sumá tu aporte (anónimo): ¿qué deberíamos lograr? ¿qué métrica?";
       const ip: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" };
+      const arDrafts = allCards.filter((c) => c.columnKey === "ardraft");
+      const addArDraft = async () => { const t = (cardDraft["ardraft"] ?? "").trim(); if (!t) return; await addCard(sessionId, "ardraft", t, true); setCardDraft((d) => ({ ...d, ardraft: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
       content = (
-        <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 18, alignItems: "start" }}>
-          {isFacil ? (
+        <>
+          <Card pad={14} style={{ marginBottom: 12 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Aportes del equipo · {arDrafts.length}</div>
+            {arDrafts.length
+              ? <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{arDrafts.map((c) => <span key={c.id} style={{ fontSize: "var(--t-sm)", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "5px 9px" }}>{c.text}</span>)}</div>
+              : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Todavía no hay aportes del equipo.</span>}
+          </Card>
+          {!isFacil && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <input value={cardDraft["ardraft"] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, ardraft: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") addArDraft(); }} placeholder="Tu aporte (anónimo)…" style={{ ...ip, flex: 1 }} />
+              <Button size="md" icon="Plus" onClick={addArDraft}>Sumar</Button>
+            </div>
+          )}
+          <div className="cluster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 18, alignItems: "start" }}>
+            {isFacil ? (
             <Card pad={18}>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div><div className="eyebrow" style={{ marginBottom: 5 }}>Anillo exterior · Resultado general</div><input defaultValue={arOuter} onBlur={(e) => patchResult({ arOuter: e.target.value.trim() })} placeholder="Ej: que las entregas lleguen a tiempo" style={ip} /></div>
@@ -3646,13 +3662,14 @@ export default function SalaPage() {
                 <div><div className="eyebrow" style={{ marginBottom: 5, color: "var(--green)" }}>🎯 Centro · El bullseye (una métrica, un número)</div><input defaultValue={arBull} onBlur={(e) => patchResult({ arBull: e.target.value.trim() })} placeholder="Ej: reducir entregas tarde de 5 a 1 por semana" style={{ ...ip, border: "1px solid color-mix(in srgb, var(--green) 45%, var(--line-2))" }} /></div>
               </div>
             </Card>
-          ) : <Card pad={16}><ArcherTarget outer={arOuter} metrics={arMetrics} bull={arBull} /></Card>}
-          <Card pad={16}><ArcherTarget outer={arOuter} metrics={arMetrics} bull={arBull} /></Card>
-        </div>
+            ) : <Card pad={16}><ArcherTarget outer={arOuter} metrics={arMetrics} bull={arBull} /></Card>}
+            <Card pad={16}><ArcherTarget outer={arOuter} metrics={arMetrics} bull={arBull} /></Card>
+          </div>
+        </>
       );
       controls = isFacil
         ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !arBull.trim()} onClick={async () => { setBusy(true); await setStep(sessionId, "aralign", 2); setBusy(false); }}>Alinear al equipo</Button>
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador completa la diana con el equipo.</p>;
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador arma la diana con los aportes del equipo.</p>;
     } else if (step === "aralign") {
       sub = "¿Todos apuntan al mismo centro?";
       content = (
@@ -3838,7 +3855,7 @@ export default function SalaPage() {
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador repasa el contexto.</p>;
     } else if (step === "bdtemplate") {
       wide = true;
-      sub = isFacil ? "Completá la apuesta con el equipo." : "El equipo diseña la apuesta. Sugerí por voz/reacción.";
+      sub = isFacil ? "Mirá los aportes del equipo y completá la apuesta." : "Sumá tu aporte (anónimo) para la apuesta.";
       const ta: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none", lineHeight: 1.5, resize: "vertical" };
       const Field = ({ k, label, placeholder, rows }: { k: string; label: string; placeholder?: string; rows?: number }) => (
         <div>
@@ -3857,8 +3874,23 @@ export default function SalaPage() {
           await load();
         }
       };
+      const bdDrafts = allCards.filter((c) => c.columnKey === "bddraft");
+      const addBdDraft = async () => { const t = (cardDraft["bddraft"] ?? "").trim(); if (!t) return; await addCard(sessionId, "bddraft", t, true); setCardDraft((d) => ({ ...d, bddraft: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
       content = (
-        <Card pad={20}>
+        <>
+          <Card pad={14} style={{ marginBottom: 12 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Aportes del equipo · {bdDrafts.length}</div>
+            {bdDrafts.length
+              ? <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{bdDrafts.map((c) => <span key={c.id} style={{ fontSize: "var(--t-sm)", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "5px 9px" }}>{c.text}</span>)}</div>
+              : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Todavía no hay aportes del equipo.</span>}
+          </Card>
+          {!isFacil && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <input value={cardDraft["bddraft"] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, bddraft: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") addBdDraft(); }} placeholder="Tu aporte para la apuesta (anónimo)…" style={{ flex: 1, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "9px 11px", fontSize: "var(--t-sm)", outline: "none" }} />
+              <Button size="md" icon="Plus" onClick={addBdDraft}>Sumar</Button>
+            </div>
+          )}
+          <Card pad={20}>
           {isFacil && aiEnabled && (
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
               <button onClick={aiBet} disabled={aiBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: "1px solid color-mix(in srgb, var(--violet) 45%, var(--line-2))", background: "color-mix(in srgb, var(--violet) 12%, var(--card))", color: "var(--violet)", cursor: aiBusy ? "default" : "pointer", opacity: aiBusy ? 0.7 : 1 }}><Icon name={aiBusy ? "Loader" : "Sparkles"} size={13} /> {aiBusy ? "Diseñando…" : "Sugerir apuesta con IA"}</button>
@@ -3896,10 +3928,11 @@ export default function SalaPage() {
             </div>
           </div>
         </Card>
+        </>
       );
       controls = isFacil
         ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !f("bdIf") || !f("bdThen") || !f("bdSignal")} onClick={async () => { setBusy(true); await setStep(sessionId, "bdfilters", 2); setBusy(false); }}>Validar con los 3 filtros</Button>
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador completa la apuesta.</p>;
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador arma la apuesta con los aportes del equipo.</p>;
     } else if (step === "bdfilters") {
       sub = "3 filtros obligatorios. No avanzamos hasta que los 3 estén en verde.";
       content = (
