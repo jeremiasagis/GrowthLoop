@@ -20,6 +20,8 @@ import { CauseTree } from "./CauseTree";
 import { useState } from "react";
 import { retroById } from "@/lib/retros/registry";
 import type { SessionCard, SessionCluster, SessionVote, SessionInput, SessionMemory } from "@/lib/session";
+import { averagePulse } from "@/lib/session";
+import { PULSE_DIMS } from "@/lib/data";
 
 export interface SessionSnapshot {
   type: string;
@@ -28,6 +30,7 @@ export interface SessionSnapshot {
   clusters: SessionCluster[];
   votes: SessionVote[];
   inputs: SessionInput[];
+  pulses?: Record<string, number>[];
 }
 
 const CPAL = ["#00E87A", "#3B82F6", "#7C3AED", "#06B6D4", "#F59E0B", "#EF4444", "#EC4899", "#A3E635", "#14B8A6", "#F97316"];
@@ -114,8 +117,10 @@ export function RetroResult({ snap }: { snap: SessionSnapshot }) {
 
   // ── Tipos con visualización propia ──
   if (type === "teamradar") {
-    const avg = (r.trAvg as Record<string, number>) ?? {};
-    const dims = ((r.trDims as { key: string; label: string }[]) ?? Object.keys(avg).map((key) => ({ key, label: key }))).map((d, i) => ({ ...d, color: CPAL[i % CPAL.length] }));
+    let avg = (r.trAvg as Record<string, number>) ?? {};
+    // Recuperación: si el promedio no quedó guardado, lo recalculamos de las respuestas de pulso.
+    if (!Object.keys(avg).length && snap.pulses?.length) avg = averagePulse(snap.pulses);
+    const dims = ((r.trDims as { key: string; label: string }[]) ?? PULSE_DIMS.map((d) => ({ key: d.key, label: d.label }))).map((d, i) => ({ ...d, color: CPAL[i % CPAL.length] }));
     return <div style={{ maxWidth: 380, margin: "0 auto" }}><PulseRadar values={avg} dims={dims} size={320} /></div>;
   }
   if (type === "oneword") return <WordCloud words={cards.filter((c) => c.columnKey === "word").map((c) => c.text)} />;
@@ -271,8 +276,9 @@ export function RetroResult({ snap }: { snap: SessionSnapshot }) {
     );
   }
   if (type === "fwradar") {
-    const avg = (r.trAvg as Record<string, number>) ?? {};
-    const dims = ((r.trDims as { key: string; label: string }[]) ?? Object.keys(avg).map((key) => ({ key, label: key }))).map((d, i) => ({ ...d, color: CPAL[i % CPAL.length] }));
+    let avg = (r.trAvg as Record<string, number>) ?? {};
+    if (!Object.keys(avg).length && snap.pulses?.length) avg = averagePulse(snap.pulses);
+    const dims = ((r.trDims as { key: string; label: string }[]) ?? PULSE_DIMS.map((d) => ({ key: d.key, label: d.label }))).map((d, i) => ({ ...d, color: CPAL[i % CPAL.length] }));
     return Object.keys(avg).length ? <div style={{ maxWidth: 360, margin: "0 auto" }}><PulseRadar values={avg} dims={dims} size={300} /></div> : <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Sin datos del radar.</p>;
   }
   if (type === "consolidation") {

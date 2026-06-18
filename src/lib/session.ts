@@ -117,6 +117,7 @@ export interface SessionMemory {
   id: string; type: string; date: string; retro?: string; createdAt?: string;
   result: Record<string, unknown>;
   cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; inputs: SessionInput[];
+  pulses: PulseResponse[]; // respuestas de pulso (radar/pulso) para reconstruir el radar
 }
 
 /** Memoria viva: cada sesión (de las dadas) con su contenido completo,
@@ -124,9 +125,10 @@ export interface SessionMemory {
 export async function loadSessionMemories(sessions: LiveSession[]): Promise<SessionMemory[]> {
   const out = await Promise.all(sessions.map(async (s) => {
     const c = await getSessionContent(s.id);
+    const pulses = ["teamradar", "fwradar", "pulse"].includes(s.type) ? await getPulseResponses(s.id) : [];
     return {
       id: s.id, type: s.type, date: (s.result.date as string) ?? "", retro: s.retro, createdAt: s.createdAt,
-      result: s.result, cards: c.cards, clusters: c.clusters, votes: c.votes, inputs: c.inputs,
+      result: s.result, cards: c.cards, clusters: c.clusters, votes: c.votes, inputs: c.inputs, pulses,
     } as SessionMemory;
   }));
   return out;
@@ -467,10 +469,11 @@ export async function finalizeSession(session: LiveSession, opts: {
     }).eq("id", session.teamId);
   }
 
-  // finalized=true marca que esta sesión dejó resultados (log, datos, etc.):
-  // sirve para protegerla de un descarte accidental.
+  // Marcar finalized SIN pisar el result: merge atómico en el server, así no se
+  // pierden datos que la retro guardó recién antes de cerrar (ej. el radar).
+  await supabase.rpc("merge_session_result", { p_session_id: session.id, p_patch: { finalized: true } });
   const { error } = await supabase.from("sessions")
-    .update({ status: "closed", closed_at: new Date().toISOString(), result: { ...(session.result ?? {}), finalized: true } })
+    .update({ status: "closed", closed_at: new Date().toISOString() })
     .eq("id", session.id);
   await reloadData();
   return { error: error?.message };
