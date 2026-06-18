@@ -84,6 +84,17 @@ export function getMyTeam(teamId?: string): Team | undefined {
   return (teamId ? getTeam(teamId) : undefined) ?? getTeams()[0];
 }
 
+/** Todos los equipos del miembro logueado: el store ya viene acotado por RLS a
+ *  los equipos donde figura (incluso de organizaciones distintas). Sin filtro de org. */
+export function getMemberTeams(): Team[] {
+  return useGLStore.getState().teams;
+}
+/** Resuelve el equipo activo del miembro entre los suyos (store directo, sin filtro de org). */
+export function getMemberTeam(teamId?: string): Team | undefined {
+  const teams = useGLStore.getState().teams;
+  return (teamId ? teams.find((t) => t.id === teamId) : undefined) ?? teams[0];
+}
+
 export function getTeam(id: string): Team | undefined {
   return getTeams().find((t) => t.id === id);
 }

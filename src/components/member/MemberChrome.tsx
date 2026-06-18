@@ -9,6 +9,24 @@ import { Avatar } from "@/components/ui";
 import { Logo } from "@/components/AppShell";
 import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { getMemberTeams } from "@/lib/repository";
+import { useMemberTeam } from "@/lib/member/team";
+
+/** Selector de equipo del miembro (solo si pertenece a más de uno). */
+function MemberTeamSwitcher() {
+  const { teamId, setTeamId } = useMemberTeam();
+  const teams = getMemberTeams();
+  if (teams.length < 2) return null;
+  return (
+    <div style={{ padding: "0 2px" }}>
+      <label className="eyebrow" style={{ display: "block", marginBottom: 6, fontSize: 10 }}>Equipo</label>
+      <select value={teamId ?? teams[0]?.id ?? ""} onChange={(e) => setTeamId(e.target.value)}
+        style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", fontWeight: 600, outline: "none" }}>
+        {teams.map((t) => <option key={t.id} value={t.id}>{t.name}{t.org ? ` · ${t.org}` : ""}</option>)}
+      </select>
+    </div>
+  );
+}
 
 const NAV = [
   { href: "/member", label: "Inicio", icon: "House" },
@@ -66,6 +84,7 @@ function MemberSidebar() {
         })}
       </nav>
       <div style={{ marginTop: "auto", borderTop: "1px solid var(--line)", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <MemberTeamSwitcher />
         <RoleSwitcher up />
         <MemberFooter />
       </div>
@@ -93,7 +112,7 @@ function MemberMobile() {
           <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "min(280px,82%)", background: "var(--bg-2)", borderLeft: "1px solid var(--line)", padding: 18, display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><Logo /><button onClick={() => setDrawer(false)} style={{ color: "var(--ink-2)" }}><Icon name="X" size={22} /></button></div>
             <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>{NAV.map((item) => { const on = isActive(pathname, item.href); return <Link key={item.href} href={item.href} onClick={() => setDrawer(false)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 12px", borderRadius: "var(--r-md)", color: on ? "var(--green)" : "var(--ink-1)", background: on ? "var(--card)" : "transparent", fontWeight: 600 }}><Icon name={item.icon} size={20} />{item.label}</Link>; })}</nav>
-            <div style={{ marginTop: "auto", borderTop: "1px solid var(--line)", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}><RoleSwitcher /><MemberFooter /></div>
+            <div style={{ marginTop: "auto", borderTop: "1px solid var(--line)", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}><MemberTeamSwitcher /><RoleSwitcher /><MemberFooter /></div>
           </div>
         </div>
       )}

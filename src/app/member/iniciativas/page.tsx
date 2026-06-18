@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Button, Card, StageBadge } from "@/components/ui";
-import { useAuth } from "@/lib/auth/AuthContext";
-import { getInitiatives, getMyTeam } from "@/lib/repository";
+import { getMemberTeam } from "@/lib/repository";
+import { useMemberTeam } from "@/lib/member/team";
 import { getMyOpenSession, subscribeTeamSessions, type LiveSession } from "@/lib/session";
 import { CYCLE_STAGES, STAGES, type Initiative } from "@/lib/data";
 
@@ -36,8 +36,8 @@ function MiniCycle({ init }: { init: Initiative }) {
 
 export default function MemberIniciativas() {
   const router = useRouter();
-  const { user } = useAuth();
-  const team = getMyTeam(user?.teamId);
+  const { teamId } = useMemberTeam();
+  const team = getMemberTeam(teamId);
   const [filter, setFilter] = useState<Initiative["status"]>("active");
   const [live, setLive] = useState<LiveSession | null>(null);
 
@@ -53,7 +53,7 @@ export default function MemberIniciativas() {
 
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo.</p></Card></div>;
 
-  const inits = getInitiatives(team.id);
+  const inits = team.initiatives ?? [];
   const counts = { active: inits.filter((i) => i.status === "active").length, paused: inits.filter((i) => i.status === "paused").length, done: inits.filter((i) => i.status === "done").length };
   const shown = inits.filter((i) => i.status === filter);
   const FILTERS: { key: Initiative["status"]; label: string }[] = [{ key: "active", label: "En curso" }, { key: "paused", label: "Pausadas" }, { key: "done", label: "Cerradas" }];

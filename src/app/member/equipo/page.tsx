@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/icon";
 import { Avatar, Bar, Card, Pill, PulseRadar, StageBadge } from "@/components/ui";
-import { useAuth } from "@/lib/auth/AuthContext";
-import { getFacilitators, getMyTeam } from "@/lib/repository";
+import { getFacilitators, getMemberTeam } from "@/lib/repository";
+import { useMemberTeam } from "@/lib/member/team";
 import { getMyFootprint } from "@/lib/session";
 import { PULSE_DIMS, dimVal, teamLiveStage, to5 } from "@/lib/data";
 
@@ -16,8 +16,8 @@ const FOOT_BADGES = [
 ];
 
 export default function MemberEquipo() {
-  const { user } = useAuth();
-  const team = getMyTeam(user?.teamId);
+  const { teamId } = useMemberTeam();
+  const team = getMemberTeam(teamId);
   const [foot, setFoot] = useState<{ sessions: number; contributions: number } | null>(null);
   useEffect(() => { getMyFootprint().then(setFoot); }, []);
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo todavía.</p></Card></div>;

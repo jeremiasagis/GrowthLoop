@@ -3,12 +3,12 @@
 import { Icon } from "@/components/icon";
 import { Card } from "@/components/ui";
 import { BibliotecaContent } from "@/components/Biblioteca";
-import { useAuth } from "@/lib/auth/AuthContext";
-import { getMyTeam } from "@/lib/repository";
+import { getMemberTeam } from "@/lib/repository";
+import { useMemberTeam } from "@/lib/member/team";
 
 export default function MemberBiblioteca() {
-  const { user } = useAuth();
-  const team = getMyTeam(user?.teamId);
+  const { teamId } = useMemberTeam();
+  const team = getMemberTeam(teamId);
 
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo.</p></Card></div>;
 

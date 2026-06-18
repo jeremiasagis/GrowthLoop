@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Button, Card, StageBadge } from "@/components/ui";
-import { useAuth } from "@/lib/auth/AuthContext";
-import { getMyTeam } from "@/lib/repository";
+import { getMemberTeam } from "@/lib/repository";
+import { useMemberTeam } from "@/lib/member/team";
 import { getMyOpenSession, subscribeTeamSessions, type LiveSession } from "@/lib/session";
 import { STAGES } from "@/lib/data";
 
 export default function MemberSesiones() {
   const router = useRouter();
-  const { user } = useAuth();
-  const team = getMyTeam(user?.teamId);
+  const { teamId } = useMemberTeam();
+  const team = getMemberTeam(teamId);
   const [live, setLive] = useState<LiveSession | null>(null);
 
   useEffect(() => {

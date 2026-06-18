@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/icon";
 import { Button, Card } from "@/components/ui";
 import { addReflection, getMyReflections } from "@/lib/repository";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useMemberTeam } from "@/lib/member/team";
 import type { Reflection } from "@/lib/data";
 
 export default function ReflectionsPage() {
-  const { user } = useAuth();
+  const { teamId } = useMemberTeam();
   const [list, setList] = useState<Reflection[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,7 @@ export default function ReflectionsPage() {
     const text = draft.trim();
     if (!text || busy) return;
     setBusy(true);
-    const res = await addReflection(text, user?.teamId);
+    const res = await addReflection(text, teamId);
     setBusy(false);
     if (res.error) return;
     setDraft("");
