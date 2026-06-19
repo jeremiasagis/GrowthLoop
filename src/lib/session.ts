@@ -39,7 +39,7 @@ export interface SessionInput { userId: string | null; key: string; value: Recor
 const RETRO_NAME: Record<string, string> = {
   founding: "Sesión Fundacional", foda: "FODA del equipo",
   explore: "Exploración", focus: "Foco · impacto/esfuerzo", proof: "Ideación",
-  learn: "Aprendizaje", pulse: "Pulso del equipo",
+  learn: "Aprendizaje", pulse: "Pulso del equipo", guidedloop: "Loop guiado",
 };
 
 // Ciclo de mejora nuevo. Exploración es un módulo aparte (no avanza el ciclo).
@@ -393,6 +393,7 @@ export async function removeVote(sessionId: string, clusterId: string): Promise<
 export async function finalizeSession(session: LiveSession, opts: {
   pulseAvg?: PulseResponse | null; cardCount?: number; summaryText?: string;
   dataKey?: string; dataValue?: unknown; pausedNames?: string[];
+  dataMulti?: Record<string, Record<string, unknown>>; // mergea varias etapas a la vez (loop guiado)
   noAdvance?: boolean; status?: string; stageOverride?: string;
   teamData?: Record<string, unknown>;
   consolidateDays?: number; // si se setea, la variable entra en Consolidación N días
@@ -424,13 +425,19 @@ export async function finalizeSession(session: LiveSession, opts: {
   if (session.initiativeId) {
     const { data: initRow } = await supabase.from("initiatives").select("stage,data,objective_id").eq("id", session.initiativeId).maybeSingle();
     const patch: Record<string, unknown> = {};
-    if (opts.dataKey || opts.consolidateDays) {
+    if (opts.dataKey || opts.consolidateDays || opts.dataMulti) {
       const prev = (initRow?.data as Record<string, unknown>) ?? {};
       let nextData = { ...prev };
       if (opts.dataKey) {
         const prevK = (prev[opts.dataKey] as Record<string, unknown>) ?? {};
         const dv = opts.dataValue && typeof opts.dataValue === "object" ? (opts.dataValue as Record<string, unknown>) : {};
         nextData = { ...nextData, [opts.dataKey]: { ...prevK, ...dv } };
+      }
+      if (opts.dataMulti) {
+        for (const [k, v] of Object.entries(opts.dataMulti)) {
+          const prevK = (nextData[k] as Record<string, unknown>) ?? {};
+          nextData = { ...nextData, [k]: { ...prevK, ...v } };
+        }
       }
       if (opts.consolidateDays) {
         const due = new Date(); due.setDate(due.getDate() + opts.consolidateDays);

@@ -415,6 +415,15 @@ export default function InitiativeDetailPage() {
   const [swapOpen, setSwapOpen] = useState(false);
   const startLive = () => { setSelRetro(null); setLauncherOpen(true); };
   const openRetro = (r: RetroDefinition) => { setSelRetro(r); setLauncherOpen(true); };
+  const [guidedBusy, setGuidedBusy] = useState(false);
+  const startGuided = async () => {
+    if (guidedBusy) return;
+    setGuidedBusy(true);
+    const res = await createLiveSession({ teamId: team.id, initiativeId: init.id, type: "guidedloop", firstStep: "glcause" });
+    setGuidedBusy(false);
+    if (res.error || !res.session) { show(res.error ?? "No se pudo abrir el loop guiado", "TriangleAlert"); return; }
+    router.push(`/sala/${res.session.id}`);
+  };
   const changeStage = async (s: StageKey) => {
     const res = await setInitiativeStage(init.id, s);
     if (res.error) show(res.error, "TriangleAlert"); else { show(`Etapa: ${STAGES[s].label}`, "Check"); refresh(); }
@@ -601,6 +610,7 @@ export default function InitiativeDetailPage() {
         {isFacil && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {!done && nextStage && <Button variant="secondary" icon="ChevronsRight" onClick={() => changeStage(nextStage)}>Avanzar a {STAGES[nextStage].label}</Button>}
+            {!done && <Button variant="secondary" icon={guidedBusy ? "Loader" : "Repeat"} disabled={guidedBusy} onClick={startGuided}>Loop guiado</Button>}
             {done
               ? <Button variant="secondary" icon="RotateCcw" onClick={() => changeStatus("active")}>Reabrir</Button>
               : <Button icon="Users" onClick={startLive}>Abrir sesión en vivo</Button>}

@@ -156,6 +156,7 @@ const STEP_SEQ: Record<string, string[]> = {
   focus: ["matrix", "close"],
   proof: ["ideas", "ideas_reveal", "group", "ice", "premortem", "premortem_reveal", "bet", "commit", "close"],
   learn: ["result", "reflect", "learnings", "learnings_reveal", "group", "vote", "decision", "close"],
+  guidedloop: ["glcause", "glreveal", "glidea", "glbet", "glclose"],
 };
 
 function Shell({ onExit, mood, children }: { onExit?: () => void; mood?: number | null; children: React.ReactNode }) {
@@ -282,6 +283,7 @@ export default function SalaPage() {
         "flreveal", "flvote", "fltalk", "flexport",
         "kuddeliver",
         "arbuild", "bdtemplate",
+        "glreveal", "glidea", "glbet", "glclose",
       ].includes(s.stepKey ?? "");
       setAllCards(needsAll ? await getCards(sessionId) : []);
     }
@@ -908,6 +910,170 @@ export default function SalaPage() {
       sub = "¡Contrato firmado! Ya pueden arrancar con su primera iniciativa.";
       content = <ContractView />;
       controls = isFacil ? <Button full size="lg" icon="ArrowLeft" onClick={exit}>Volver al equipo</Button> : null;
+    }
+
+    return (
+      <Shell onExit={exit} mood={teamMood}>
+        <div style={{ width: "100%", maxWidth: wide ? 720 : 560 }}>
+          {Header(sub)}
+          <div style={{ marginBottom: 16 }}>{facBar}</div>
+          {content}
+          <div style={{ marginTop: 18 }}>{controls}</div>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ════════ LOOP GUIADO · el loop completo en una sesión ════════
+  if (session.type === "guidedloop") {
+    const r = session.result;
+    const glRoot = (r.glRoot as string) ?? "";
+    const bet = { if: (r.glBetIf as string) ?? "", then: (r.glBetThen as string) ?? "", signal: (r.glSignal as string) ?? "", target: (r.glTarget as string) ?? "", deadline: (r.glDeadline as string) ?? "" };
+    const glActions = (r.glActions as { text: string; who: string }[]) ?? [{ text: "", who: "" }, { text: "", who: "" }];
+    const causeCards = allCards.filter((c) => c.columnKey === "glcause");
+    const ideaCards = allCards.filter((c) => c.columnKey === "glidea");
+    const causeCount = counts["glcause"] ?? 0;
+    const ideaCount = counts["glidea"] ?? 0;
+    const committed = new Set(inputs.filter((i) => i.key === "glcommit").map((i) => i.userId));
+    const iCommitted = committed.has(user.id);
+    const ip: React.CSSProperties = { width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none" };
+    const glSteps = ["glcause", "glreveal", "glidea", "glbet", "glclose"];
+    const glNext = async () => { const i = glSteps.indexOf(step); setBusy(true); await setStep(sessionId, glSteps[Math.min(glSteps.length - 1, i + 1)], i + 1); setBusy(false); };
+    const addGl = async (key: string) => { const t = (cardDraft[key] ?? "").trim(); if (!t) return; await addCard(sessionId, key, t, true); setCardDraft((d) => ({ ...d, [key]: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
+    const setAction = (i: number, patch: Partial<{ text: string; who: string }>) => { patchResult({ glActions: glActions.map((a, k) => k === i ? { ...a, ...patch } : a) }); };
+    const glFinish = async () => {
+      setBusy(true);
+      await finalizeSession(session, {
+        cardCount: causeCards.length + ideaCards.length,
+        summaryText: `Loop guiado · ${(bet.then || glRoot || "plan definido").slice(0, 60)}`,
+        dataMulti: {
+          focus: { rootCause: glRoot, cause: glRoot },
+          proof: { betIf: bet.if, betThen: bet.then, signalMetric: bet.signal, signalTarget: bet.target, deadline: bet.deadline, actions: glActions.filter((a) => a.text.trim()) },
+          follow: { startedAt: new Date().toISOString() },
+        },
+        stageOverride: "follow",
+      });
+      setBusy(false); leave();
+    };
+    const cardList = (cards: typeof allCards) => (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+        {cards.length ? cards.map((c) => <span key={c.id} style={{ fontSize: "var(--t-sm)", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "6px 10px" }}>{c.text}</span>) : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Todavía no hay aportes.</span>}
+      </div>
+    );
+
+    let content: React.ReactNode = null, controls: React.ReactNode = null, sub = "", wide = false;
+    if (step === "glcause") {
+      sub = isFacil ? "Paso 1 · El equipo suma causas posibles (anónimo)." : "¿Por qué creés que pasa? Sumá causas (anónimo).";
+      content = (
+        <Card pad={20}>
+          <div style={{ fontWeight: 700, fontSize: "var(--t-md)", marginBottom: 4 }}>{initiative?.title ?? "El objetivo del loop"}</div>
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 14 }}>{initiative?.description || "Buscamos la causa para atacar."}</p>
+          {!isFacil ? (
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={cardDraft["glcause"] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, glcause: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") addGl("glcause"); }} placeholder="Una causa posible…" style={{ ...ip, flex: 1 }} />
+              <Button icon="Plus" onClick={() => addGl("glcause")}>Sumar</Button>
+            </div>
+          ) : <div style={{ textAlign: "center", padding: "10px 0" }}><span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-focus)" }}>{causeCount}</span> <span className="muted">causas anónimas</span></div>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" icon="Eye" disabled={busy || causeCount === 0} onClick={glNext}>Revelar causas ({causeCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador revela cuando estén.</p>;
+    } else if (step === "glreveal") {
+      wide = true;
+      sub = isFacil ? "Mirá las causas y elegí la que vamos a atacar." : "Las causas del equipo. El facilitador elige la principal.";
+      content = (
+        <Card pad={20}>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>Causas ({causeCards.length})</div>
+          {cardList(causeCards)}
+          <div style={{ marginTop: 16 }}>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>La causa a atacar</div>
+            {isFacil
+              ? <textarea key={glRoot} defaultValue={glRoot} onBlur={(e) => patchResult({ glRoot: e.target.value.trim() })} rows={2} placeholder="La causa raíz que vamos a trabajar…" style={{ ...ip, resize: "vertical", lineHeight: 1.5 }} />
+              : <p style={{ fontSize: "var(--t-sm)", color: glRoot ? "var(--ink-0)" : "var(--ink-3)" }}>{glRoot || "Definiendo…"}</p>}
+          </div>
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !glRoot.trim()} onClick={glNext}>Pasar a ideas</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador elige la causa.</p>;
+    } else if (step === "glidea") {
+      sub = isFacil ? "Paso 2 · El equipo propone ideas para atacar la causa (anónimo)." : "¿Qué podríamos probar? Sumá ideas (anónimo).";
+      content = (
+        <Card pad={20}>
+          <div style={{ padding: "10px 12px", background: "var(--card-2)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-sm)" }}><b>Causa:</b> {glRoot}</div>
+          {!isFacil ? (
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={cardDraft["glidea"] ?? ""} onChange={(e) => setCardDraft((d) => ({ ...d, glidea: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") addGl("glidea"); }} placeholder="Una idea para probar…" style={{ ...ip, flex: 1 }} />
+              <Button icon="Plus" onClick={() => addGl("glidea")}>Sumar</Button>
+            </div>
+          ) : <div style={{ textAlign: "center", padding: "10px 0" }}><span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, color: "var(--st-proof)" }}>{ideaCount}</span> <span className="muted">ideas anónimas</span></div>}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || ideaCount === 0} onClick={glNext}>Armar la apuesta ({ideaCount})</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador arma la apuesta cuando estén.</p>;
+    } else if (step === "glbet") {
+      wide = true;
+      sub = isFacil ? "Paso 3 · Con las ideas, armá la apuesta: acción, resultado, señal y responsables." : "El facilitador arma la apuesta del equipo.";
+      content = (
+        <Card pad={20}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>Ideas del equipo</div>
+          {cardList(ideaCards)}
+          {isFacil ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
+              <div><div className="eyebrow" style={{ marginBottom: 5 }}>Si hacemos… (la acción)</div><input key={`bif${bet.if}`} defaultValue={bet.if} onBlur={(e) => patchResult({ glBetIf: e.target.value.trim() })} placeholder="¿Qué vamos a hacer distinto?" style={ip} /></div>
+              <div><div className="eyebrow" style={{ marginBottom: 5 }}>…lograremos (el resultado)</div><input key={`bth${bet.then}`} defaultValue={bet.then} onBlur={(e) => patchResult({ glBetThen: e.target.value.trim() })} placeholder="¿Qué esperamos que cambie?" style={ip} /></div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 150 }}><div className="eyebrow" style={{ marginBottom: 5 }}>Señal</div><input key={`bsi${bet.signal}`} defaultValue={bet.signal} onBlur={(e) => patchResult({ glSignal: e.target.value.trim() })} placeholder="¿Qué medimos?" style={ip} /></div>
+                <div style={{ flex: 1, minWidth: 110 }}><div className="eyebrow" style={{ marginBottom: 5 }}>Meta</div><input key={`bta${bet.target}`} defaultValue={bet.target} onBlur={(e) => patchResult({ glTarget: e.target.value.trim() })} placeholder="Ej: de 5 a 1" style={ip} /></div>
+                <div style={{ flex: 1, minWidth: 130 }}><div className="eyebrow" style={{ marginBottom: 5 }}>Próximo check</div><input type="date" defaultValue={bet.deadline} onBlur={(e) => patchResult({ glDeadline: e.target.value })} style={ip} /></div>
+              </div>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 6 }}>Acciones y responsables</div>
+                {glActions.map((a, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                    <input value={a.text} onChange={(e) => setAction(i, { text: e.target.value })} placeholder={`Acción ${i + 1}`} style={{ ...ip, flex: 1 }} />
+                    <select value={a.who} onChange={(e) => setAction(i, { who: e.target.value })} style={{ ...ip, width: 140 }}><option value="">Responsable…</option>{(team?.members ?? []).map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}</select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--card-2)", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", lineHeight: 1.7 }}>
+              Creemos que si <b style={{ color: "var(--st-proof)" }}>{bet.if || "[acción]"}</b>, lograremos <b style={{ color: "var(--st-proof)" }}>{bet.then || "[resultado]"}</b>. Lo medimos con <b style={{ color: "var(--st-proof)" }}>{bet.signal || "[señal]"}</b>{bet.target ? ` (meta ${bet.target})` : ""}.
+            </div>
+          )}
+        </Card>
+      );
+      controls = isFacil
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !bet.then.trim() || !bet.signal.trim()} onClick={glNext}>Pasar al cierre</Button>
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>El facilitador arma la apuesta.</p>;
+    } else {
+      sub = "El plan del equipo. Cada uno se compromete a ejecutarlo.";
+      content = (
+        <Card pad={20}>
+          <div style={{ fontSize: "var(--t-sm)", lineHeight: 1.7, marginBottom: 12 }}>
+            Si <b style={{ color: "var(--st-proof)" }}>{bet.if}</b>, lograremos <b style={{ color: "var(--st-proof)" }}>{bet.then}</b>. Señal: <b style={{ color: "var(--st-proof)" }}>{bet.signal}</b>{bet.target ? ` (meta ${bet.target})` : ""}{bet.deadline ? ` · check ${bet.deadline}` : ""}.
+          </div>
+          {glActions.filter((a) => a.text.trim()).length > 0 && (
+            <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 5 }}>
+              {glActions.filter((a) => a.text.trim()).map((a, i) => <div key={i} style={{ fontSize: "var(--t-sm)", display: "flex", gap: 6 }}><Icon name="CheckSquare" size={14} style={{ color: "var(--green)", flexShrink: 0, marginTop: 2 }} /><span>{a.text}{a.who && <span className="muted"> · {a.who}</span>}</span></div>)}
+            </div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--bg-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+            <span className="eyebrow">Compromiso</span><span className="num" style={{ fontWeight: 800, color: "var(--green)" }}>{committed.size}/{totalInRoom}</span>
+          </div>
+        </Card>
+      );
+      controls = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {iCommitted
+            ? <div style={{ textAlign: "center", color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Icon name="CircleCheck" size={20} /> Te comprometiste</div>
+            : <Button full size="lg" icon="HandHeart" disabled={busy} onClick={() => tapInput("glcommit", { ok: true })}>Me comprometo</Button>}
+          {isFacil && <Button full size="lg" variant={iCommitted ? "primary" : "secondary"} icon="Check" disabled={busy} onClick={glFinish}>{busy ? "Guardando…" : "Cerrar el loop y guardar"}</Button>}
+        </div>
+      );
     }
 
     return (
