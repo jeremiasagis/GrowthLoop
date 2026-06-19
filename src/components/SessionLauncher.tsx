@@ -18,7 +18,7 @@ import { retrosForStage, retroInPlan, type RetroDefinition } from "@/lib/retros/
 import { getOrg } from "@/lib/repository";
 import { CYCLE_STAGES, STAGES, normalizeStage, planOf, planLimits, type Initiative, type StageKey, type Team } from "@/lib/data";
 
-export function SessionLauncher({ team, initiative, initialStage, onClose }: { team: Team; initiative?: Initiative; initialStage?: StageKey; onClose: () => void }) {
+export function SessionLauncher({ team, initiative, initialStage, initialRetro, onClose }: { team: Team; initiative?: Initiative; initialStage?: StageKey; initialRetro?: RetroDefinition; onClose: () => void }) {
   const router = useRouter();
   const { show } = useToast();
   const plan = planOf(getOrg(team.orgId)?.plan);
@@ -27,9 +27,9 @@ export function SessionLauncher({ team, initiative, initialStage, onClose }: { t
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPicks, setAiPicks] = useState<Record<string, string> | null>(null);
   const curIdx = initiative ? CYCLE_STAGES.indexOf(normalizeStage(initiative.stage)) : -1;
-  const [stage, setStage] = useState<StageKey | null>(initialStage ?? (initiative ? normalizeStage(initiative.stage) : null));
-  const [retro, setRetro] = useState<RetroDefinition | null>(null);
-  const [step, setStep] = useState<1 | 2 | 3>(initialStage ? 2 : 1);
+  const [stage, setStage] = useState<StageKey | null>(initialRetro ? (initialRetro.stage as StageKey) : (initialStage ?? (initiative ? normalizeStage(initiative.stage) : null)));
+  const [retro, setRetro] = useState<RetroDefinition | null>(initialRetro ?? null);
+  const [step, setStep] = useState<1 | 2 | 3>(initialRetro ? 3 : initialStage ? 2 : 1);
   const [busy, setBusy] = useState(false);
 
   // Retros ya hechas por el equipo (por nombre en el historial de sesiones).

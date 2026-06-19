@@ -17,7 +17,7 @@ import { useToast } from "@/components/Toast";
 import { createLiveSession, getClosedTeamSessions, getOpenSessionForTeam, loadSessionMemories, setResult, type LiveSession, type SessionMemory } from "@/lib/session";
 import { JoinModal } from "@/components/session/JoinModal";
 import { SessionLauncher } from "@/components/SessionLauncher";
-import { retrosForStage } from "@/lib/retros/registry";
+import { retrosForStage, type RetroDefinition } from "@/lib/retros/registry";
 import { FodaGrid } from "@/components/FodaGrid";
 import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
@@ -282,7 +282,7 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
       <div onClick={(e) => e.stopPropagation()} style={{ width: "min(480px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
           <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center" }}><Icon name="Target" size={20} /></div>
-          <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>{editing ? "Editar iniciativa" : "Nueva iniciativa"}</h3>
+          <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>{editing ? "Editar loop" : "Crear loop"}</h3>
         </div>
         <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 18 }}>{editing ? "Actualizá el objetivo o el detalle de la iniciativa." : <>Definí qué va a trabajar el equipo. Arranca en <b style={{ color: "var(--st-explore)" }}>Exploración</b> y después avanza por las etapas del ciclo.</>}</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -812,13 +812,13 @@ function HealthCard({ team }: { team: Team }) {
 }
 
 /** Módulo de Exploración: diagnóstico del equipo, fuera del ciclo. */
-function ExploracionSection({ team, isFacil }: { team: Team; isFacil: boolean }) {
+function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
   const [launcherOpen, setLauncherOpen] = useState(false);
+  const [selRetro, setSelRetro] = useState<RetroDefinition | null>(null);
+  const GROUPS: StageKey[] = ["exploration", ...CYCLE_STAGES];
+  const openRetro = (r: RetroDefinition) => { setSelRetro(r); setLauncherOpen(true); };
   const EXPLORE_TYPES = ["explore", "foda", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "sailboat", "circles", "relationships", "expclose"];
-  const expSessions = team.sessions.filter((s) => EXPLORE_TYPES.includes(s.stage));
-  const closedAt = (team.data as { explorationClosedAt?: string } | undefined)?.explorationClosedAt;
-  const catalog = retrosForStage("exploration").filter((r) => r.id !== "exploration-close");
-  const doneNames = new Set(expSessions.map((s) => s.retro));
+  const doneNames = new Set(team.sessions.map((s) => s.retro));
   // Memoria viva: las sesiones de Exploración con su contenido para reconstruir cada visualización.
   const [memories, setMemories] = useState<SessionMemory[]>([]);
   useEffect(() => {
@@ -833,45 +833,47 @@ function ExploracionSection({ team, isFacil }: { team: Team; isFacil: boolean })
   }, [team.id, team.sessions.length]);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {launcherOpen && <SessionLauncher team={team} initialStage="exploration" onClose={() => setLauncherOpen(false)} />}
-      <Card pad={20} style={{ border: "1.5px dashed color-mix(in srgb, var(--st-explore) 55%, var(--line))", background: "color-mix(in srgb, var(--st-explore) 6%, transparent)" }}>
+      {launcherOpen && <SessionLauncher team={team} initialRetro={selRetro ?? undefined} onClose={() => setLauncherOpen(false)} />}
+      <Card pad={20}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ width: 42, height: 42, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--st-explore) 16%, transparent)", color: "var(--st-explore)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Telescope" size={21} /></span>
+          <span style={{ width: 42, height: 42, borderRadius: "var(--r-lg)", background: "var(--card-2)", color: "var(--ink-1)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Layers" size={21} /></span>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Exploración <span className="muted" style={{ fontWeight: 500, fontSize: "var(--t-xs)" }}>· módulo de diagnóstico, fuera del ciclo</span></div>
-            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Para descubrir qué trabajar. Hagan las retros que necesiten y cierren con el mapa de mejoras. Si ya saben qué mejorar, pueden arrancar directo en Objetivos.</p>
+            <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Catálogo de retros</div>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Hacé cualquier retro <b style={{ color: "var(--ink-1)" }}>suelta</b>, sin compromiso (diagnóstico, team-building, lo que necesiten). Para una mejora estructurada con objetivo y seguimiento, creá un <b style={{ color: "var(--ink-1)" }}>Loop</b>.</p>
           </div>
-          {closedAt && <Pill color="var(--success)" bg="var(--success-bg)" icon="Map">Mapa generado · {new Date(closedAt).toLocaleDateString("es", { day: "2-digit", month: "short" })}</Pill>}
         </div>
-        {isFacil && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-            <Button size="sm" icon="Users" onClick={() => setLauncherOpen(true)}>Abrir sesión de Exploración</Button>
-          </div>
-        )}
       </Card>
 
-      <Card pad={20}>
-        <SectionTitle icon="Layers" sub="El equipo elige cuáles hacer y en qué orden">Retros del módulo ({catalog.length})</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 10 }}>
-          {catalog.map((r) => {
-            const done = doneNames.has(r.name);
-            return (
-              <div key={r.id} style={{ display: "flex", gap: 10, padding: "11px 12px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", opacity: 1 }}>
-                <span style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-2)", flexShrink: 0, marginTop: 2 }}><Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={15} /></span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
-                    {done && <Pill color="var(--success)" bg="var(--success-bg)" icon="Check">hecha</Pill>}
-                    {r.sensitive && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="ShieldAlert">sensible</Pill>}
+      {GROUPS.map((st) => {
+        const list = retrosForStage(st).filter((r) => r.implemented);
+        if (!list.length) return null;
+        const meta = STAGES[st];
+        return (
+          <Card key={st} pad={20}>
+            <SectionTitle icon="Layers" sub={st === "exploration" ? "Diagnóstico, fuera del ciclo" : meta.sub}>{st === "exploration" ? "Exploración" : meta.label} · {list.length}</SectionTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px,1fr))", gap: 10 }}>
+              {list.map((r) => {
+                const done = doneNames.has(r.name);
+                return (
+                  <div key={r.id} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${r.category === "growthloop" ? "var(--green)" : "var(--ink-3)"}`, borderRadius: "var(--r-md)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={14} style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
+                      <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
+                      {done && <Pill color="var(--success)" bg="var(--success-bg)" icon="Check">hecha</Pill>}
+                      {r.sensitive && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="ShieldAlert">sensible</Pill>}
+                    </div>
+                    <div className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.4, flex: 1 }}>{r.description}</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <span className="num muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Timer" size={11} /> {r.duration}′</span>
+                      {isFacil && <Button size="sm" variant="secondary" icon="Play" onClick={() => openRetro(r)}>Hacer</Button>}
+                    </div>
                   </div>
-                  <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{r.description}</div>
-                </div>
-                <span className="num muted" style={{ fontSize: "var(--t-xs)", flexShrink: 0 }}>{r.duration}′</span>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })}
 
       {team.data?.foda && (
         <Card pad={20}>
@@ -881,15 +883,10 @@ function ExploracionSection({ team, isFacil }: { team: Team; isFacil: boolean })
       )}
 
       <Card pad={20}>
-        <SectionTitle icon="History" sub="Todo lo que descubrió el equipo, siempre visible">Lo que produjo el equipo ({memories.length})</SectionTitle>
+        <SectionTitle icon="History" sub="Las retros de diagnóstico que hizo el equipo">Lo que produjo el equipo ({memories.length})</SectionTitle>
         {memories.length === 0
-          ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Todavía no hicieron ninguna retro de Exploración.</p>
+          ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Todavía no hicieron ninguna retro suelta.</p>
           : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{memories.map((m) => <MemoryCard key={m.id} mem={m} defaultOpen={false} />)}</div>}
-        {isFacil && !closedAt && expSessions.length > 0 && (
-          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
-            <Icon name="Map" size={13} style={{ color: "var(--st-explore)" }} /> ¿Ya exploraron suficiente? Abran la retro <b>Cierre de Exploración</b> para votar prioridades y generar el mapa de mejoras.
-          </p>
-        )}
       </Card>
     </div>
   );
@@ -1033,10 +1030,10 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
       <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
-            <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, letterSpacing: "-0.02em" }}>Iniciativas</h2>
-            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Lo que el equipo está trabajando para mejorar. Cada una recorre su propio ciclo.</p>
+            <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, letterSpacing: "-0.02em" }}>Loops</h2>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Cada loop es una mejora con su objetivo, que recorre el ciclo Apuntar → Entender → Apostar → Probar → Aprender.</p>
           </div>
-          {isFacil && <Button icon="Plus" onClick={newInitiative}>Nueva iniciativa</Button>}
+          {isFacil && <Button icon="Plus" onClick={newInitiative}>Crear loop</Button>}
         </div>
 
         {reminders.length > 0 && (
@@ -1333,9 +1330,9 @@ export default function TeamPage() {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
 
   const TABS = [
-    { key: "exploracion", label: "Exploración", icon: "Telescope" },
+    { key: "exploracion", label: "Catálogo", icon: "Layers" },
     { key: "objetivos", label: "Objetivos", icon: "Compass" },
-    { key: "seguimiento", label: "Iniciativas", icon: "Target" },
+    { key: "seguimiento", label: "Loops", icon: "RefreshCw" },
     { key: "sesiones", label: "Sesiones", icon: "History" },
     { key: "pulso", label: "Pulso", icon: "Activity" },
     { key: "ritmo", label: "Ritmo", icon: "CalendarClock" },
@@ -1436,7 +1433,7 @@ export default function TeamPage() {
       {tab === "exploracion" && (
         <div className="team-grid">
           <div style={{ minWidth: 0 }}>
-            <ExploracionSection team={getTeam(team.id) ?? team} isFacil={isFacil} />
+            <RetroCatalog team={getTeam(team.id) ?? team} isFacil={isFacil} />
           </div>
           <TeamSidebar team={team} onGoTab={setTab} />
         </div>
@@ -1447,7 +1444,7 @@ export default function TeamPage() {
           <div style={{ minWidth: 0 }}>
             <ObjetivosSection team={getTeam(team.id) ?? team} isFacil={isFacil} onChanged={() => setTeamNonce((n) => n + 1)} onGoIniciativas={() => setTab("seguimiento")} />
             <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 14 }}>
-              Las iniciativas de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Iniciativas</button>.
+              Los loops de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Loops</button>.
             </p>
           </div>
           <TeamSidebar team={team} onGoTab={setTab} />
@@ -1461,7 +1458,7 @@ export default function TeamPage() {
         team.sessions.length ? <SessionsLog team={team} /> : (
           <Card>
             <EmptyState icon="History" title="Sin sesiones aún">
-              Las sesiones se hacen dentro de cada iniciativa. Abrí una iniciativa en <b style={{ color: "var(--ink-1)" }}>Iniciativas</b> y arrancá una sesión desde ahí; acá vas a ver el registro de todas.
+              Las sesiones se hacen dentro de cada loop. Abrí un loop en <b style={{ color: "var(--ink-1)" }}>Loops</b> y arrancá una sesión desde ahí; acá vas a ver el registro de todas.
             </EmptyState>
           </Card>
         )
