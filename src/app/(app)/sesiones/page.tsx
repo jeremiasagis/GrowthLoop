@@ -7,11 +7,11 @@ import { type StageKey } from "@/lib/data";
 
 const RETROS: { stage: StageKey; name: string; sub: string; phases: string[] }[] = [
   { stage: "exploration", name: "Exploración", sub: "Módulo de diagnóstico (fuera del ciclo): la foto honesta del equipo para descubrir qué mejorar.", phases: ["¿Dónde estamos?", "Cómo fluye el trabajo", "FODA / Radar del equipo", "Causas posibles", "Cierre → mapa de mejoras"] },
-  { stage: "objectives", name: "Objetivos", sub: "Detectar las tensiones y elegir la variable que el equipo va a trabajar.", phases: ["Tensiones anónimas", "Agrupación", "Votación", "Variable elegida"] },
-  { stage: "focus", name: "Foco", sub: "Priorizar por impacto y esfuerzo y llegar a la causa raíz.", phases: ["Impacto / esfuerzo (matriz 2×2)", "¿Dónde se traba?", "¿Por qué está pasando? (árbol de causas)", "Causa raíz"] },
-  { stage: "ideation", name: "Ideación", sub: "Convertir la causa en una apuesta concreta y medible.", phases: ["¿Cómo podríamos?", "¿Cuál elegimos? (ICE)", "¿Qué podría fallar? (pre-mortem)", "Diseño de la prueba (si / entonces + señal)"] },
-  { stage: "follow", name: "Seguimiento", sub: "Mirar cómo viene la prueba: medir la señal, destrabar obstáculos y ajustar.", phases: ["¿Cómo venimos? (check-in)", "¿Qué nos está frenando?", "ROTI / Perfection Game", "Radar del equipo / Starfish"] },
-  { stage: "learn", name: "Aprendizaje", sub: "Cerrar el ciclo: qué pasó, qué aprendimos y qué sigue con la variable.", phases: ["¿Qué pasó? + narrativa", "¿Qué aprendimos? → Biblioteca", "¿Qué sigue? (implementar / iterar / pivotar / pausar)", "¿Cómo estamos como equipo?"] },
+  { stage: "objectives", name: "Apuntar", sub: "Detectar las tensiones y elegir la variable que el equipo va a trabajar.", phases: ["Tensiones anónimas", "Agrupación", "Votación", "Variable elegida"] },
+  { stage: "focus", name: "Entender", sub: "Priorizar por impacto y esfuerzo y llegar a la causa raíz.", phases: ["Impacto / esfuerzo (matriz 2×2)", "¿Dónde se traba?", "¿Por qué está pasando? (árbol de causas)", "Causa raíz"] },
+  { stage: "ideation", name: "Apostar", sub: "Convertir la causa en una apuesta concreta y medible.", phases: ["¿Cómo podríamos?", "¿Cuál elegimos? (ICE)", "¿Qué podría fallar? (pre-mortem)", "Diseño de la prueba (si / entonces + señal)"] },
+  { stage: "follow", name: "Probar", sub: "Mirar cómo viene la prueba: medir la señal, destrabar obstáculos y ajustar.", phases: ["¿Cómo venimos? (check-in)", "¿Qué nos está frenando?", "ROTI / Perfection Game", "Radar del equipo / Starfish"] },
+  { stage: "learn", name: "Aprender", sub: "Cerrar el ciclo: qué pasó, qué aprendimos y qué sigue con la variable.", phases: ["¿Qué pasó? + narrativa", "¿Qué aprendimos? → Biblioteca", "¿Qué sigue? (implementar / iterar / pivotar / pausar)", "¿Cómo estamos como equipo?"] },
 ];
 
 export default function SesionesPage() {

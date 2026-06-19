@@ -24,21 +24,24 @@ export interface Stage {
   label: string;
   color: string; // CSS var reference
   n: string;
+  sub?: string; // subtítulo explicativo de la etapa (el "qué hace")
   module?: boolean; // true = módulo de diagnóstico, no etapa del ciclo
 }
 
 // ── Stage metadata ──
+// Nombres del loop con punch: Apuntar → Entender → Apostar → Probar → Aprender.
+// Las claves internas NO cambian (objectives/focus/ideation/follow/learn).
 export const STAGES: Record<StageKey, Stage> = {
   queue:       { key: "queue",       label: "Cola",          color: "var(--st-queue)",    n: "·" },
   exploration: { key: "exploration", label: "Exploración",   color: "var(--st-explore)",  n: "◇", module: true },
-  objectives:  { key: "objectives",  label: "Objetivos",     color: "var(--st-objectives)", n: "1" },
-  focus:       { key: "focus",       label: "Foco",          color: "var(--st-focus)",    n: "2" },
-  ideation:    { key: "ideation",    label: "Ideación",      color: "var(--st-proof)",    n: "3" },
-  follow:      { key: "follow",      label: "Seguimiento",   color: "#F59E0B",            n: "4" },
-  learn:       { key: "learn",       label: "Aprendizaje",   color: "var(--st-learn)",    n: "5" },
+  objectives:  { key: "objectives",  label: "Apuntar",       color: "var(--st-objectives)", n: "1", sub: "elegí a qué apuntás" },
+  focus:       { key: "focus",       label: "Entender",      color: "var(--st-focus)",    n: "2", sub: "encontrá la causa raíz" },
+  ideation:    { key: "ideation",    label: "Apostar",       color: "var(--st-proof)",    n: "3", sub: "diseñá el experimento" },
+  follow:      { key: "follow",      label: "Probar",        color: "#F59E0B",            n: "4", sub: "medí la señal" },
+  learn:       { key: "learn",       label: "Aprender",      color: "var(--st-learn)",    n: "5", sub: "qué aprendimos y qué sigue" },
   // legacy — solo para que los datos viejos sigan renderizando
-  explore:     { key: "explore",     label: "Exploración",   color: "var(--st-explore)",  n: "◇" },
-  proof:       { key: "proof",       label: "Ideación",      color: "var(--st-proof)",    n: "3" },
+  explore:     { key: "explore",     label: "Apuntar",       color: "var(--st-explore)",  n: "◇" },
+  proof:       { key: "proof",       label: "Apostar",       color: "var(--st-proof)",    n: "3" },
   consol:      { key: "consol",      label: "Consolidación", color: "var(--st-consol)",   n: "✦" },
   improved:    { key: "improved",    label: "Mejorada",      color: "var(--st-improved)", n: "✓" },
   paused:      { key: "paused",      label: "Pausada",       color: "var(--st-paused)",   n: "‖" },

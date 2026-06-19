@@ -492,7 +492,7 @@ export default function SalaPage() {
   if (closed) {
     // Sesión continua: el facilitador puede encadenar la siguiente etapa en la misma reunión.
     if (isFacil && afterClose && session.initiativeId) {
-      const nextLabel: Record<string, string> = { focus: "Foco", proof: "Ideación", learn: "Aprendizaje" };
+      const nextLabel: Record<string, string> = { focus: "Entender", proof: "Apostar", learn: "Aprender" };
       const continueNow = async () => {
         const res = await createLiveSession({ teamId: session.teamId, initiativeId: session.initiativeId, type: afterClose });
         if (res.session) {
