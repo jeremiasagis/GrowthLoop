@@ -668,8 +668,8 @@ export default function InitiativeDetailPage() {
         return (
           <Card pad={16} style={{ marginBottom: 22, border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))", background: "color-mix(in srgb, var(--violet) 5%, var(--card))" }}>
             <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--violet)" }}><Icon name="Sparkles" size={13} /> Punto de partida de Norte</div>
-            {seed.causes && seed.causes.length > 0 && <div style={{ fontSize: "var(--t-sm)", marginBottom: 6 }}><b style={{ color: "var(--ink-1)" }}>Causas a explorar (Entender):</b> {seed.causes.join(" · ")}</div>}
-            {seed.bet?.then && <div style={{ fontSize: "var(--t-sm)" }}><b style={{ color: "var(--ink-1)" }}>Apuesta sugerida (Apostar):</b> si {seed.bet.if}, {seed.bet.then} — señal: {seed.bet.signal}</div>}
+            {seed.causes && seed.causes.length > 0 && <div style={{ fontSize: "var(--t-sm)", marginBottom: 6 }}><b style={{ color: "var(--ink-1)" }}>Causas a explorar (Analizar):</b> {seed.causes.join(" · ")}</div>}
+            {seed.bet?.then && <div style={{ fontSize: "var(--t-sm)" }}><b style={{ color: "var(--ink-1)" }}>Apuesta sugerida (Diseñar):</b> si {seed.bet.if}, {seed.bet.then} — señal: {seed.bet.signal}</div>}
             <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 8 }}>Es un arranque sugerido. El equipo lo valida y ajusta en las retros.</p>
           </Card>
         );

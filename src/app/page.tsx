@@ -14,26 +14,23 @@ import { STAGES, type StageKey } from "@/lib/data";
 const WHATSAPP = "5491140794823";
 const waLink = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent("Hola, me interesa llevar Growthloop a mi organización.")}`;
 
-// Posiciones de los 5 nodos alrededor del círculo (en % del contenedor cuadrado), desde arriba en sentido horario.
+// Posiciones de los 4 nodos alrededor del círculo (en % del contenedor cuadrado), desde arriba en sentido horario.
 const NODE_POS = [
-  { x: 50, y: 10 },    // Objetivos (arriba)
-  { x: 88, y: 37.6 },  // Foco
-  { x: 73.5, y: 82.4 }, // Ideación
-  { x: 26.5, y: 82.4 }, // Seguimiento
-  { x: 12, y: 37.6 },  // Aprendizaje
+  { x: 50, y: 10 },   // Analizar (arriba)
+  { x: 90, y: 50 },   // Diseñar (derecha)
+  { x: 50, y: 90 },   // Probar (abajo)
+  { x: 10, y: 50 },   // Aprender (izquierda)
 ];
 // Flechas de dirección en los puntos medios del anillo, rotadas en sentido horario.
 const ARROW_POS = [
-  { x: 73.5, y: 17.6, rot: 36 },
-  { x: 88, y: 62.4, rot: 108 },
-  { x: 50, y: 90, rot: 180 },
-  { x: 12, y: 62.4, rot: 252 },
-  { x: 26.5, y: 17.6, rot: 324 },
+  { x: 78.3, y: 21.7, rot: 45 },
+  { x: 78.3, y: 78.3, rot: 135 },
+  { x: 21.7, y: 78.3, rot: 225 },
+  { x: 21.7, y: 21.7, rot: 315 },
 ];
 
 const CYCLE: { key: StageKey; desc: string }[] = [
-  { key: "objectives", desc: "¿Qué vamos a mejorar? El equipo detecta sus tensiones y define el foco del ciclo." },
-  { key: "focus", desc: "¿Por qué pasa? Priorizan por impacto y esfuerzo y encuentran la causa raíz." },
+  { key: "focus", desc: "¿Por qué pasa? El equipo prioriza por impacto y esfuerzo y encuentra la causa raíz a atacar." },
   { key: "ideation", desc: "¿Qué probamos? Idean soluciones y diseñan una apuesta con señal y responsable." },
   { key: "follow", desc: "¿Cómo viene? Check-ins de la prueba: miden la señal, destraban obstáculos y ajustan." },
   { key: "learn", desc: "¿Qué aprendimos? Miran el resultado, guardan los aprendizajes y deciden el próximo paso." },
@@ -130,7 +127,7 @@ export default function Home() {
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Un ciclo simple, que se repite</h2>
           <p className="muted" style={{ fontSize: "var(--t-base)", maxWidth: 640, margin: "0 auto", lineHeight: 1.6 }}>
-            Cada iniciativa de mejora recorre cinco etapas, en sesiones en vivo. El equipo arranca con la <b style={{ color: "var(--ink-1)" }}>Sesión Fundacional</b> (su acuerdo de trabajo) y el módulo de <b style={{ color: "var(--st-explore)" }}>Exploración</b> (¿dónde estamos?), y desde ahí el ciclo se repite.
+            Cada loop de mejora recorre cuatro etapas, en sesiones en vivo. El equipo descubre qué mejorar en el módulo de <b style={{ color: "var(--st-explore)" }}>Exploración</b> (¿dónde estamos?), elige una variable, y desde ahí el ciclo se repite.
           </p>
         </div>
         {/* círculo (desktop) */}
@@ -175,7 +172,7 @@ export default function Home() {
         </div>
 
         <p className="muted" style={{ textAlign: "center", marginTop: 28, fontSize: "var(--t-sm)" }}>
-          <span className="faint">Arranca una vez con la Sesión Fundacional · después, cada vuelta es Objetivos → Foco → Ideación → Seguimiento → Aprendizaje.</span>
+          <span className="faint">Cada vuelta del loop es Analizar → Diseñar → Probar → Aprender.</span>
         </p>
 
         <style>{`
