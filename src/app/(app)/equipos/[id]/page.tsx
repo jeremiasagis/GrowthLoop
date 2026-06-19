@@ -268,11 +268,9 @@ const LOOP_RECIPES: { name: string; icon: string; title: string; objective: stri
 function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string; editing?: Initiative; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(editing?.title ?? "");
   const [desc, setDesc] = useState(editing?.description ?? "");
-  const [objectiveId, setObjectiveId] = useState(editing?.objectiveId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valid = title.trim().length > 2;
-  const objectives = (getTeam(teamId)?.objectives ?? []).filter((o) => o.status === "active");
   const aiEnabled = planLimits(getOrg(getTeam(teamId)?.orgId ?? "")?.plan).ai;
   const [problem, setProblem] = useState("");
   const [norteBusy, setNorteBusy] = useState(false);
@@ -299,8 +297,7 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
     setBusy(true);
     const res = editing
       ? await updateInitiative(editing.id, { title, description: desc })
-      : await createInitiative({ teamId, title, description: desc, objectiveId: objectiveId || null, data: seed ? { seed } : undefined });
-    if (editing && (editing.objectiveId ?? "") !== objectiveId) await setInitiativeObjective(editing.id, objectiveId || null);
+      : await createInitiative({ teamId, title, description: desc, data: seed ? { seed } : undefined });
     setBusy(false);
     if (res.error) setError(res.error);
     else { onSaved(); onClose(); }
@@ -346,25 +343,8 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
               </div>
             </div>
           )}
-          {objectives.length > 0 && (
-            <div>
-              <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>¿Dónde nace esta iniciativa?</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {objectives.map((o) => { const on = objectiveId === o.id; return (
-                  <button key={o.id} onClick={() => setObjectiveId(o.id)} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 9, padding: "9px 12px", borderRadius: "var(--r-md)", background: on ? "var(--green-soft)" : "var(--card)", border: `1px solid ${on ? "var(--green)" : "var(--line-2)"}`, fontSize: "var(--t-sm)", fontWeight: 600 }}>
-                    <Icon name={on ? "CircleCheck" : "Compass"} size={15} style={{ color: on ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
-                    <span style={{ flex: 1, minWidth: 0 }}>{o.text}</span>
-                  </button>
-                ); })}
-                <button onClick={() => setObjectiveId("")} style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 9, padding: "9px 12px", borderRadius: "var(--r-md)", background: objectiveId === "" ? "var(--green-soft)" : "var(--card)", border: `1px solid ${objectiveId === "" ? "var(--green)" : "var(--line-2)"}`, fontSize: "var(--t-sm)", fontWeight: 600 }}>
-                  <Icon name={objectiveId === "" ? "CircleCheck" : "CircleDashed"} size={15} style={{ color: objectiveId === "" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
-                  <span className="muted">Suelta · sin objetivo</span>
-                </button>
-              </div>
-            </div>
-          )}
           <div>
-            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Nombre de la iniciativa · qué van a mejorar</label>
+            <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>Nombre del loop · qué van a mejorar</label>
             <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Reducir el retrabajo en reportes" style={fieldStyle} onKeyDown={(e) => e.key === "Enter" && save()} />
           </div>
           <div>
@@ -716,10 +696,9 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
   const live = getTeam(team.id) ?? team;
   const membersDone = live.members.length > 0;
   const fodaDone = !!live.data?.foda;
-  const objectiveDone = !!live.data?.objective || (live.objectives ?? []).some((o) => o.status === "active");
   const contractDone = !!live.data?.contract;
   const initDone = (live.initiatives ?? []).length > 0;
-  if (membersDone && fodaDone && objectiveDone && contractDone && initDone) return null;
+  if (membersDone && fodaDone && contractDone && initDone) return null;
   const startSession = async (type: string) => {
     if (launching) return;
     setLaunching(true);
@@ -732,8 +711,7 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
     { done: membersDone, n: 1, title: "Invitá a los integrantes", desc: "Sumá al equipo para que participen en vivo.", btn: "Invitar", icon: "UserPlus", launch: false, onClick: onInvite },
     { done: fodaDone, n: 2, title: "Hagan el FODA del equipo", desc: "El diagnóstico inicial: fortalezas, oportunidades, debilidades y amenazas, en vivo y anónimo.", btn: launching ? "Abriendo…" : "Iniciar FODA", icon: "Grid2x2", launch: true, onClick: () => startSession("foda") },
     { done: contractDone, n: 3, title: "Hagan la Sesión Fundacional", desc: "Acuerden cómo va a funcionar el equipo y firmen el contrato.", btn: launching ? "Abriendo…" : "Iniciar Fundacional", icon: "Handshake", launch: true, onClick: () => startSession("founding") },
-    { done: objectiveDone, n: 4, title: "Definí el primer objetivo", desc: "El Norte al que van a apuntar las iniciativas.", btn: "Ir a Objetivos", icon: "Compass", launch: false, onClick: () => onGoTab("objetivos") },
-    { done: initDone, n: 5, title: "Creen la primera iniciativa", desc: "Lo que el equipo va a trabajar para mejorar.", btn: "Ir a Iniciativas", icon: "Target", launch: false, onClick: () => onGoTab("seguimiento") },
+    { done: initDone, n: 4, title: "Creá tu primer loop", desc: "Una mejora con su objetivo, que recorre el ciclo Analizar → Diseñar → Probar → Aprender.", btn: "Ir a Loops", icon: "RefreshCw", launch: false, onClick: () => onGoTab("seguimiento") },
   ];
   const doneCount = STEPS.filter((s) => s.done).length;
   const nextIdx = STEPS.findIndex((s) => !s.done);
@@ -1340,7 +1318,7 @@ export default function TeamPage() {
   const { show } = useToast();
   const isFacil = user?.role === "facilitator";
   const team = getTeam(params.id ?? "");
-  const [tab, setTab] = useState("objetivos");
+  const [tab, setTab] = useState("seguimiento");
   const [, setTeamNonce] = useState(0);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -1391,7 +1369,6 @@ export default function TeamPage() {
 
   const TABS = [
     { key: "exploracion", label: "Catálogo", icon: "Layers" },
-    { key: "objetivos", label: "Objetivos", icon: "Compass" },
     { key: "seguimiento", label: "Loops", icon: "RefreshCw" },
     { key: "sesiones", label: "Sesiones", icon: "History" },
     { key: "pulso", label: "Pulso", icon: "Activity" },
@@ -1499,17 +1476,6 @@ export default function TeamPage() {
         </div>
       )}
 
-      {tab === "objetivos" && (
-        <div className="team-grid">
-          <div style={{ minWidth: 0 }}>
-            <ObjetivosSection team={getTeam(team.id) ?? team} isFacil={isFacil} onChanged={() => setTeamNonce((n) => n + 1)} onGoIniciativas={() => setTab("seguimiento")} />
-            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 14 }}>
-              Los loops de cada objetivo se gestionan en la pestaña <button onClick={() => setTab("seguimiento")} style={{ color: "var(--green)", fontWeight: 600 }}>Loops</button>.
-            </p>
-          </div>
-          <TeamSidebar team={team} onGoTab={setTab} />
-        </div>
-      )}
       {tab === "seguimiento" && <SeguimientoPanel team={team} isFacil={isFacil} onOpenPulse={() => setTab("pulso")} onInvite={() => setInviteOpen(true)} onGoTab={setTab} />}
 
       {tab === "pulso" && <PulseDetail team={team} isFacil={isFacil} />}
