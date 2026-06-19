@@ -756,6 +756,22 @@ export function retrosForStage(stage: string): RetroDefinition[] {
   return RETRO_REGISTRY.filter((r) => r.stage === stage);
 }
 
+/** La retro canónica (default) de cada etapa del loop. El facilitador puede cambiarla. */
+export const CANONICAL_RETRO: Record<string, string> = {
+  objectives: "objectives-tensions",      // Apuntar
+  focus: "focus-why-is-it-happening",     // Entender
+  ideation: "ideation-bet-design",        // Apostar
+  follow: "follow-how-are-we-doing",      // Probar
+  learn: "learn-cycle-close",             // Aprender
+};
+
+/** La retro canónica de una etapa (objeto), o la primera implementada si no hay default. */
+export function canonicalRetro(stage: string): RetroDefinition | undefined {
+  const id = CANONICAL_RETRO[stage];
+  const list = RETRO_REGISTRY.filter((r) => r.stage === stage && r.implemented);
+  return list.find((r) => r.id === id) ?? list[0];
+}
+
 export function retroById(id: string | undefined): RetroDefinition | undefined {
   return RETRO_REGISTRY.find((r) => r.id === id);
 }

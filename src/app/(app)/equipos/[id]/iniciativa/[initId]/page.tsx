@@ -19,7 +19,7 @@ import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { CycleTimeline } from "@/components/CycleTimeline";
 import { WordCloud } from "@/components/WordCloud";
-import { retrosForStage, stageOfSessionType } from "@/lib/retros/registry";
+import { retrosForStage, stageOfSessionType, CANONICAL_RETRO, type RetroDefinition } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, planLimits, overallOf, type Initiative, type StageKey, type Team } from "@/lib/data";
 
 type StageContent = { cards: SessionCard[]; clusters: SessionCluster[]; votes: SessionVote[]; result?: Record<string, unknown> };
@@ -410,7 +410,10 @@ export default function InitiativeDetailPage() {
 
   // Modo libre: el botón abre el selector (etapa → retro → modo).
   const [launcherOpen, setLauncherOpen] = useState(false);
-  const startLive = () => setLauncherOpen(true);
+  const [selRetro, setSelRetro] = useState<RetroDefinition | null>(null);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const startLive = () => { setSelRetro(null); setLauncherOpen(true); };
+  const openRetro = (r: RetroDefinition) => { setSelRetro(r); setLauncherOpen(true); };
   const changeStage = async (s: StageKey) => {
     const res = await setInitiativeStage(init.id, s);
     if (res.error) show(res.error, "TriangleAlert"); else { show(`Etapa: ${STAGES[s].label}`, "Check"); refresh(); }
@@ -691,22 +694,37 @@ export default function InitiativeDetailPage() {
                 {current && (() => {
                   const retros = retrosForStage(st).filter((r) => r.implemented);
                   if (!retros.length) return null;
+                  const canon = retros.find((r) => r.id === CANONICAL_RETRO[st]) ?? retros[0];
+                  const others = retros.filter((r) => r.id !== canon.id);
+                  const canEdit = isFacil && !done;
+                  const retroBtn = (r: RetroDefinition, primary = false) => (
+                    <button key={r.id} disabled={!canEdit} onClick={() => { if (canEdit) openRetro(r); }}
+                      style={{ textAlign: "left", width: primary ? "100%" : undefined, background: "var(--card-2)", border: `1px solid ${primary ? "var(--green)" : "var(--line)"}`, borderLeft: `3px solid ${r.category === "growthloop" ? "var(--green)" : "var(--ink-3)"}`, borderRadius: "var(--r-md)", padding: primary ? "12px 14px" : "10px 12px", cursor: canEdit ? "pointer" : "default" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+                        <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={13} style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
+                        <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
+                        {primary && <Pill color="var(--green)" bg="var(--success-bg)" icon="ThumbsUp">recomendada</Pill>}
+                        <span className="num muted" style={{ marginLeft: "auto", fontSize: "var(--t-xs)" }}>{r.duration}′</span>
+                      </div>
+                      <div className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.4 }}>{r.description}</div>
+                    </button>
+                  );
                   return (
                     <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed var(--line)" }}>
-                      <div className="eyebrow" style={{ marginBottom: 8 }}>Retros de esta etapa · {retros.length}</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px,1fr))", gap: 10 }}>
-                        {retros.map((r) => (
-                          <button key={r.id} disabled={!isFacil || done} onClick={() => { if (isFacil && !done) startLive(); }}
-                            style={{ textAlign: "left", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: `3px solid ${r.category === "growthloop" ? "var(--green)" : "var(--ink-3)"}`, borderRadius: "var(--r-md)", padding: "10px 12px", cursor: isFacil && !done ? "pointer" : "default" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                              <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={13} style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
-                              <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
-                              <span className="num muted" style={{ marginLeft: "auto", fontSize: "var(--t-xs)" }}>{r.duration}′</span>
-                            </div>
-                            <div className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.4 }}>{r.description}</div>
+                      <div className="eyebrow" style={{ marginBottom: 8 }}>Retro de esta etapa</div>
+                      {retroBtn(canon, true)}
+                      {others.length > 0 && canEdit && (
+                        <div style={{ marginTop: 8 }}>
+                          <button onClick={() => setSwapOpen((o) => !o)} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--ink-2)" }}>
+                            <Icon name={swapOpen ? "ChevronUp" : "RefreshCw"} size={13} /> {swapOpen ? "Ocultar" : `Cambiar retro · ${others.length} más`}
                           </button>
-                        ))}
-                      </div>
+                          {swapOpen && (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px,1fr))", gap: 10, marginTop: 8 }}>
+                              {others.map((r) => retroBtn(r))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -817,7 +835,7 @@ export default function InitiativeDetailPage() {
         </div>
       </div>
 
-      {launcherOpen && <SessionLauncher team={team} initiative={init} onClose={() => setLauncherOpen(false)} />}
+      {launcherOpen && <SessionLauncher team={team} initiative={init} initialRetro={selRetro ?? undefined} onClose={() => setLauncherOpen(false)} />}
 
       {closeStageOpen && (
         <div onClick={() => setCloseStageOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
