@@ -361,7 +361,7 @@ export async function createTeam(input: {
 }
 
 /** Crea una iniciativa (línea de trabajo) para un equipo. Arranca en Objetivos. */
-export async function createInitiative(input: { teamId: string; title: string; description?: string; stage?: StageKey; status?: Initiative["status"]; objectiveId?: string | null }): Promise<{ error?: string; id?: string }> {
+export async function createInitiative(input: { teamId: string; title: string; description?: string; stage?: StageKey; status?: Initiative["status"]; objectiveId?: string | null; data?: Record<string, unknown> }): Promise<{ error?: string; id?: string }> {
   const supabase = getSupabaseBrowserClient();
   const id = newId("i");
   const { error } = await supabase.from("initiatives").insert({
@@ -369,6 +369,7 @@ export async function createInitiative(input: { teamId: string; title: string; d
     description: input.description?.trim() || null,
     stage: input.stage ?? "objectives", status: input.status ?? "active",
     objective_id: input.objectiveId ?? null,
+    ...(input.data ? { data: input.data } : {}),
   });
   if (error) return { error: error.message };
   await reloadData();

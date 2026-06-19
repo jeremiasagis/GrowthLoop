@@ -8,10 +8,11 @@ import {
   PulseRadar, PulseTrend, SectionTitle, StageBadge, Trend,
 } from "@/components/ui";
 import {
-  createInitiative, createObjective, deleteTeam, getFacilitators, getInitiatives, getTeam, inviteMember,
+  createInitiative, createObjective, deleteTeam, getFacilitators, getInitiatives, getOrg, getTeam, inviteMember,
   markCelebrated, removeTeamMember, setInitiativeObjective, setInitiativeStage, setInitiativeStatus, setObjectiveStatus, setTeamCadence, setTeamObjective, updateInitiative,
 } from "@/lib/repository";
-import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, teamLiveStage, to5, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
+import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, planLimits, teamLiveStage, to5, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { createLiveSession, getClosedTeamSessions, getOpenSessionForTeam, loadSessionMemories, setResult, type LiveSession, type SessionMemory } from "@/lib/session";
@@ -264,13 +265,33 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
   const [error, setError] = useState<string | null>(null);
   const valid = title.trim().length > 2;
   const objectives = (getTeam(teamId)?.objectives ?? []).filter((o) => o.status === "active");
+  const aiEnabled = planLimits(getOrg(getTeam(teamId)?.orgId ?? "")?.plan).ai;
+  const [problem, setProblem] = useState("");
+  const [norteBusy, setNorteBusy] = useState(false);
+  const [seed, setSeed] = useState<{ causes: string[]; bet: { if: string; then: string; signal: string } } | null>(null);
+
+  const askNorte = async () => {
+    const p = problem.trim();
+    if (p.length < 5 || norteBusy) return;
+    setNorteBusy(true); setError(null);
+    try {
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/loop", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` }, body: JSON.stringify({ problem: p }) });
+      const json = await res.json();
+      if (!res.ok || json.error) { setError(json.error ?? "No se pudo armar el loop."); return; }
+      if (json.title) setTitle(json.title);
+      if (json.objective) setDesc(json.objective);
+      setSeed({ causes: json.causes ?? [], bet: json.bet ?? { if: "", then: "", signal: "" } });
+    } catch { setError("No se pudo contactar a la IA."); }
+    finally { setNorteBusy(false); }
+  };
 
   const save = async () => {
     if (!valid || busy) return;
     setBusy(true);
     const res = editing
       ? await updateInitiative(editing.id, { title, description: desc })
-      : await createInitiative({ teamId, title, description: desc, objectiveId: objectiveId || null });
+      : await createInitiative({ teamId, title, description: desc, objectiveId: objectiveId || null, data: seed ? { seed } : undefined });
     if (editing && (editing.objectiveId ?? "") !== objectiveId) await setInitiativeObjective(editing.id, objectiveId || null);
     setBusy(false);
     if (res.error) setError(res.error);
@@ -286,6 +307,24 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
         </div>
         <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 18 }}>{editing ? "Actualizá el objetivo o el detalle de la iniciativa." : <>Definí qué va a trabajar el equipo. Arranca en <b style={{ color: "var(--st-explore)" }}>Exploración</b> y después avanza por las etapas del ciclo.</>}</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {!editing && (
+            <div style={{ padding: 14, borderRadius: "var(--r-md)", border: "1px solid color-mix(in srgb, var(--violet) 30%, var(--line))", background: "color-mix(in srgb, var(--violet) 6%, var(--card))" }}>
+              <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--violet)" }}>
+                <Icon name="Sparkles" size={13} /> ¿Lo arma Norte? {!aiEnabled && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input value={problem} onChange={(e) => setProblem(e.target.value)} disabled={!aiEnabled} onKeyDown={(e) => { if (e.key === "Enter" && aiEnabled) askNorte(); }} placeholder={aiEnabled ? "Describí el problema en una frase…" : "Norte arma el loop por vos · plan Pro"} style={{ ...fieldStyle, flex: 1, minWidth: 180, opacity: aiEnabled ? 1 : 0.6 }} />
+                <Button icon={norteBusy ? "Loader" : aiEnabled ? "Sparkles" : "Lock"} variant="violet" disabled={norteBusy} onClick={aiEnabled ? askNorte : () => setError("Norte está en el plan Pro.")}>{norteBusy ? "Armando…" : "Armar"}</Button>
+              </div>
+              {seed && (
+                <div style={{ marginTop: 10, fontSize: "var(--t-xs)", color: "var(--ink-2)", display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ color: "var(--violet)", fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}><Icon name="Check" size={12} /> Norte propuso el objetivo y una apuesta inicial (editables abajo).</div>
+                  {seed.causes.length > 0 && <div><b style={{ color: "var(--ink-1)" }}>Causas a explorar:</b> {seed.causes.join(" · ")}</div>}
+                  {seed.bet.then && <div><b style={{ color: "var(--ink-1)" }}>Apuesta:</b> si {seed.bet.if}, {seed.bet.then} (señal: {seed.bet.signal})</div>}
+                </div>
+              )}
+            </div>
+          )}
           {objectives.length > 0 && (
             <div>
               <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>¿Dónde nace esta iniciativa?</label>
