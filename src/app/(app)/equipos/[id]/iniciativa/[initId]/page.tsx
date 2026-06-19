@@ -18,6 +18,7 @@ import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { CycleTimeline } from "@/components/CycleTimeline";
+import { LoopRing } from "@/components/LoopRing";
 import { WordCloud } from "@/components/WordCloud";
 import { retrosForStage, stageOfSessionType, CANONICAL_RETRO, type RetroDefinition } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, planLimits, overallOf, type Initiative, type StageKey, type Team } from "@/lib/data";
@@ -615,31 +616,33 @@ export default function InitiativeDetailPage() {
         <Card pad={16}><Stat label="Creada" value={fmtDate(init.createdAt)} icon="Calendar" color="var(--ink-2)" /></Card>
       </div>
 
-      {/* riel del ciclo */}
-      <Card pad={16} style={{ marginBottom: 22 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
-          {/* Módulo de diagnóstico: fuera del ciclo (estilo punteado) */}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flex: "none", padding: "6px 12px", borderRadius: "var(--r-md)", border: "1.5px dashed var(--st-explore)", color: "var(--st-explore)" }} title="Módulo de diagnóstico (opcional, fuera del ciclo)">
-            <Icon name="Compass" size={15} />
-            <span className="hide-sm" style={{ fontSize: "var(--t-sm)", fontWeight: 600 }}>Exploración</span>
-          </span>
-          <div style={{ width: 26, height: 0, borderTop: "2px dashed var(--line-2)", margin: "0 10px", flex: "none" }} />
-          {CYCLE_STAGES.map((st, i) => {
-            const meta = STAGES[st];
-            const completed = done || i < curIdx;
-            const current = !done && i === curIdx;
-            return (
-              <span key={st} style={{ display: "inline-flex", alignItems: "center" }}>
-                <button onClick={() => scrollTo(st)} style={{ display: "flex", alignItems: "center", gap: 8, flex: "none", cursor: "pointer" }}>
-                  <span style={{ width: 32, height: 32, borderRadius: 99, display: "grid", placeItems: "center", flex: "none", background: completed ? meta.color : current ? `color-mix(in srgb, ${meta.color} 18%, var(--card))` : "var(--card-2)", border: `1px solid ${completed || current ? meta.color : "var(--line-2)"}`, color: completed ? "#08120c" : current ? meta.color : "var(--ink-3)", fontWeight: 800, fontSize: "var(--t-sm)" }}>
-                    {completed ? <Icon name="Check" size={15} /> : meta.n}
+      {/* loop circular vivo */}
+      <Card pad={20} style={{ marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
+          <LoopRing stage={init.stage} done={done} onStageClick={scrollTo} />
+          <div style={{ flex: 1, minWidth: 240, maxWidth: 360, display: "flex", flexDirection: "column", gap: 4 }}>
+            {CYCLE_STAGES.map((st, i) => {
+              const meta = STAGES[st];
+              const completed = done || i < curIdx;
+              const current = !done && i === curIdx;
+              return (
+                <button key={st} onClick={() => scrollTo(st)} style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: "7px 8px", borderRadius: "var(--r-sm)", background: current ? "var(--card-2)" : "transparent" }}>
+                  <span style={{ width: 26, height: 26, borderRadius: 99, display: "grid", placeItems: "center", flex: "none", background: completed ? "var(--green)" : current ? `color-mix(in srgb, ${meta.color} 18%, var(--card))` : "var(--card-2)", border: `1px solid ${completed ? "var(--green)" : current ? meta.color : "var(--line-2)"}`, color: completed ? "#08120c" : current ? meta.color : "var(--ink-3)", fontWeight: 800, fontSize: "var(--t-xs)" }}>
+                    {completed ? <Icon name="Check" size={13} /> : meta.n}
                   </span>
-                  <span className="hide-sm" style={{ fontSize: "var(--t-sm)", fontWeight: current ? 700 : 500, color: current ? "var(--ink-0)" : completed ? "var(--ink-1)" : "var(--ink-3)" }}>{meta.label}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: current ? 800 : 600, fontSize: "var(--t-sm)", color: current ? "var(--ink-0)" : completed ? "var(--ink-1)" : "var(--ink-3)" }}>{meta.label}</div>
+                    <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{meta.sub}</div>
+                  </div>
+                  {current && <Pill color={meta.color} bg={`color-mix(in srgb, ${meta.color} 16%, transparent)`} icon="Dot">en curso</Pill>}
                 </button>
-                {i < CYCLE_STAGES.length - 1 && <div style={{ width: 30, height: 2, background: completed ? meta.color : "var(--line)", margin: "0 10px", flex: "none" }} />}
-              </span>
-            );
-          })}
+              );
+            })}
+            <div style={{ display: "flex", gap: 16, fontSize: "var(--t-xs)", marginTop: 6, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+              <span className="muted"><b className="num" style={{ color: "var(--ink-0)" }}>{init.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(init.createdAt).getTime()) / 86400000)) : 0}</b> días en el loop</span>
+              <span className="muted"><b className="num" style={{ color: "var(--ink-0)" }}>{sessions.length}</b> {sessions.length === 1 ? "sesión" : "sesiones"}</span>
+            </div>
+          </div>
         </div>
       </Card>
 
