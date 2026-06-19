@@ -29,19 +29,20 @@ export interface Stage {
 }
 
 // ── Stage metadata ──
-// Nombres del loop con punch: Apuntar → Entender → Apostar → Probar → Aprender.
-// Las claves internas NO cambian (objectives/focus/ideation/follow/learn).
+// El loop tiene 4 etapas: Analizar → Diseñar → Probar → Aprender.
+// Elegir la variable se hace en Exploración (módulo de diagnóstico) o al crear el loop.
+// Las claves internas NO cambian (focus/ideation/follow/learn).
 export const STAGES: Record<StageKey, Stage> = {
   queue:       { key: "queue",       label: "Cola",          color: "var(--st-queue)",    n: "·" },
   exploration: { key: "exploration", label: "Exploración",   color: "var(--st-explore)",  n: "◇", module: true },
-  objectives:  { key: "objectives",  label: "Apuntar",       color: "var(--st-objectives)", n: "1", sub: "elegí a qué apuntás" },
-  focus:       { key: "focus",       label: "Entender",      color: "var(--st-focus)",    n: "2", sub: "encontrá la causa raíz" },
-  ideation:    { key: "ideation",    label: "Apostar",       color: "var(--st-proof)",    n: "3", sub: "diseñá el experimento" },
-  follow:      { key: "follow",      label: "Probar",        color: "#F59E0B",            n: "4", sub: "medí la señal" },
-  learn:       { key: "learn",       label: "Aprender",      color: "var(--st-learn)",    n: "5", sub: "qué aprendimos y qué sigue" },
+  objectives:  { key: "objectives",  label: "Analizar",      color: "var(--st-focus)",    n: "1" }, // legacy → se pliega en focus
+  focus:       { key: "focus",       label: "Analizar",      color: "var(--st-focus)",    n: "1", sub: "priorizá y llegá a la causa raíz" },
+  ideation:    { key: "ideation",    label: "Diseñar",       color: "var(--st-proof)",    n: "2", sub: "convertí la causa en una apuesta medible" },
+  follow:      { key: "follow",      label: "Probar",        color: "#F59E0B",            n: "3", sub: "medí la señal y ajustá" },
+  learn:       { key: "learn",       label: "Aprender",      color: "var(--st-learn)",    n: "4", sub: "qué pasó, qué aprendimos, qué sigue" },
   // legacy — solo para que los datos viejos sigan renderizando
-  explore:     { key: "explore",     label: "Apuntar",       color: "var(--st-explore)",  n: "◇" },
-  proof:       { key: "proof",       label: "Apostar",       color: "var(--st-proof)",    n: "3" },
+  explore:     { key: "explore",     label: "Exploración",   color: "var(--st-explore)",  n: "◇" },
+  proof:       { key: "proof",       label: "Diseñar",       color: "var(--st-proof)",    n: "2" },
   consol:      { key: "consol",      label: "Consolidación", color: "var(--st-consol)",   n: "✦" },
   improved:    { key: "improved",    label: "Mejorada",      color: "var(--st-improved)", n: "✓" },
   paused:      { key: "paused",      label: "Pausada",       color: "var(--st-paused)",   n: "‖" },
@@ -51,8 +52,9 @@ export const STAGE_ORDER: StageKey[] = [
   "queue", "exploration", "objectives", "focus", "ideation", "follow", "learn", "consol", "improved",
 ];
 
-// Las etapas que recorre una iniciativa (el ciclo de mejora, en orden).
-export const CYCLE_STAGES: StageKey[] = ["objectives", "focus", "ideation", "follow", "learn"];
+// Las etapas que recorre un loop (el ciclo de mejora, en orden). Elegir la variable
+// se hace en Exploración o al crear el loop, así que el ciclo arranca en Analizar (focus).
+export const CYCLE_STAGES: StageKey[] = ["focus", "ideation", "follow", "learn"];
 
 /** La etapa siguiente del ciclo (undefined si es la última o no es del ciclo). */
 export function nextCycleStage(s: StageKey): StageKey | undefined {
@@ -60,11 +62,11 @@ export function nextCycleStage(s: StageKey): StageKey | undefined {
   return i >= 0 && i < CYCLE_STAGES.length - 1 ? CYCLE_STAGES[i + 1] : undefined;
 }
 
-/** Normaliza valores de etapa viejos guardados en DB al modelo nuevo. */
+/** Normaliza valores de etapa viejos guardados en DB al modelo nuevo (loop de 4 etapas). */
 export function normalizeStage(s: string | null | undefined): StageKey {
-  if (s === "explore") return "objectives"; // arranque del ciclo viejo → arranque del nuevo
+  if (s === "explore" || s === "objectives") return "focus"; // elegir variable se pliega en Analizar
   if (s === "proof") return "ideation";
-  return (s as StageKey) || "objectives";
+  return (s as StageKey) || "focus";
 }
 
 /** Etapa "viva" del equipo: la más avanzada entre sus iniciativas activas.

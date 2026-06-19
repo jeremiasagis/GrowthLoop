@@ -367,7 +367,7 @@ export async function createInitiative(input: { teamId: string; title: string; d
   const { error } = await supabase.from("initiatives").insert({
     id, team_id: input.teamId, title: input.title.trim(),
     description: input.description?.trim() || null,
-    stage: input.stage ?? "objectives", status: input.status ?? "active",
+    stage: input.stage ?? "focus", status: input.status ?? "active",
     objective_id: input.objectiveId ?? null,
     ...(input.data ? { data: input.data } : {}),
   });

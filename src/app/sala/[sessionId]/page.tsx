@@ -494,7 +494,7 @@ export default function SalaPage() {
   if (closed) {
     // Sesión continua: el facilitador puede encadenar la siguiente etapa en la misma reunión.
     if (isFacil && afterClose && session.initiativeId) {
-      const nextLabel: Record<string, string> = { focus: "Entender", proof: "Apostar", learn: "Aprender" };
+      const nextLabel: Record<string, string> = { focus: "Analizar", proof: "Diseñar", learn: "Aprender" };
       const continueNow = async () => {
         const res = await createLiveSession({ teamId: session.teamId, initiativeId: session.initiativeId, type: afterClose });
         if (res.session) {
@@ -1794,7 +1794,7 @@ export default function SalaPage() {
       if (busy || !included.length) return;
       setBusy(true);
       for (let i = 0; i < included.length; i++) {
-        await createInitiative({ teamId: session.teamId, title: included[i].name, status: i === 0 ? "active" : "paused", stage: "objectives" });
+        await createInitiative({ teamId: session.teamId, title: included[i].name, status: i === 0 ? "active" : "paused", stage: "focus" });
       }
       await finalizeSession(session, {
         summaryText: `Mapa de mejoras: ${included.length} variables · activa: ${included[0].name}`,

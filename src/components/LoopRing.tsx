@@ -1,10 +1,10 @@
 "use client";
 
 /* ============================================================
-   Loop circular vivo: las 5 etapas del ciclo dispuestas en un
-   anillo que se cierra (Apuntar → Entender → Apostar → Probar →
-   Aprender → y vuelve). Muestra dónde está el equipo, lo
-   completado y el progreso. El loop como bucle, no como barra.
+   Loop circular vivo: las 4 etapas del ciclo dispuestas en un
+   anillo que se cierra (Analizar → Diseñar → Probar → Aprender
+   → y vuelve). Muestra dónde está el equipo, lo completado y el
+   progreso. El loop como bucle, no como barra.
    ============================================================ */
 
 import { CYCLE_STAGES, STAGES, normalizeStage, type StageKey } from "@/lib/data";

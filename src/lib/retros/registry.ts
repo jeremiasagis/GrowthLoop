@@ -241,9 +241,9 @@ export const RETRO_REGISTRY: RetroDefinition[] = [
 
   // ══════════ CICLO DE MEJORA ══════════
   {
-    id: "objectives-tensions", name: "Tensiones y causas", stage: "objectives", category: "growthloop",
-    description: "Arrancar el ciclo: tensiones de la variable elegida y sus causas posibles.",
-    purpose: "Aterrizar la variable a trabajar: qué tensiones la rodean, qué señales hay y qué causas posibles pasan a Foco para priorizar.",
+    id: "objectives-tensions", name: "Tensiones y causas", stage: "exploration", category: "growthloop",
+    description: "Detectar las tensiones del equipo y elegir la variable a trabajar.",
+    purpose: "Sacar a la luz las tensiones, votar la que más duele y elegir la variable de la que va a nacer un loop, con sus causas posibles.",
     duration: 30, minDuration: 20, maxDuration: 45, anonymous: true, asyncAvailable: true, sensitive: false, recommended: true,
     phases: [
       { name: "Escritura anónima de señales", minutes: 7 },
@@ -758,9 +758,8 @@ export function retrosForStage(stage: string): RetroDefinition[] {
 
 /** La retro canónica (default) de cada etapa del loop. El facilitador puede cambiarla. */
 export const CANONICAL_RETRO: Record<string, string> = {
-  objectives: "objectives-tensions",      // Apuntar
-  focus: "focus-why-is-it-happening",     // Entender
-  ideation: "ideation-bet-design",        // Apostar
+  focus: "focus-why-is-it-happening",     // Analizar
+  ideation: "ideation-bet-design",        // Diseñar
   follow: "follow-how-are-we-doing",      // Probar
   learn: "learn-cycle-close",             // Aprender
 };

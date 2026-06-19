@@ -120,7 +120,7 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
         {d?.criticalStage && <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)" }}><Icon name="Cog" size={14} style={{ color: "var(--st-explore)" }} /><span className="muted">Etapa más crítica del flujo:</span> <b>{d.criticalStage}</b></div>}
         {!!d?.causes?.length && (
           <div>
-            <div className="eyebrow" style={{ marginBottom: 8, color: "var(--st-focus)" }}>Causas posibles ({d.causes.length}) · pasan a Foco</div>
+            <div className="eyebrow" style={{ marginBottom: 8, color: "var(--st-focus)" }}>Causas posibles ({d.causes.length}) · pasan a Analizar</div>
             <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
               {d.causes.map((c, i) => <span key={i} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>{c}</span>)}
             </div>
@@ -463,8 +463,8 @@ export default function InitiativeDetailPage() {
   const needsFinalHonesty = stageNorm === "follow" && followCheckinDone && !finalHonesty;
   const DEC_NEXT: Record<string, { label: string; detail: string }> = {
     implement: { label: "Implementar", detail: "La variable entra en Consolidación. Te avisamos en 30 días (in-app) para verificar." },
-    iterate: { label: "Iterar", detail: "La variable vuelve a Ideación con el contexto precargado." },
-    pivot: { label: "Pivotar", detail: "La variable vuelve a Foco con los aprendizajes como contexto." },
+    iterate: { label: "Iterar", detail: "La variable vuelve a Diseñar con el contexto precargado." },
+    pivot: { label: "Pivotar", detail: "La variable vuelve a Analizar con los aprendizajes como contexto." },
     pause: { label: "Pausar", detail: "La variable queda pausada en el mapa." },
   };
   const HON_OPTS = [
@@ -491,7 +491,7 @@ export default function InitiativeDetailPage() {
       setCloseBusy(false);
       if (res.error) { show(res.error, "TriangleAlert"); return; }
       setCloseStageOpen(false); setFinalHonesty(null);
-      show(dec === "iterate" ? "Iterar · vuelve a Ideación" : dec === "pivot" ? "Pivotar · vuelve a Foco" : dec === "pause" ? "Variable pausada" : dec === "implement" ? "Implementar · en Consolidación 30 días" : "Ciclo cerrado 🎉", "Check");
+      show(dec === "iterate" ? "Iterar · vuelve a Diseñar" : dec === "pivot" ? "Pivotar · vuelve a Analizar" : dec === "pause" ? "Variable pausada" : dec === "implement" ? "Implementar · en Consolidación 30 días" : "Ciclo cerrado 🎉", "Check");
       refresh();
       return;
     }
@@ -655,7 +655,7 @@ export default function InitiativeDetailPage() {
             {stageNorm === "learn" && ld?.decision && (
               <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--warning) 10%, var(--card))", border: "1px solid color-mix(in srgb, var(--warning) 35%, var(--line))", fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 7 }}>
                 <Icon name="RefreshCw" size={13} style={{ color: "var(--warning)", flexShrink: 0 }} />
-                <span><b style={{ color: "var(--ink-0)" }}>{DEC_NEXT[ld.decision]?.label ?? ld.decision}</b> — {({ iterate: "el loop vuelve a Apostar", pivot: "el loop vuelve a Entender", implement: "pasa a Consolidación 30 días", pause: "queda en pausa" } as Record<string, string>)[ld.decision] ?? "decisión tomada"}</span>
+                <span><b style={{ color: "var(--ink-0)" }}>{DEC_NEXT[ld.decision]?.label ?? ld.decision}</b> — {({ iterate: "el loop vuelve a Diseñar", pivot: "el loop vuelve a Analizar", implement: "pasa a Consolidación 30 días", pause: "queda en pausa" } as Record<string, string>)[ld.decision] ?? "decisión tomada"}</span>
               </div>
             )}
           </div>
@@ -945,7 +945,7 @@ export default function InitiativeDetailPage() {
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 14, background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 45%, transparent)", borderRadius: "var(--r-md)" }}>
                 <Icon name="TriangleAlert" size={18} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 1 }} />
                 <div style={{ flex: 1, fontSize: "var(--t-sm)", lineHeight: 1.5 }}>
-                  <b>No definiste la prueba todavía.</b> Sin una prueba concreta no hay nada que seguir en la próxima etapa. Hacé la retro <b>Diseño de la prueba</b> antes de cerrar Ideación.
+                  <b>No definiste la prueba todavía.</b> Sin una prueba concreta no hay nada que seguir en la próxima etapa. Hacé la retro <b>Diseño de la prueba</b> antes de cerrar Diseñar.
                   {isFacil && <div style={{ marginTop: 10 }}><Button size="sm" icon="FlaskConical" onClick={() => { setCloseStageOpen(false); setLauncherOpen(true); }}>Hacer Diseño de la prueba</Button></div>}
                 </div>
               </div>

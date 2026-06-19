@@ -1091,7 +1091,7 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, letterSpacing: "-0.02em" }}>Loops</h2>
-            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Cada loop es una mejora con su objetivo, que recorre el ciclo Apuntar → Entender → Apostar → Probar → Aprender.</p>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Cada loop es una mejora con su objetivo, que recorre el ciclo Analizar → Diseñar → Probar → Aprender.</p>
           </div>
           {isFacil && <Button icon="Plus" onClick={newInitiative}>Crear loop</Button>}
         </div>
