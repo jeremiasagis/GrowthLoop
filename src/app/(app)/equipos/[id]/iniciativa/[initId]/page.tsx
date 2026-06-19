@@ -652,6 +652,39 @@ export default function InitiativeDetailPage() {
         </div>
       </Card>
 
+      {(pf?.signalMetric || (fl?.signalLog?.length ?? 0) > 0) && (() => {
+        const log = fl?.signalLog ?? [];
+        const first = log[0], last = log[log.length - 1];
+        const num = (v?: string) => { const x = parseFloat((v ?? "").replace(/[^\d.,-]/g, "").replace(",", ".")); return isNaN(x) ? null : x; };
+        const f = num(first?.value), l = num(last?.value);
+        const delta = f != null && l != null ? Math.round((l - f) * 100) / 100 : null;
+        const up = delta != null && delta > 0;
+        const deadline = pf?.deadline || pf?.bets?.[0]?.deadline;
+        const dleft = deadline ? Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000) : null;
+        const Cell = ({ k, v, c }: { k: string; v: string; c?: string }) => (
+          <div style={{ textAlign: "center" }}>
+            <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{k}</div>
+            <div className="num" style={{ fontWeight: 800, fontSize: "var(--t-lg)", color: c ?? "var(--ink-0)" }}>{v}</div>
+          </div>
+        );
+        return (
+          <Card pad={18} style={{ marginBottom: 22 }}>
+            <SectionTitle icon="Activity" sub={pf?.signalMetric || "La métrica del experimento"}>La señal</SectionTitle>
+            <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Cell k="Antes" v={first?.value ?? "—"} />
+                <Icon name="ArrowRight" size={16} style={{ color: "var(--ink-3)" }} />
+                <Cell k="Ahora" v={last?.value ?? "—"} c={delta != null ? (up ? "var(--success)" : delta < 0 ? "var(--risk)" : "var(--ink-0)") : "var(--ink-0)"} />
+                {pf?.signalTarget && <><Icon name="Target" size={15} style={{ color: "var(--st-proof)" }} /><Cell k="Meta" v={pf.signalTarget} c="var(--st-proof)" /></>}
+                {delta != null && delta !== 0 && <Pill color={up ? "var(--success)" : "var(--risk)"} bg={up ? "var(--success-bg)" : "var(--risk-bg)"} icon={up ? "TrendingUp" : "TrendingDown"}>{up ? "+" : ""}{delta}</Pill>}
+              </div>
+              {log.length > 1 && <div style={{ flex: 1, minWidth: 180 }}><SignalProgressChart log={log} target={pf?.signalTarget} height={54} /></div>}
+              {dleft != null && dleft >= 0 && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="Clock">{dleft === 0 ? "vence hoy" : `faltan ${dleft}d para el check`}</Pill>}
+            </div>
+          </Card>
+        );
+      })()}
+
       {conPending && (
         <Card pad={18} style={{ marginBottom: 22, border: `1px solid color-mix(in srgb, ${conReady ? "var(--warning)" : "var(--success)"} 45%, var(--line))`, background: `color-mix(in srgb, ${conReady ? "var(--warning)" : "var(--success)"} 7%, var(--card))` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
