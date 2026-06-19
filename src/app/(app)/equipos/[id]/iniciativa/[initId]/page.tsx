@@ -619,7 +619,7 @@ export default function InitiativeDetailPage() {
       {/* loop circular vivo */}
       <Card pad={20} style={{ marginBottom: 22 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
-          <LoopRing stage={init.stage} done={done} onStageClick={scrollTo} />
+          <LoopRing stage={init.stage} done={done} decision={init.data?.learn?.decision} onStageClick={scrollTo} />
           <div style={{ flex: 1, minWidth: 240, maxWidth: 360, display: "flex", flexDirection: "column", gap: 4 }}>
             {CYCLE_STAGES.map((st, i) => {
               const meta = STAGES[st];
@@ -642,6 +642,12 @@ export default function InitiativeDetailPage() {
               <span className="muted"><b className="num" style={{ color: "var(--ink-0)" }}>{init.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(init.createdAt).getTime()) / 86400000)) : 0}</b> días en el loop</span>
               <span className="muted"><b className="num" style={{ color: "var(--ink-0)" }}>{sessions.length}</b> {sessions.length === 1 ? "sesión" : "sesiones"}</span>
             </div>
+            {stageNorm === "learn" && ld?.decision && (
+              <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--warning) 10%, var(--card))", border: "1px solid color-mix(in srgb, var(--warning) 35%, var(--line))", fontSize: "var(--t-xs)", display: "flex", alignItems: "center", gap: 7 }}>
+                <Icon name="RefreshCw" size={13} style={{ color: "var(--warning)", flexShrink: 0 }} />
+                <span><b style={{ color: "var(--ink-0)" }}>{DEC_NEXT[ld.decision]?.label ?? ld.decision}</b> — {({ iterate: "el loop vuelve a Apostar", pivot: "el loop vuelve a Entender", implement: "pasa a Consolidación 30 días", pause: "queda en pausa" } as Record<string, string>)[ld.decision] ?? "decisión tomada"}</span>
+              </div>
+            )}
           </div>
         </div>
       </Card>
