@@ -69,7 +69,22 @@ export default function MemberHome() {
         </Card>
       )}
 
-      {live && (
+      {live && (live.result as { async?: boolean } | undefined)?.async ? (
+        (() => {
+          const until = (live.result as { asyncUntil?: string }).asyncUntil;
+          const days = until ? Math.max(0, Math.ceil((new Date(until).getTime() - Date.now()) / 86400000)) : null;
+          return (
+            <Card pad={18} style={{ marginBottom: 18, background: "color-mix(in srgb, var(--info) 7%, var(--card))", borderColor: "color-mix(in srgb, var(--info) 40%, transparent)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--info) 16%, transparent)", color: "var(--info)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Clock" size={17} /></span>
+                <span style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Hay un aporte pendiente</span>
+              </div>
+              <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 14 }}>Tu facilitador abrió una retro para que sumes tu mirada cuando puedas. Tomate tu tiempo{days != null ? `, cierra en ${days} ${days === 1 ? "día" : "días"}` : ""}.</p>
+              <Button full size="lg" variant="secondary" iconRight="ArrowRight" onClick={() => router.push(`/sala/${live.id}`)}>Sumar mi aporte</Button>
+            </Card>
+          );
+        })()
+      ) : live ? (
         <Card glow pad={18} style={{ marginBottom: 18, background: "linear-gradient(180deg, rgba(0,232,122,0.12), var(--card))", borderColor: "color-mix(in srgb, var(--green) 45%, transparent)", animation: "glow-pulse 2s infinite" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <span style={{ width: 10, height: 10, borderRadius: 99, background: "var(--green)", boxShadow: "0 0 8px var(--green)", animation: "glow-pulse 1.2s infinite" }} />
@@ -78,7 +93,7 @@ export default function MemberHome() {
           <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 14 }}>Tu facilitador abrió una sesión. Entrá a participar.</p>
           <Button full size="lg" iconRight="ArrowRight" onClick={() => router.push(`/sala/${live.id}`)}>Unirse a la sesión</Button>
         </Card>
-      )}
+      ) : null}
 
       <Card pad={20} style={{ marginBottom: 18, display: "flex", flexDirection: "column", gap: 14 }}>
         <div>

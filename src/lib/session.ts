@@ -222,7 +222,7 @@ export async function hasResponded(sessionId: string, userId: string): Promise<b
 }
 
 // ── Escritura ──
-export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string; firstStep?: string }): Promise<{ session?: LiveSession; error?: string }> {
+export async function createLiveSession(p: { teamId: string; initiativeId?: string; type: string; retro?: string; firstStep?: string; async?: boolean; asyncUntil?: string }): Promise<{ session?: LiveSession; error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
   // Primer paso "real" de cada tipo. El pulso es una sesión aparte (type "pulse"),
@@ -233,12 +233,15 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   // (evita "fantasmas" en vivo y garantiza una sola sesión activa por equipo).
   await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() })
     .eq("team_id", p.teamId).eq("status", "live");
+  // Modo asincrónico: la sesión queda abierta en el paso de aportes; cada uno suma
+  // cuando puede y el facilitador la cierra después. El flag va en result (sin migración).
+  const baseResult = p.firstStep ? { entryStep: p.firstStep } : {};
+  const result = p.async ? { ...baseResult, async: true, asyncUntil: p.asyncUntil ?? null } : baseResult;
   const { data, error } = await supabase.from("sessions").insert({
     team_id: p.teamId, initiative_id: p.initiativeId ?? null, type: p.type,
-    mode: "live", status: "live", step_key: firstStep, step_index: 0,
+    mode: p.async ? "async" : "live", status: "live", step_key: firstStep, step_index: 0,
     created_by: auth.user?.id ?? null, retro: p.retro ?? null, join_code: newJoinCode(),
-    // Si el pulso se antepuso, recordamos el paso pedido para retomar ahí después.
-    result: p.firstStep ? { entryStep: p.firstStep } : {},
+    result,
   }).select().single();
   if (error) return { error: error.message };
   return { session: mapSession(data) };

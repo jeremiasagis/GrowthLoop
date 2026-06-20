@@ -31,6 +31,9 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
   const [retro, setRetro] = useState<RetroDefinition | null>(initialRetro ?? null);
   const [step, setStep] = useState<1 | 2 | 3>(initialRetro ? 3 : initialStage ? 2 : 1);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"live" | "async">("live");
+  const [asyncDays, setAsyncDays] = useState(7);
+  const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
 
   // Retros ya hechas por el equipo (por nombre en el historial de sesiones).
   const doneByName = new Map<string, string>();
@@ -72,17 +75,22 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
 
   const launch = async () => {
     if (!retro || busy) return;
+    const isAsync = mode === "async" && retro.asyncAvailable;
     setBusy(true);
     const res = await createLiveSession({
       teamId: team.id,
       // Exploración es módulo del equipo (sin iniciativa); el ciclo va atado a la iniciativa.
       initiativeId: stage === "exploration" ? undefined : initiative?.id,
       type: retro.sessionType, retro: retro.id, firstStep: retro.entryStep,
+      async: isAsync, asyncUntil: isAsync ? new Date(Date.now() + asyncDays * 86400000).toISOString() : undefined,
     });
     setBusy(false);
     if (res.error || !res.session) { show(res.error ?? "No se pudo abrir la sesión", "TriangleAlert"); return; }
+    // Async: no metemos al facilitador a conducir; le mostramos el código para compartir.
+    if (isAsync) { setCreated({ id: res.session.id, code: res.session.joinCode ?? "" }); return; }
     router.push(`/sala/${res.session.id}`);
   };
+  const shareLink = created ? `${typeof window !== "undefined" ? window.location.origin : ""}/join?code=${created.code}` : "";
 
   const stageState = (st: StageKey): { label: string; color: string } => {
     if (!initiative || st === "exploration") return { label: "disponible", color: "var(--ink-3)" };
@@ -177,7 +185,7 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
           </>
         )}
 
-        {step === 3 && retro && (
+        {step === 3 && retro && !created && (
           <>
             <button onClick={() => setStep(2)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 8 }}><Icon name="ChevronLeft" size={13} /> Retros</button>
             <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, marginBottom: 4 }}>{retro.name}</h2>
@@ -198,17 +206,54 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
               </div>
             )}
             <div className="eyebrow" style={{ marginBottom: 8 }}>Modo</div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
-              <div style={{ flex: 1, padding: "12px 14px", borderRadius: "var(--r-md)", border: "1px solid var(--green)", background: "color-mix(in srgb, var(--green) 10%, var(--card))" }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+              <button onClick={() => setMode("live")} style={{ flex: 1, textAlign: "left", padding: "12px 14px", borderRadius: "var(--r-md)", border: `1px solid ${mode === "live" ? "var(--green)" : "var(--line-2)"}`, background: mode === "live" ? "color-mix(in srgb, var(--green) 10%, var(--card))" : "var(--card)", cursor: "pointer" }}>
                 <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 6 }}><Icon name="Radio" size={14} style={{ color: "var(--green)" }} /> En vivo</div>
                 <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>Todos juntos, con QR y pantalla compartida.</div>
-              </div>
-              <div style={{ flex: 1, padding: "12px 14px", borderRadius: "var(--r-md)", border: "1px solid var(--line-2)", background: "var(--card)", opacity: 0.55 }}>
-                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 6 }}><Icon name="Clock" size={14} /> Asincrónico</div>
-                <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{retro.asyncAvailable ? "Próximamente" : "No disponible para esta retro"}</div>
-              </div>
+              </button>
+              <button onClick={() => retro.asyncAvailable && setMode("async")} disabled={!retro.asyncAvailable}
+                style={{ flex: 1, textAlign: "left", padding: "12px 14px", borderRadius: "var(--r-md)", border: `1px solid ${mode === "async" && retro.asyncAvailable ? "var(--info)" : "var(--line-2)"}`, background: mode === "async" && retro.asyncAvailable ? "color-mix(in srgb, var(--info) 10%, var(--card))" : "var(--card)", opacity: retro.asyncAvailable ? 1 : 0.55, cursor: retro.asyncAvailable ? "pointer" : "default" }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)", display: "flex", alignItems: "center", gap: 6 }}><Icon name="Clock" size={14} style={{ color: retro.asyncAvailable ? "var(--info)" : undefined }} /> Asincrónico</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 2 }}>{retro.asyncAvailable ? "Cada uno aporta cuando puede; vos cerrás después." : "No disponible para esta retro"}</div>
+              </button>
             </div>
-            <Button full size="lg" icon="Users" disabled={busy} onClick={launch}>{busy ? "Abriendo…" : "Abrir sesión en vivo"}</Button>
+            {mode === "async" && retro.asyncAvailable && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Abierto durante</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[3, 7, 14].map((d) => (
+                    <button key={d} onClick={() => setAsyncDays(d)} style={{ flex: 1, padding: "8px 10px", borderRadius: "var(--r-md)", fontSize: "var(--t-sm)", fontWeight: 700, border: `1px solid ${asyncDays === d ? "var(--info)" : "var(--line-2)"}`, background: asyncDays === d ? "color-mix(in srgb, var(--info) 12%, var(--card))" : "var(--card)", color: asyncDays === d ? "var(--info)" : "var(--ink-2)", cursor: "pointer" }}>{d} días</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {mode === "async" && retro.asyncAvailable
+              ? <Button full size="lg" variant="secondary" icon="Send" disabled={busy} onClick={launch}>{busy ? "Abriendo…" : "Abrir aporte asincrónico"}</Button>
+              : <Button full size="lg" icon="Users" disabled={busy} onClick={launch}>{busy ? "Abriendo…" : "Abrir sesión en vivo"}</Button>}
+          </>
+        )}
+
+        {created && (
+          <>
+            <div style={{ textAlign: "center", padding: "6px 0 14px" }}>
+              <span style={{ width: 52, height: 52, borderRadius: "var(--r-lg)", background: "color-mix(in srgb, var(--info) 14%, transparent)", color: "var(--info)", display: "grid", placeItems: "center", margin: "0 auto 12px" }}><Icon name="Clock" size={26} /></span>
+              <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>Aporte asincrónico abierto</h2>
+              <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6, maxWidth: 420, marginInline: "auto", lineHeight: 1.5 }}>
+                Compartí el código con el equipo. Cada uno suma su mirada cuando puede, durante {asyncDays} días. Cuando estén las respuestas, abrís la sala y la cerrás para guardar el resultado.
+              </p>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)" }}>
+                <span className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 700 }}>CÓDIGO</span>
+                <span className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, letterSpacing: "0.12em", flex: 1 }}>{created.code}</span>
+                <Button size="sm" variant="secondary" icon="Copy" onClick={() => { navigator.clipboard?.writeText(created.code); show("Código copiado", "Check"); }}>Copiar</Button>
+              </div>
+              <Button size="sm" variant="secondary" icon="Link" onClick={() => { navigator.clipboard?.writeText(shareLink); show("Link copiado", "Check"); }}>Copiar link de invitación</Button>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button full variant="secondary" icon="Eye" onClick={() => router.push(`/sala/${created.id}`)}>Ir a la sala</Button>
+              <Button full icon="Check" onClick={onClose}>Listo</Button>
+            </div>
           </>
         )}
       </div>
