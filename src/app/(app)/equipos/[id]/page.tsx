@@ -849,69 +849,90 @@ function HealthCard({ team }: { team: Team }) {
   );
 }
 
-/** Módulo de Exploración: diagnóstico del equipo, fuera del ciclo. */
+/** Catálogo de retros: todas las retros, buscables y filtrables por etapa, para correr sueltas. */
 function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [selRetro, setSelRetro] = useState<RetroDefinition | null>(null);
+  const [q, setQ] = useState("");
+  const [stageF, setStageF] = useState<StageKey | "all">("all");
   const GROUPS: StageKey[] = ["exploration", ...CYCLE_STAGES];
   const openRetro = (r: RetroDefinition) => { setSelRetro(r); setLauncherOpen(true); };
   const EXPLORE_TYPES = ["explore", "foda", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "sailboat", "circles", "relationships", "expclose"];
   const doneNames = new Set(team.sessions.map((s) => s.retro));
-  // Memoria viva: las sesiones de Exploración con su contenido para reconstruir cada visualización.
   const [memories, setMemories] = useState<SessionMemory[]>([]);
   useEffect(() => {
     let active = true;
     (async () => {
       const ss = (await getClosedTeamSessions(team.id)).filter((s) => EXPLORE_TYPES.includes(s.type) && s.type !== "expclose");
       const mems = await loadSessionMemories(ss);
-      if (active) setMemories(mems.reverse()); // más recientes primero
+      if (active) setMemories(mems.reverse());
     })();
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [team.id, team.sessions.length]);
+
+  const allRetros = GROUPS.flatMap((st) => retrosForStage(st).filter((r) => r.implemented));
+  const ql = q.trim().toLowerCase();
+  const filtered = allRetros.filter((r) => (stageF === "all" || r.stage === stageF) && (!ql || r.name.toLowerCase().includes(ql) || r.description.toLowerCase().includes(ql)));
+  const chips: { key: StageKey | "all"; label: string }[] = [
+    { key: "all", label: "Todas" },
+    { key: "exploration", label: "Exploración" },
+    ...CYCLE_STAGES.map((st) => ({ key: st as StageKey | "all", label: STAGES[st].label })),
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {launcherOpen && <SessionLauncher team={team} initialRetro={selRetro ?? undefined} onClose={() => setLauncherOpen(false)} />}
-      <Card pad={20}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ width: 42, height: 42, borderRadius: "var(--r-lg)", background: "var(--card-2)", color: "var(--ink-1)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Layers" size={21} /></span>
+
+      <Card pad={16}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ width: 38, height: 38, borderRadius: "var(--r-md)", background: "var(--card-2)", color: "var(--ink-1)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Layers" size={19} /></span>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Catálogo de retros</div>
-            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 2 }}>Hacé cualquier retro <b style={{ color: "var(--ink-1)" }}>suelta</b>, sin compromiso (diagnóstico, team-building, lo que necesiten). Para una mejora estructurada con objetivo y seguimiento, creá un <b style={{ color: "var(--ink-1)" }}>Loop</b>.</p>
+            <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 1 }}>Hacé cualquier retro <b style={{ color: "var(--ink-1)" }}>suelta</b>. Para una mejora estructurada, creá un <b style={{ color: "var(--ink-1)" }}>Loop</b>.</p>
           </div>
         </div>
       </Card>
 
-      {GROUPS.map((st) => {
-        const list = retrosForStage(st).filter((r) => r.implemented);
-        if (!list.length) return null;
-        const meta = STAGES[st];
-        return (
-          <Card key={st} pad={20}>
-            <SectionTitle icon="Layers" sub={st === "exploration" ? "Diagnóstico, fuera del ciclo" : meta.sub}>{st === "exploration" ? "Exploración" : meta.label} · {list.length}</SectionTitle>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px,1fr))", gap: 10 }}>
-              {list.map((r) => {
-                const done = doneNames.has(r.name);
-                return (
-                  <div key={r.id} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${r.category === "growthloop" ? "var(--green)" : "var(--ink-3)"}`, borderRadius: "var(--r-md)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={14} style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
-                      {done && <Pill color="var(--success)" bg="var(--success-bg)" icon="Check">hecha</Pill>}
-                      {r.sensitive && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="ShieldAlert">sensible</Pill>}
-                    </div>
-                    <div className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.4, flex: 1 }}>{r.description}</div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                      <span className="num muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Timer" size={11} /> {r.duration}′</span>
-                      {isFacil && <Button size="sm" variant="secondary" icon="Play" onClick={() => openRetro(r)}>Hacer</Button>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        );
-      })}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ position: "relative" }}>
+          <Icon name="Search" size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--ink-3)" }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar retro…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 12px 9px 34px", fontSize: "var(--t-sm)", outline: "none" }} />
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {chips.map((c) => {
+            const on = stageF === c.key;
+            const col = c.key === "all" ? "var(--ink-1)" : STAGES[c.key as StageKey].color;
+            return (
+              <button key={c.key} onClick={() => setStageF(c.key)} style={{ padding: "5px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${on ? col : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${col} 14%, var(--card))` : "var(--card)", color: on ? col : "var(--ink-2)" }}>{c.label}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px,1fr))", gap: 10 }}>
+        {filtered.map((r) => {
+          const done = doneNames.has(r.name);
+          const stMeta = STAGES[r.stage];
+          return (
+            <button key={r.id} disabled={!isFacil} onClick={() => { if (isFacil) openRetro(r); }}
+              style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 6, padding: "11px 12px", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${r.category === "growthloop" ? "var(--green)" : "var(--ink-3)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "pointer" : "default" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: stMeta.color, background: `color-mix(in srgb, ${stMeta.color} 14%, transparent)`, padding: "2px 7px", borderRadius: 99 }}>{r.stage === "exploration" ? "Exploración" : stMeta.label}</span>
+                <span className="num muted" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="Timer" size={11} /> {r.duration}′</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={13} style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
+                {done && <Icon name="Check" size={13} style={{ color: "var(--green)" }} />}
+                {r.sensitive && <Icon name="ShieldAlert" size={13} style={{ color: "var(--warning)" }} />}
+              </div>
+              <div className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.description}</div>
+            </button>
+          );
+        })}
+        {filtered.length === 0 && <p className="muted" style={{ fontSize: "var(--t-sm)", gridColumn: "1/-1", padding: "20px 0", textAlign: "center" }}>No hay retros con ese filtro.</p>}
+      </div>
 
       {team.data?.foda && (
         <Card pad={20}>
@@ -920,12 +941,12 @@ function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
         </Card>
       )}
 
-      <Card pad={20}>
-        <SectionTitle icon="History" sub="Las retros de diagnóstico que hizo el equipo">Lo que produjo el equipo ({memories.length})</SectionTitle>
-        {memories.length === 0
-          ? <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Todavía no hicieron ninguna retro suelta.</p>
-          : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{memories.map((m) => <MemoryCard key={m.id} mem={m} defaultOpen={false} />)}</div>}
-      </Card>
+      {memories.length > 0 && (
+        <Card pad={20}>
+          <SectionTitle icon="History" sub="Las retros sueltas que hizo el equipo">Lo que produjo el equipo ({memories.length})</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{memories.map((m) => <MemoryCard key={m.id} mem={m} defaultOpen={false} />)}</div>
+        </Card>
+      )}
     </div>
   );
 }
