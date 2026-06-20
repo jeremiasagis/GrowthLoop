@@ -111,6 +111,19 @@ function Patterns({ items, label = "Patrones" }: { items?: string[]; label?: str
   );
 }
 
+// Claves de `result` desde las que una retro reconstruye su visualización
+// aunque no tenga tarjetas (radares, fishbone, journey, decisiones, etc.).
+const RESULT_VIZ_KEYS = ["trAvg", "tlMilestones", "tlPatterns", "circleMap", "fbCauses", "fbProblem", "fbMain", "sdSteps", "sdSynth", "opPairs", "opSynth", "ifProbs", "whTree", "whRoot", "perfectionScore", "wbStages", "wbForm", "relPatterns", "cvSynth", "fwSignalNow", "fwBlockers", "fwAdjust", "fwDecision", "rtNote", "outcome", "lhNarrative", "lnDecision", "lnReason", "ltCommit", "closeWords"];
+
+/** ¿La sesión produjo algo reconstruible? (para no listar sesiones vacías). */
+export function snapshotHasContent(snap: Pick<SessionSnapshot, "cards" | "clusters" | "inputs" | "pulses" | "result">): boolean {
+  if (snap.cards.length || snap.clusters.length || snap.inputs.length || (snap.pulses?.length ?? 0)) return true;
+  return RESULT_VIZ_KEYS.some((k) => {
+    const v = snap.result?.[k];
+    return Array.isArray(v) ? v.length > 0 : v != null && v !== "";
+  });
+}
+
 export function RetroResult({ snap }: { snap: SessionSnapshot }) {
   const { type, result: r, cards, clusters, votes, inputs } = snap;
   const has = (k: string) => cards.some((c) => c.columnKey === k);
