@@ -17,6 +17,7 @@ import { createLiveSession, discardSession, getInitiativeSessions, loadSessionMe
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
+import { SignalSource } from "@/components/SignalSource";
 import { CycleTimeline } from "@/components/CycleTimeline";
 import { LoopRing } from "@/components/LoopRing";
 import { WordCloud } from "@/components/WordCloud";
@@ -692,7 +693,10 @@ export default function InitiativeDetailPage() {
         );
         return (
           <Card pad={18} style={{ marginBottom: 22 }}>
-            <SectionTitle icon="Activity" sub={pf?.signalMetric || "La métrica del experimento"}>La señal</SectionTitle>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, justifyContent: "space-between", flexWrap: "wrap" }}>
+              <SectionTitle icon="Activity" sub={pf?.signalMetric || "La métrica del experimento"}>La señal</SectionTitle>
+              {isFacil && <SignalSource init={init} onChanged={refresh} />}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 4 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <Cell k="Antes" v={first?.value ?? "—"} />
