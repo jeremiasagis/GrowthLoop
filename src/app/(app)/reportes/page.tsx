@@ -5,6 +5,7 @@ import { Icon } from "@/components/icon";
 import { Button, Card, EmptyState, StageBadge } from "@/components/ui";
 import { getTeams } from "@/lib/repository";
 import { teamLiveStage } from "@/lib/data";
+import { TeamsBenchmark } from "@/components/TeamsBenchmark";
 
 export default function ReportesPage() {
   const router = useRouter();
@@ -20,6 +21,8 @@ export default function ReportesPage() {
       {teams.length === 0 ? (
         <Card pad={0}><EmptyState icon="FileBarChart" title="Todavía no hay equipos">Cuando tengas equipos con actividad, vas a poder generar sus reportes acá.</EmptyState></Card>
       ) : (
+        <>
+        <TeamsBenchmark teams={teams} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
           {teams.map((t) => (
             <Card key={t.id} pad={18} hover style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -38,6 +41,7 @@ export default function ReportesPage() {
             </Card>
           ))}
         </div>
+        </>
       )}
     </div>
   );
