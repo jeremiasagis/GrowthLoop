@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-type Kind = "triage" | "orgReport" | "retroPlan" | "libraryDigest";
+type Kind = "triage" | "orgReport" | "retroPlan" | "libraryDigest" | "teamReport";
 
 const CFG: Record<Kind, { model: string; max: number; system: string }> = {
   triage: {
@@ -40,6 +40,12 @@ const CFG: Record<Kind, { model: string; max: number; system: string }> = {
     max: 1400,
     system:
       "Sos un facilitador de aprendizaje organizacional. A partir de los aprendizajes que registraron los equipos en su biblioteca, destilá lo que importa, en español rioplatense, en markdown: '## Patrones' (temas recurrentes entre equipos, viñetas); '## Aprendizajes transferibles' (los que le sirven a toda la organización); '## Para institucionalizar' (1-3 que conviene volver práctica o norma). No inventes; si hay pocos datos, decilo con franqueza.",
+  },
+  teamReport: {
+    model: "claude-sonnet-4-6",
+    max: 1600,
+    system:
+      "Sos un consultor de mejora continua que le prepara a un sponsor o management un reporte ejecutivo de UN equipo. A partir de sus datos (objetivo, clima y su evolución, loops en curso con su señal antes→ahora→meta, decisiones, aprendizajes transferibles, vencimientos), escribí un reporte breve en español rioplatense, en markdown, con esta estructura: un titular de estado en una línea; '## Dónde está el equipo' (2-3 oraciones: clima, foco y ritmo); '## Loops en curso' (una viñeta por loop activo: qué problema ataca, en qué etapa está y cómo viene la señal); '## Qué se movió' (resultados o señales que cambiaron, con números si los hay); '## Aprendizajes clave' (1-3 transferibles); '## Dónde poner el foco' (1-3 recomendaciones priorizadas). Está pensado para alguien que NO estuvo en las sesiones: claro, directo, sin jerga ni relleno. No inventes datos; si falta información, decilo en una línea.",
   },
 };
 
