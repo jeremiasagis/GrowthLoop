@@ -8,8 +8,20 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 import { MemoryCard, snapshotHasContent } from "@/components/RetroResult";
 import { FodaGrid } from "@/components/FodaGrid";
-import { getClosedTeamSessions, loadSessionMemories, type SessionMemory } from "@/lib/session";
-import { FOUNDING_QUESTIONS, LEARNING_TYPES, planLimits, type Initiative, type LearningEntry, type Team } from "@/lib/data";
+import { averagePulse, getClosedTeamSessions, loadSessionMemories, type SessionMemory } from "@/lib/session";
+import { FOUNDING_QUESTIONS, LEARNING_TYPES, PULSE_DIMS, planLimits, type Initiative, type LearningEntry, type Team } from "@/lib/data";
+
+// Capítulo del relato (lo que devuelve la IA en /api/ai/replay).
+type ReplayChapter = { period?: string; title: string; body: string; tone: string };
+type Replay = { title: string; intro?: string; chapters: ReplayChapter[] };
+const TONE: Record<string, { c: string; i: string }> = {
+  inicio:      { c: "var(--ink-2)",     i: "Flag" },
+  diagnostico: { c: "var(--st-explore)", i: "Search" },
+  apuesta:     { c: "var(--st-proof)",   i: "Lightbulb" },
+  logro:       { c: "var(--success)",    i: "Trophy" },
+  aprendizaje: { c: "var(--st-learn)",   i: "GraduationCap" },
+  desafio:     { c: "var(--warning)",    i: "TriangleAlert" },
+};
 
 // Retros/sesiones sueltas cuyo contenido reconstruimos como "memoria viva".
 // (Las sesiones de las etapas del loop ya viven como aprendizajes/apuestas/causas;
@@ -72,6 +84,9 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
   const [aiBusy, setAiBusy] = useState(false);
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [aiIds, setAiIds] = useState<string[]>([]);
+  // El relato del equipo (narrativa del viaje, generada por IA).
+  const [replay, setReplay] = useState<Replay | null>(null);
+  const [replayBusy, setReplayBusy] = useState(false);
   const askLibrary = async () => {
     const question = aiQ.trim();
     if (!question || aiBusy) return;
@@ -126,6 +141,61 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
   const empty = !learnings.length && !bets.length && !rootCauses.length && !contract && !library.length && !memContent.length && !foda;
   const matchMem = memContent.filter((m) => !term || (m.retro ?? "").toLowerCase().includes(term));
 
+  // ── El relato del equipo: armamos el "viaje" cronológico para que la IA lo narre. ──
+  const hasJourney = inits.length > 0 || memContent.length > 0 || !!foda || !!contract;
+  const buildJourneyContext = () => {
+    const lines: string[] = [`Equipo: ${team.name}.`];
+    if (contract?.date) lines.push(`Sesión fundacional / contrato del equipo: ${contract.date}.`);
+    if (foda?.date) lines.push(`Hicieron un FODA el ${foda.date}.`);
+    // Clima a lo largo del tiempo (radares de pulso).
+    memContent.filter((m) => ["teamradar", "fwradar", "pulse"].includes(m.type) && m.pulses.length).forEach((m) => {
+      const avg = (m.result?.trAvg as Record<string, number>) ?? averagePulse(m.pulses);
+      const vals = Object.entries(avg);
+      if (!vals.length) return;
+      const mean = Math.round(vals.reduce((a, [, v]) => a + v, 0) / vals.length);
+      const weak = [...vals].sort((a, b) => a[1] - b[1])[0];
+      const wlabel = PULSE_DIMS.find((d) => d.key === weak[0])?.label ?? weak[0];
+      lines.push(`Radar de clima (${m.date || "s/f"}): promedio ${mean}, lo más flojo fue "${wlabel}" (${Math.round(weak[1])}).`);
+    });
+    // Diagnósticos sueltos (otras retros de exploración).
+    memContent.filter((m) => !["teamradar", "fwradar", "pulse"].includes(m.type)).forEach((m) => {
+      const top = m.clusters.slice(0, 3).map((c) => c.name).filter(Boolean);
+      lines.push(`Retro "${m.retro ?? m.type}" (${m.date || "s/f"})${top.length ? `: temas principales ${top.join(", ")}` : ` con ${m.cards.length} aportes`}.`);
+    });
+    // Loops (iniciativas), con su causa, apuesta, resultado y aprendizajes.
+    inits.forEach((i) => {
+      const d = i.data ?? {};
+      const when = i.createdAt ? new Date(i.createdAt).toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) : "s/f";
+      const parts: string[] = [`Loop "${i.title}" (empezó ${when}, etapa actual ${i.stage}, estado ${i.status}).`];
+      if (d.focus?.rootCause) parts.push(`Causa raíz: ${d.focus.rootCause}.`);
+      const betThen = d.proof?.betThen ?? d.proof?.bets?.[0]?.betThen;
+      if (betThen) parts.push(`Apuesta: ${betThen}${d.proof?.signalMetric ? ` (señal: ${d.proof.signalMetric}${d.proof?.signalTarget ? `, meta ${d.proof.signalTarget}` : ""})` : ""}.`);
+      if (d.follow?.signalNow) parts.push(`Señal medida: ${d.follow.signalNow}.`);
+      if (d.learn?.result) parts.push(`Resultado: ${d.learn.result}.`);
+      if (d.learn?.decision) parts.push(`Decisión: ${d.learn.decision}.`);
+      (d.learn?.learnings ?? []).slice(0, 3).forEach((l) => parts.push(`Aprendizaje: ${l}.`));
+      lines.push(parts.join(" "));
+    });
+    if (library.length) lines.push(`Registraron ${library.length} aprendizajes en su biblioteca.`);
+    return lines.join("\n");
+  };
+  const generateReplay = async () => {
+    if (replayBusy) return;
+    setReplayBusy(true);
+    try {
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/replay", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ context: buildJourneyContext() }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo armar el relato.", "TriangleAlert"); setReplayBusy(false); return; }
+      setReplay(json.relato as Replay);
+    } catch { show("No se pudo armar el relato.", "TriangleAlert"); }
+    setReplayBusy(false);
+  };
+
   const InitLink = ({ init }: { init: Initiative }) => onOpenInitiative
     ? <button onClick={() => onOpenInitiative(init)} className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {init.title}</button>
     : <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {init.title}</span>;
@@ -164,8 +234,57 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
     </Card>
   );
 
+  // El relato del equipo: hero narrativo del viaje de mejora.
+  const ReplayCard = (
+    <Card pad={20} style={{ marginBottom: 22, border: "1px solid color-mix(in srgb, var(--green) 28%, var(--line))", background: "color-mix(in srgb, var(--green) 5%, var(--card))" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <SectionTitle icon="BookOpen" sub="Norte narra el viaje de mejora del equipo como una historia con capítulos">El relato del equipo {!aiEnabled && <Pill color="var(--violet)" bg="color-mix(in srgb, var(--violet) 16%, transparent)" icon="Lock">Pro</Pill>}</SectionTitle>
+        </div>
+        <Button icon={replayBusy ? "Loader" : aiEnabled ? "Sparkles" : "Lock"} disabled={replayBusy} onClick={aiEnabled ? generateReplay : () => show("✨ El relato del equipo está en el plan Pro.", "Lock")}>
+          {replayBusy ? "Escribiendo…" : replay ? "Reescribir" : aiEnabled ? "Generar relato" : "Generar · Pro"}
+        </Button>
+      </div>
+      {replay && (
+        <div style={{ marginTop: 16 }}>
+          <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800, lineHeight: 1.25 }}>{replay.title}</h3>
+          {replay.intro && <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginTop: 6 }}>{replay.intro}</p>}
+          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
+            {replay.chapters.map((ch, i) => {
+              const t = TONE[ch.tone] ?? TONE.aprendizaje;
+              const last = i === replay.chapters.length - 1;
+              return (
+                <div key={i} style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 28, flex: "none" }}>
+                    <span style={{ width: 28, height: 28, borderRadius: "var(--r-full)", background: `color-mix(in srgb, ${t.c} 16%, var(--card))`, border: `1.5px solid ${t.c}`, color: t.c, display: "grid", placeItems: "center", flex: "none" }}><Icon name={t.i} size={14} /></span>
+                    {!last && <span style={{ flex: 1, width: 2, background: "var(--line-2)", marginTop: 2, minHeight: 14 }} />}
+                  </div>
+                  <div style={{ paddingBottom: last ? 0 : 18, minWidth: 0 }}>
+                    {ch.period && <div className="eyebrow num" style={{ color: t.c, marginBottom: 2 }}>{ch.period}</div>}
+                    <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{ch.title}</div>
+                    <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, marginTop: 3 }}>{ch.body}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {!replay && !replayBusy && (
+        <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 10, fontStyle: "italic" }}>
+          {hasJourney ? "Generá la historia del recorrido del equipo: diagnósticos, apuestas, lo que funcionó y lo que aprendieron." : "Todavía no hay suficiente recorrido. A medida que el equipo haga retros y loops, vas a poder narrar su viaje."}
+        </p>
+      )}
+    </Card>
+  );
+
   if (empty) {
-    return <Card pad={0}><EmptyState icon="Library" title="Todavía no hay aprendizajes">A medida que el equipo cierre ciclos de mejora, sus aprendizajes, apuestas y causas raíz se van a ir guardando acá.</EmptyState></Card>;
+    return (
+      <>
+        {hasJourney && ReplayCard}
+        <Card pad={0}><EmptyState icon="Library" title="Todavía no hay aprendizajes">A medida que el equipo cierre ciclos de mejora, sus aprendizajes, apuestas y causas raíz se van a ir guardando acá.</EmptyState></Card>
+      </>
+    );
   }
 
   return (
@@ -175,6 +294,7 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la biblioteca…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px 10px 36px", fontSize: "var(--t-sm)", outline: "none" }} />
       </div>
 
+      {hasJourney && ReplayCard}
       {AiAskCard}
 
       {library.length > 0 && (
