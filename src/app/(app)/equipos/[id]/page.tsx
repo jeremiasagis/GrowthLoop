@@ -22,6 +22,7 @@ import { retrosForStage, type RetroDefinition } from "@/lib/retros/registry";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { TeamExecReport } from "@/components/TeamExecReport";
 import { TeamCommitments } from "@/components/TeamCommitments";
+import { MaturityPanel } from "@/components/MaturityPanel";
 import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
 
@@ -823,6 +824,7 @@ function TeamSidebar({ team, onGoTab }: { team: Team; onGoTab?: (tab: string) =>
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <TeamProgressPanel team={live} onGoTab={onGoTab} />
+      <MaturityPanel team={live} />
     </div>
   );
 }
