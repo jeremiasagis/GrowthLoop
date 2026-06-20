@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Icon } from "@/components/icon";
 import { Button, Card, EmptyState, Pill, SectionTitle } from "@/components/ui";
 import { getInitiatives, getOrg } from "@/lib/repository";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
+import { MemoryCard } from "@/components/RetroResult";
+import { getClosedTeamSessions, loadSessionMemories, type SessionMemory } from "@/lib/session";
 import { FOUNDING_QUESTIONS, LEARNING_TYPES, planLimits, type Initiative, type LearningEntry, type Team } from "@/lib/data";
+
+// Retros de diagnóstico/sueltas cuyo contenido reconstruimos como "memoria viva".
+const EXPLORE_TYPES = ["explore", "foda", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "sailboat", "circles", "relationships", "expclose"];
 
 const RESULT_META: Record<string, { l: string; c: string; i: string }> = {
   yes: { l: "Funcionó", c: "var(--success)", i: "CircleCheck" },
@@ -47,6 +52,17 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
   const [fType, setFType] = useState<string>("");
   const [fFlag, setFFlag] = useState<"" | "transferable" | "urgent">("");
   const [fInit, setFInit] = useState<string>("");
+  // Memoria viva: las retros sueltas/de diagnóstico que hizo el equipo, con su contenido reconstruible.
+  const [memories, setMemories] = useState<SessionMemory[]>([]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const ss = (await getClosedTeamSessions(team.id)).filter((s) => EXPLORE_TYPES.includes(s.type) && s.type !== "expclose");
+      const mems = await loadSessionMemories(ss);
+      if (active) setMemories(mems.reverse());
+    })();
+    return () => { active = false; };
+  }, [team.id]);
   // IA · Preguntarle a la biblioteca (Pro+).
   const aiEnabled = planLimits(team.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
   const [aiQ, setAiQ] = useState("");
@@ -101,7 +117,8 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
     .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
   const transferables = library.filter((e) => e.transferable);
   const libInits = [...new Map(library.filter((e) => e.initiativeId).map((e) => [e.initiativeId, e.initiativeTitle ?? e.initiativeId])).entries()];
-  const empty = !learnings.length && !bets.length && !rootCauses.length && !contract && !library.length;
+  const empty = !learnings.length && !bets.length && !rootCauses.length && !contract && !library.length && !memories.length;
+  const matchMem = memories.filter((m) => !term || (m.retro ?? "").toLowerCase().includes(term));
 
   const InitLink = ({ init }: { init: Initiative }) => onOpenInitiative
     ? <button onClick={() => onOpenInitiative(init)} className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="Target" size={12} /> {init.title}</button>
@@ -259,6 +276,15 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
             </div>
           ) : <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, fontStyle: "italic" }}>Sin causas que coincidan.</p>}
         </Card>
+
+        {memories.length > 0 && (
+          <Card pad={20}>
+            <SectionTitle icon="History" sub="Radares, líneas de tiempo y demás retros de diagnóstico que hizo el equipo">Retros del equipo ({memories.length})</SectionTitle>
+            {matchMem.length
+              ? <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>{matchMem.map((m) => <MemoryCard key={m.id} mem={m} defaultOpen={false} />)}</div>
+              : <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, fontStyle: "italic" }}>Sin retros que coincidan.</p>}
+          </Card>
+        )}
       </div>
     </>
   );

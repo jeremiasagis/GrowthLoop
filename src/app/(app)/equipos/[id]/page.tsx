@@ -15,12 +15,11 @@ import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, planLimit
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
-import { createLiveSession, getClosedTeamSessions, getOpenSessionForTeam, loadSessionMemories, setResult, type LiveSession, type SessionMemory } from "@/lib/session";
+import { createLiveSession, getOpenSessionForTeam, setResult, type LiveSession } from "@/lib/session";
 import { JoinModal } from "@/components/session/JoinModal";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage, type RetroDefinition } from "@/lib/retros/registry";
 import { FodaGrid } from "@/components/FodaGrid";
-import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
@@ -857,19 +856,7 @@ function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
   const [stageF, setStageF] = useState<StageKey | "all">("all");
   const GROUPS: StageKey[] = ["exploration", ...CYCLE_STAGES];
   const openRetro = (r: RetroDefinition) => { setSelRetro(r); setLauncherOpen(true); };
-  const EXPLORE_TYPES = ["explore", "foda", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "sailboat", "circles", "relationships", "expclose"];
   const doneNames = new Set(team.sessions.map((s) => s.retro));
-  const [memories, setMemories] = useState<SessionMemory[]>([]);
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const ss = (await getClosedTeamSessions(team.id)).filter((s) => EXPLORE_TYPES.includes(s.type) && s.type !== "expclose");
-      const mems = await loadSessionMemories(ss);
-      if (active) setMemories(mems.reverse());
-    })();
-    return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [team.id, team.sessions.length]);
 
   const allRetros = GROUPS.flatMap((st) => retrosForStage(st).filter((r) => r.implemented));
   const ql = q.trim().toLowerCase();
@@ -938,13 +925,6 @@ function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
         <Card pad={20}>
           <SectionTitle icon="Grid2x2" sub={team.data.foda.date ? `Hecho el ${team.data.foda.date}` : "El diagnóstico FODA del equipo"}>FODA del equipo</SectionTitle>
           <FodaGrid team={team} />
-        </Card>
-      )}
-
-      {memories.length > 0 && (
-        <Card pad={20}>
-          <SectionTitle icon="History" sub="Las retros sueltas que hizo el equipo">Lo que produjo el equipo ({memories.length})</SectionTitle>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{memories.map((m) => <MemoryCard key={m.id} mem={m} defaultOpen={false} />)}</div>
         </Card>
       )}
     </div>
