@@ -21,6 +21,7 @@ import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage, type RetroDefinition } from "@/lib/retros/registry";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { TeamExecReport } from "@/components/TeamExecReport";
+import { TeamCommitments } from "@/components/TeamCommitments";
 import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
 
@@ -1088,6 +1089,8 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
             </div>
           </Card>
         )}
+
+        <TeamCommitments team={team} isFacil={isFacil} />
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {FILTERS.map((f) => {
