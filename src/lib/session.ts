@@ -299,8 +299,9 @@ export async function addCard(sessionId: string, columnKey: string, text: string
 /** Todas las tarjetas (vista que enmascara el autor de las anónimas). Solo al revelar. */
 export async function getCards(sessionId: string): Promise<SessionCard[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.from("session_cards_view").select("*")
+  const { data, error } = await supabase.from("session_cards_view").select("*")
     .eq("session_id", sessionId).order("created_at", { ascending: true });
+  if (error) console.warn("[getCards] no se pudieron leer tarjetas de", sessionId, error.message);
   return (data ?? []).map((r: any) => ({
     id: r.id, columnKey: r.column_key, text: r.text, anonymous: r.anonymous,
     authorId: r.author_id ?? undefined, clusterId: r.cluster_id ?? undefined,
@@ -330,7 +331,8 @@ export async function getCardCounts(sessionId: string): Promise<Record<string, n
 // ── Agrupar (clusters / tensiones) ──
 export async function getClusters(sessionId: string): Promise<SessionCluster[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.from("session_clusters").select("id,name").eq("session_id", sessionId).order("created_at", { ascending: true });
+  const { data, error } = await supabase.from("session_clusters").select("id,name").eq("session_id", sessionId).order("created_at", { ascending: true });
+  if (error) console.warn("[getClusters] no se pudieron leer clusters de", sessionId, error.message);
   return (data ?? []).map((r: any) => ({ id: r.id, name: r.name }));
 }
 export async function createCluster(sessionId: string, name: string): Promise<string | null> {
@@ -354,7 +356,8 @@ export async function assignCardToCluster(cardId: string, clusterId: string | nu
 // ── Aportes genéricos de miembros (confirmaciones, ICE, etc.) ──
 export async function getInputs(sessionId: string): Promise<SessionInput[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.from("session_inputs_view").select("user_id,key,value,voter_key").eq("session_id", sessionId);
+  const { data, error } = await supabase.from("session_inputs_view").select("user_id,key,value,voter_key").eq("session_id", sessionId);
+  if (error) console.warn("[getInputs] no se pudieron leer aportes de", sessionId, error.message);
   return (data ?? []).map((r: any) => ({ userId: r.user_id, key: r.key, value: (r.value as Record<string, unknown>) ?? {}, voterKey: r.voter_key }));
 }
 export async function setMyInput(sessionId: string, key: string, value: Record<string, unknown>, isPrivate = false): Promise<void> {
