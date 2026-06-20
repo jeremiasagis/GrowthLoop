@@ -15,6 +15,7 @@ import { retroByKey } from "@/lib/retros";
 import { retroById } from "@/lib/retros/registry";
 import { WordCloud } from "@/components/WordCloud";
 import { RoomLiveFx } from "@/components/RoomLiveFx";
+import { SessionMusic } from "@/components/SessionMusic";
 import { TimelineBoard, TL_EMO, type TlEvent } from "@/components/TimelineBoard";
 import { CirclesDiagram, CIRCLE_META, type CircleKey } from "@/components/CirclesDiagram";
 import { CauseTree } from "@/components/CauseTree";
@@ -182,9 +183,12 @@ function Shell({ onExit, mood, children }: { onExit?: () => void; mood?: number 
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid var(--line)" }}>
         {onExit ? <button onClick={onExit} className="stage-hide" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600 }}><Icon name="X" size={18} /> Salir</button> : <span style={{ width: 60 }} />}
         <Logo />
-        <button onClick={toggleStage} title={stage ? "Salir de pantalla completa" : "Modo escenario (proyectar)"} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: stage ? "var(--green)" : "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600, minWidth: 60, justifyContent: "flex-end" }}>
-          <Icon name={stage ? "Minimize2" : "Maximize2"} size={17} /><span className="hide-sm">{stage ? "Salir" : "Escenario"}</span>
-        </button>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 16, justifyContent: "flex-end" }}>
+          <SessionMusic />
+          <button onClick={toggleStage} title={stage ? "Salir de pantalla completa" : "Modo escenario (proyectar)"} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: stage ? "var(--green)" : "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600, justifyContent: "flex-end" }}>
+            <Icon name={stage ? "Minimize2" : "Maximize2"} size={17} /><span className="hide-sm">{stage ? "Salir" : "Escenario"}</span>
+          </button>
+        </div>
       </header>
       <main style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "40px 20px 80px" }}>{children}</main>
       <RoomLiveFx />
