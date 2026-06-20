@@ -124,8 +124,14 @@ export interface SessionMemory {
  *  para mostrar siempre todo lo que produjo el equipo. */
 export async function loadSessionMemories(sessions: LiveSession[]): Promise<SessionMemory[]> {
   const out = await Promise.all(sessions.map(async (s) => {
-    const c = await getSessionContent(s.id);
-    const pulses = ["teamradar", "fwradar", "pulse"].includes(s.type) ? await getPulseResponses(s.id) : [];
+    // Resiliente: si falla el contenido o los pulsos de una sesión, devolvemos igual la
+    // memoria (con lo que haya) para no perder TODAS las demás por un solo error.
+    let c = { cards: [] as SessionCard[], clusters: [] as SessionCluster[], votes: [] as SessionVote[], inputs: [] as SessionInput[] };
+    let pulses: PulseResponse[] = [];
+    try { c = await getSessionContent(s.id); } catch { /* sin contenido */ }
+    if (["teamradar", "fwradar", "pulse"].includes(s.type)) {
+      try { pulses = await getPulseResponses(s.id); } catch { /* sin pulsos */ }
+    }
     return {
       id: s.id, type: s.type, date: (s.result.date as string) ?? "", retro: s.retro, createdAt: s.createdAt,
       result: s.result, cards: c.cards, clusters: c.clusters, votes: c.votes, inputs: c.inputs, pulses,

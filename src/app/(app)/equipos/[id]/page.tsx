@@ -19,7 +19,6 @@ import { createLiveSession, getOpenSessionForTeam, setResult, type LiveSession }
 import { JoinModal } from "@/components/session/JoinModal";
 import { SessionLauncher } from "@/components/SessionLauncher";
 import { retrosForStage, type RetroDefinition } from "@/lib/retros/registry";
-import { FodaGrid } from "@/components/FodaGrid";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
@@ -921,12 +920,6 @@ function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
         {filtered.length === 0 && <p className="muted" style={{ fontSize: "var(--t-sm)", gridColumn: "1/-1", padding: "20px 0", textAlign: "center" }}>No hay retros con ese filtro.</p>}
       </div>
 
-      {team.data?.foda && (
-        <Card pad={20}>
-          <SectionTitle icon="Grid2x2" sub={team.data.foda.date ? `Hecho el ${team.data.foda.date}` : "El diagnóstico FODA del equipo"}>FODA del equipo</SectionTitle>
-          <FodaGrid team={team} />
-        </Card>
-      )}
     </div>
   );
 }

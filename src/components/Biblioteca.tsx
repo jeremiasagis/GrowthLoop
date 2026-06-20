@@ -7,11 +7,13 @@ import { getInitiatives, getOrg } from "@/lib/repository";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 import { MemoryCard } from "@/components/RetroResult";
+import { FodaGrid } from "@/components/FodaGrid";
 import { getClosedTeamSessions, loadSessionMemories, type SessionMemory } from "@/lib/session";
 import { FOUNDING_QUESTIONS, LEARNING_TYPES, planLimits, type Initiative, type LearningEntry, type Team } from "@/lib/data";
 
-// Retros de diagnóstico/sueltas cuyo contenido reconstruimos como "memoria viva".
-const EXPLORE_TYPES = ["explore", "foda", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "sailboat", "circles", "relationships", "expclose"];
+// Retros/sesiones sueltas cuyo contenido reconstruimos como "memoria viva".
+// (Las sesiones de las etapas del loop ya viven como aprendizajes/apuestas/causas.)
+const EXPLORE_TYPES = ["explore", "foda", "madsadglad", "oneword", "timeline", "balloon", "teamradar", "fwradar", "pulse", "sailboat", "circles", "relationships", "expclose"];
 
 const RESULT_META: Record<string, { l: string; c: string; i: string }> = {
   yes: { l: "Funcionó", c: "var(--success)", i: "CircleCheck" },
@@ -117,7 +119,8 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
     .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
   const transferables = library.filter((e) => e.transferable);
   const libInits = [...new Map(library.filter((e) => e.initiativeId).map((e) => [e.initiativeId, e.initiativeTitle ?? e.initiativeId])).entries()];
-  const empty = !learnings.length && !bets.length && !rootCauses.length && !contract && !library.length && !memories.length;
+  const foda = team.data?.foda;
+  const empty = !learnings.length && !bets.length && !rootCauses.length && !contract && !library.length && !memories.length && !foda;
   const matchMem = memories.filter((m) => !term || (m.retro ?? "").toLowerCase().includes(term));
 
   const InitLink = ({ init }: { init: Initiative }) => onOpenInitiative
@@ -279,10 +282,17 @@ export function BibliotecaContent({ team, onOpenInitiative }: { team: Team; onOp
 
         {memories.length > 0 && (
           <Card pad={20}>
-            <SectionTitle icon="History" sub="Radares, líneas de tiempo y demás retros de diagnóstico que hizo el equipo">Retros del equipo ({memories.length})</SectionTitle>
+            <SectionTitle icon="History" sub="Radares, pulsos, líneas de tiempo y demás sesiones que hizo el equipo">Retros y sesiones del equipo ({memories.length})</SectionTitle>
             {matchMem.length
-              ? <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>{matchMem.map((m) => <MemoryCard key={m.id} mem={m} defaultOpen={false} />)}</div>
+              ? <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}><Paged items={matchMem} render={(m) => <MemoryCard key={m.id} mem={m} defaultOpen={false} />} /></div>
               : <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 8, fontStyle: "italic" }}>Sin retros que coincidan.</p>}
+          </Card>
+        )}
+
+        {foda && (
+          <Card pad={20}>
+            <SectionTitle icon="Grid2x2" sub={foda.date ? `Hecho el ${foda.date}` : "El diagnóstico FODA del equipo"}>FODA del equipo</SectionTitle>
+            <FodaGrid team={team} />
           </Card>
         )}
       </div>
