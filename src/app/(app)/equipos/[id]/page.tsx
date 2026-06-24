@@ -25,6 +25,7 @@ import { TeamCommitments } from "@/components/TeamCommitments";
 import { MaturityPanel } from "@/components/MaturityPanel";
 import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
+import { LOOP_PLAYBOOKS, playbookByKey } from "@/lib/playbooks";
 
 function SessionsLog({ team }: { team: Team }) {
   const [n, setN] = useState(8);
@@ -259,13 +260,6 @@ function ContractModal({ team, onClose }: { team: Team; onClose: () => void }) {
 }
 
 /** Recetas de loop: plantillas pre-armadas para problemas típicos (sin IA, todos los planes). */
-const LOOP_RECIPES: { name: string; icon: string; title: string; objective: string; causes: string[]; bet: { if: string; then: string; signal: string } }[] = [
-  { name: "Entregas tardías", icon: "Clock", title: "Reducir entregas tardías", objective: "Bajar el % de entregas fuera de plazo este trimestre.", causes: ["Priorización poco clara", "Dependencias externas", "Estimaciones optimistas", "Interrupciones frecuentes"], bet: { if: "protegemos 2 horas de foco por día sin reuniones", then: "menos entregas se atrasan", signal: "% de entregas a tiempo" } },
-  { name: "Comunicación interna", icon: "MessagesSquare", title: "Mejorar la comunicación del equipo", objective: "Que la información clave llegue clara y a tiempo a todos.", causes: ["Demasiados canales", "Reuniones poco efectivas", "Falta de comunicación asincrónica", "Decisiones sin documentar"], bet: { if: "documentamos cada decisión en un solo lugar", then: "bajan los malentendidos y las repreguntas", signal: "repreguntas por semana" } },
-  { name: "Onboarding", icon: "UserPlus", title: "Onboarding más rápido", objective: "Que una persona nueva sea productiva en menos tiempo.", causes: ["Documentación desactualizada", "Falta de mentoría", "Accesos lentos", "Sin plan de primeros días"], bet: { if: "armamos un checklist de los primeros 7 días con mentor asignado", then: "el nuevo arranca antes", signal: "días hasta el primer aporte real" } },
-  { name: "Retrabajo / calidad", icon: "RefreshCw", title: "Reducir el retrabajo", objective: "Bajar las veces que algo vuelve para rehacerse.", causes: ["Requisitos ambiguos", "Revisión tardía", "Definición de 'listo' poco clara", "Sin criterios de aceptación"], bet: { if: "acordamos una definición de 'listo' y la chequeamos antes de cerrar", then: "menos cosas vuelven", signal: "% de tareas reabiertas" } },
-];
-
 function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string; editing?: Initiative; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(editing?.title ?? "");
   const [desc, setDesc] = useState(editing?.description ?? "");
@@ -276,6 +270,12 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
   const [problem, setProblem] = useState("");
   const [norteBusy, setNorteBusy] = useState(false);
   const [seed, setSeed] = useState<{ causes: string[]; bet: { if: string; then: string; signal: string } } | null>(null);
+  const [pbKey, setPbKey] = useState<string | null>(null);
+  const pickPlaybook = (key: string) => {
+    const pb = playbookByKey(key);
+    if (!pb) return;
+    setPbKey(key); setTitle(pb.title); setDesc(pb.objective); setSeed(pb.seed); setError(null);
+  };
 
   const askNorte = async () => {
     const p = problem.trim();
@@ -296,9 +296,16 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
   const save = async () => {
     if (!valid || busy) return;
     setBusy(true);
+    const pb = playbookByKey(pbKey ?? undefined);
+    const data = (seed || pb)
+      ? {
+          ...(seed ? { seed } : {}),
+          ...(pb ? { playbook: pb.key, path: pb.path, proof: { signalMetric: pb.signal.metric } } : {}),
+        }
+      : undefined;
     const res = editing
       ? await updateInitiative(editing.id, { title, description: desc })
-      : await createInitiative({ teamId, title, description: desc, data: seed ? { seed } : undefined });
+      : await createInitiative({ teamId, title, description: desc, data });
     setBusy(false);
     if (res.error) setError(res.error);
     else { onSaved(); onClose(); }
@@ -333,15 +340,24 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
           )}
           {!editing && (
             <div>
-              <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>O empezá con una receta</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                {LOOP_RECIPES.map((rec) => (
-                  <button key={rec.name} onClick={() => { setTitle(rec.title); setDesc(rec.objective); setSeed({ causes: rec.causes, bet: rec.bet }); }}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--card)", fontSize: "var(--t-xs)", fontWeight: 600, color: "var(--ink-1)" }}>
-                    <Icon name={rec.icon} size={13} style={{ color: "var(--ink-2)" }} /> {rec.name}
-                  </button>
-                ))}
+              <label className="eyebrow" style={{ display: "block", marginBottom: 7 }}>O elegí tu objetivo · ¿qué le pasa al equipo?</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {LOOP_PLAYBOOKS.map((pb) => {
+                  const on = pbKey === pb.key;
+                  return (
+                    <button key={pb.key} onClick={() => pickPlaybook(pb.key)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: "var(--r-md)", textAlign: "left", border: `1px solid ${on ? "var(--green)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--green) 10%, var(--card))" : "var(--card)" }}>
+                      <span style={{ width: 30, height: 30, borderRadius: "var(--r-md)", background: "var(--card-2)", color: on ? "var(--green)" : "var(--ink-2)", display: "grid", placeItems: "center", flex: "none" }}><Icon name={pb.icon} size={16} /></span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{pb.name}</div>
+                        <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{pb.symptom}</div>
+                      </div>
+                      {on && <Icon name="Check" size={15} style={{ color: "var(--green)", flex: "none" }} />}
+                    </button>
+                  );
+                })}
               </div>
+              {pbKey && <div style={{ marginTop: 8, fontSize: "var(--t-xs)", color: "var(--green)", display: "flex", alignItems: "center", gap: 5 }}><Icon name="Sparkles" size={12} /> El loop nace con el camino de retros y la señal ya puestos.</div>}
             </div>
           )}
           <div>

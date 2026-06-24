@@ -763,7 +763,9 @@ export default function InitiativeDetailPage() {
                 {current && (() => {
                   const retros = retrosForStage(st).filter((r) => r.implemented);
                   if (!retros.length) return null;
-                  const canon = retros.find((r) => r.id === CANONICAL_RETRO[st]) ?? retros[0];
+                  // Si el loop nació de un playbook, la primaria es la retro del camino para esta etapa.
+                  const pathRetroId = init.data?.path?.find((p) => p.stage === st)?.retroId;
+                  const canon = retros.find((r) => r.id === pathRetroId) ?? retros.find((r) => r.id === CANONICAL_RETRO[st]) ?? retros[0];
                   const others = retros.filter((r) => r.id !== canon.id);
                   const canEdit = isFacil && !done;
                   const retroBtn = (r: RetroDefinition, primary = false) => (

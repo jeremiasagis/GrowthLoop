@@ -170,6 +170,10 @@ export interface InitiativeData {
     processAdjustments?: string[]; desires?: string[]; commitments?: string[]; letterDate?: string;
     pauseReviewAt?: string; closeWords?: string[]; };
   consolidate?: { outcome?: string; note?: string; date?: string; startedAt?: string; due?: string; pending?: boolean };
+  // Punto de partida (Norte / playbook) y el camino sugerido de retros por etapa.
+  seed?: { causes?: string[]; bet?: { if?: string; then?: string; signal?: string } };
+  playbook?: string;
+  path?: { stage: string; retroId: string }[];
 }
 
 /** Objetivo del equipo (puede haber varios; cada uno agrupa iniciativas). */
