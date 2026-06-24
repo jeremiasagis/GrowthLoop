@@ -13,6 +13,7 @@ import { Icon } from "@/components/icon";
 import { Card, EmptyState, Pill, StageBadge } from "@/components/ui";
 import { getInitiatives, getTeams } from "@/lib/repository";
 import { loopIsClosed, loopSignalMoved, loopThread } from "@/lib/loop";
+import { OpenSessionsBanner } from "@/components/OpenSessionsBanner";
 import { normalizeStage, type Initiative, type Team } from "@/lib/data";
 
 type Row = { i: Initiative; team: Team };
@@ -41,6 +42,8 @@ export default function MisLoopsPage() {
         <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Mis loops</h1>
         <p className="muted" style={{ marginTop: 4 }}>Todas las mejoras en curso de tus equipos, en un solo lugar.</p>
       </div>
+
+      <OpenSessionsBanner />
 
       {/* Métrica norte del producto (WS10) */}
       <Card pad={20} style={{ marginBottom: 18, border: "1px solid color-mix(in srgb, var(--green) 28%, var(--line))", background: "color-mix(in srgb, var(--green) 5%, var(--card))" }}>

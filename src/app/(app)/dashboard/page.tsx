@@ -9,6 +9,7 @@ import {
 import { STAGES, overallOf, teamLiveStage, to5, type Team } from "@/lib/data";
 import { getFacilitators, getTeams } from "@/lib/repository";
 import { teamProgress } from "@/lib/gamification";
+import { OpenSessionsBanner } from "@/components/OpenSessionsBanner";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ── Onboarding del facilitador: primeros pasos guiados ─────── */
@@ -238,6 +239,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* sesión abierta ahora (lo valioso del viejo "Sesiones") */}
+      {isFacil && <OpenSessionsBanner />}
 
       {/* onboarding del coach */}
       {isFacil && <CoachOnboarding teams={teams} go={go} />}
