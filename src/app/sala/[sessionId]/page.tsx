@@ -30,7 +30,7 @@ import { OneWordClosing } from "@/components/OneWordClosing";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { KudosCard, KUDO_EMOJIS } from "@/components/KudosCard";
 import { useToast } from "@/components/Toast";
-import { PULSE_DIMS, FOUNDING_QUESTIONS, LEARNING_TYPES, overallOf, planLimits, to5, to100, type LearningEntry } from "@/lib/data";
+import { PULSE_DIMS, FOUNDING_QUESTIONS, LEARNING_TYPES, overallOf, planLimits, teamPulseDims, to5, to100, type LearningEntry } from "@/lib/data";
 import {
   addCard, addVote, assignCardToCluster, averagePulse, closeSession, createCluster, createLiveSession, deleteCard, deleteCluster, pulseOverall,
   finalizeSession, getCardCounts, getCards, getClusters, getInitiativeSessions, getInputs, getMyCards, getParticipants, getSessionContent,
@@ -404,6 +404,7 @@ export default function SalaPage() {
   );
 
   const team = getTeam(session.teamId);
+  const teamDims = teamPulseDims(team); // dimensiones de pulso propias del equipo (o las de fábrica)
   // IA (Pro+): ¿la cuenta del equipo tiene IA habilitada?
   const aiEnabled = planLimits(team?.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
   // Borrador con IA: pide a Claude un texto sugerido (causa raíz, narrativa, etc.). Devuelve null si falla.
@@ -579,9 +580,9 @@ export default function SalaPage() {
   // El radar promedio del equipo + el detalle por dimensión (escala 1-5).
   const Averages = (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <PulseRadar values={avg} size={320} />
+      <PulseRadar values={avg} dims={teamDims} size={320} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "8px 18px" }}>
-        {PULSE_DIMS.map((d) => (
+        {teamDims.map((d) => (
           <div key={d.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <span style={{ fontSize: "var(--t-xs)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, flexShrink: 0 }} />{d.label}</span>
             <span className="num" style={{ fontWeight: 700, color: d.color }}>{avg[d.key] != null ? to5(avg[d.key]).toFixed(1) : "—"}</span>
@@ -742,7 +743,7 @@ export default function SalaPage() {
       ) : (
         <Card pad={24}>
           {submitted && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--green)", fontSize: "var(--t-sm)", fontWeight: 600, marginBottom: 14 }}><Icon name="Check" size={16} /> Tu pulso quedó guardado (anónimo).</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, opacity: submitted ? 0.85 : 1 }}>{PULSE_DIMS.map((d) => (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, opacity: submitted ? 0.85 : 1 }}>{teamDims.map((d) => (
             <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ flex: 1, minWidth: 150, fontSize: "var(--t-sm)", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: d.color, flexShrink: 0 }} />{d.label}</span>
               <div style={{ display: "flex", gap: 6 }}>
@@ -765,7 +766,7 @@ export default function SalaPage() {
         ? <Button full size="lg" icon="Eye" disabled={busy || responses.length === 0} onClick={toReveal}>Revelar radar del equipo ({responses.length})</Button>
         : submitted
           ? <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Esperá a que el facilitador revele el radar del equipo.</p>
-          : <Button full size="lg" icon="Send" disabled={busy} onClick={async () => { setBusy(true); const res = await submitPulse(sessionId, Object.fromEntries(PULSE_DIMS.map((d) => [d.key, to100(draft[d.key] ?? 3)]))); setBusy(false); if (!res.error) setSubmitted(true); }}>{busy ? "Enviando…" : "Enviar mi pulso"}</Button>;
+          : <Button full size="lg" icon="Send" disabled={busy} onClick={async () => { setBusy(true); const res = await submitPulse(sessionId, Object.fromEntries(teamDims.map((d) => [d.key, to100(draft[d.key] ?? 3)]))); setBusy(false); if (!res.error) setSubmitted(true); }}>{busy ? "Enviando…" : "Enviar mi pulso"}</Button>;
     } else {
       sub = "El pulso del equipo, revelado para todos.";
       content = <Card pad={24}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}><span style={{ fontWeight: 700 }}>El radar del equipo</span><Pill color="var(--success)" bg="var(--success-bg)" icon="Eye">{to5(overall).toFixed(1)}/5</Pill></div>{Averages}</Card>;
@@ -1266,7 +1267,7 @@ export default function SalaPage() {
   // ════════ RADAR DEL EQUIPO · dimensiones editables, 1-5 anónimo ════════
   if (session.type === "teamradar") {
     const CPAL = ["#00E87A", "#3B82F6", "#7C3AED", "#06B6D4", "#F59E0B", "#EF4444", "#EC4899", "#A3E635", "#14B8A6", "#F97316"];
-    const defDims = PULSE_DIMS.map((d) => ({ key: d.key, label: d.label }));
+    const defDims = teamDims.map((d) => ({ key: d.key, label: d.label }));
     const trDims = ((session.result.trDims as { key: string; label: string }[]) ?? defDims);
     const radarDims = trDims.map((d, i) => ({ key: d.key, label: d.label, color: CPAL[i % CPAL.length] }));
     const trAvg = averagePulse(responses);

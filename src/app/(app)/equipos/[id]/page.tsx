@@ -9,9 +9,9 @@ import {
 } from "@/components/ui";
 import {
   createInitiative, createObjective, deleteTeam, getFacilitators, getInitiatives, getOrg, getTeam, inviteMember,
-  markCelebrated, removeTeamMember, setInitiativeObjective, setInitiativeStage, setInitiativeStatus, setObjectiveStatus, setTeamCadence, setTeamObjective, updateInitiative,
+  markCelebrated, mergeTeamData, removeTeamMember, setInitiativeObjective, setInitiativeStage, setInitiativeStatus, setObjectiveStatus, setTeamCadence, setTeamObjective, updateInitiative,
 } from "@/lib/repository";
-import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, planLimits, teamLiveStage, to5, type Initiative, type StageKey, type Team, type TeamObjective } from "@/lib/data";
+import { CYCLE_STAGES, FOUNDING_QUESTIONS, PULSE_DIMS, STAGES, dimVal, planLimits, teamLiveStage, teamPulseDims, to5, type Initiative, type PulseDim, type StageKey, type Team, type TeamObjective } from "@/lib/data";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
@@ -101,6 +101,21 @@ function PulseDetail({ team, isFacil }: { team: Team; isFacil: boolean }) {
   const [pulsing, setPulsing] = useState(false);
   const [openPulse, setOpenPulse] = useState<LiveSession | null>(null);
   const [shareSession, setShareSession] = useState<LiveSession | null>(null);
+  // Editor "¿Qué medimos?": dimensiones propias del pulso del equipo.
+  const PULSE_PALETTE = ["#00E87A", "#3B82F6", "#7C3AED", "#06B6D4", "#F59E0B", "#EF4444", "#EC4899", "#A3E635", "#14B8A6", "#F97316"];
+  const [dims, setDims] = useState<PulseDim[]>(() => teamPulseDims(team).map((d) => ({ ...d })));
+  const [baseline, setBaseline] = useState<PulseDim[]>(() => teamPulseDims(team).map((d) => ({ ...d })));
+  const [dimsOpen, setDimsOpen] = useState(false);
+  const [savingDims, setSavingDims] = useState(false);
+  const dimsDirty = JSON.stringify(dims) !== JSON.stringify(baseline);
+  const saveDims = async () => {
+    setSavingDims(true);
+    const res = await mergeTeamData(team.id, { pulseDims: dims });
+    setSavingDims(false);
+    if (res?.error) { show("No se pudo guardar.", "TriangleAlert"); return; }
+    setBaseline(dims.map((d) => ({ ...d })));
+    show("Listo: el equipo ahora mide eso.", "Check");
+  };
   // Detectar si hay un pulso abierto (en vivo o async) para este equipo.
   useEffect(() => {
     let active = true;
@@ -158,11 +173,44 @@ function PulseDetail({ team, isFacil }: { team: Team; isFacil: boolean }) {
     </Card>
   ) : null;
   const ShareModal = shareSession ? <JoinModal url={shareUrl(shareSession)} code={shareSession.joinCode} onClose={() => setShareSession(null)} /> : null;
+  const DimsEditor = isFacil ? (
+    <Card pad={16}>
+      <button onClick={() => setDimsOpen((o) => !o)} style={{ display: "flex", width: "100%", alignItems: "center", gap: 8, textAlign: "left" }}>
+        <Icon name="SlidersHorizontal" size={15} style={{ color: "var(--ink-2)", flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>¿Qué medimos?</div>
+          <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Adaptá las dimensiones del pulso a lo que tu equipo necesita medir ({dims.length}).</div>
+        </div>
+        <Icon name={dimsOpen ? "ChevronUp" : "ChevronDown"} size={16} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+      </button>
+      {dimsOpen && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {dims.map((d) => (
+              <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                <input value={d.label} onChange={(e) => setDims(dims.map((x) => x.key === d.key ? { ...x, label: e.target.value } : x))} style={{ flex: 1, minWidth: 0, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-0)", padding: "8px 10px", fontSize: "var(--t-sm)", outline: "none" }} />
+                <button disabled={dims.length <= 3} onClick={() => setDims(dims.filter((x) => x.key !== d.key))} title={dims.length <= 3 ? "Mínimo 3" : "Quitar"} style={{ color: dims.length <= 3 ? "var(--ink-3)" : "var(--risk)", padding: 4 }}><Icon name="Trash2" size={15} /></button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
+            {dims.length < 10 && <Button size="sm" variant="secondary" icon="Plus" onClick={() => setDims([...dims, { key: `x${Date.now().toString(36)}`, label: `Dimensión ${dims.length + 1}`, color: PULSE_PALETTE[dims.length % PULSE_PALETTE.length] }])}>Agregar</Button>}
+            <button onClick={() => setDims(PULSE_DIMS.map((d) => ({ ...d })))} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>Restaurar las de fábrica</button>
+            <span style={{ flex: 1 }} />
+            {dimsDirty && <Button size="sm" icon={savingDims ? "Loader" : "Check"} disabled={savingDims} onClick={saveDims}>Guardar</Button>}
+          </div>
+          <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10 }}>Si cambiás las dimensiones, las mediciones nuevas usan el set nuevo; las anteriores conservan el suyo y no son 100% comparables.</p>
+        </div>
+      )}
+    </Card>
+  ) : null;
   if (team.pulse.length === 0) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {PulseHeader}
         {OpenPulseBanner}
+        {DimsEditor}
         <HealthCard team={team} />
         <Card pad={0}>
           <EmptyState icon="Activity" title="Sin datos de pulso todavía"
@@ -180,17 +228,18 @@ function PulseDetail({ team, isFacil }: { team: Team; isFacil: boolean }) {
       {PulseHeader}
       {OpenPulseBanner}
       {ShareModal}
+      {DimsEditor}
       <HealthCard team={team} />
       <Card pad={20}>
         <SectionTitle icon="Radar" sub="El radar promedio de la última medición (escala 1-5)">Radar del equipo</SectionTitle>
-        <div style={{ maxWidth: 460, margin: "0 auto" }}><PulseRadar values={last.dims ?? {}} size={380} /></div>
+        <div style={{ maxWidth: 460, margin: "0 auto" }}><PulseRadar values={last.dims ?? {}} dims={teamPulseDims(team)} size={380} /></div>
       </Card>
       <Card pad={20}>
         <SectionTitle icon="Activity" sub="Promedio general a lo largo de las sesiones">Evolución del pulso</SectionTitle>
         <PulseTrend data={team.pulse} height={220} />
       </Card>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 14 }}>
-        {PULSE_DIMS.map((d) => {
+        {teamPulseDims(team).map((d) => {
           const lastV = dimVal(last, d.key), firstV = dimVal(first, d.key);
           if (lastV == null) return null;
           const delta = firstV != null ? to5(lastV) - to5(firstV) : 0;

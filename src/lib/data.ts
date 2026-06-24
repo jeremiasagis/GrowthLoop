@@ -94,6 +94,12 @@ export const PULSE_DIMS: PulseDim[] = [
   { key: "decisiones",     label: "Toma de decisiones",       color: "#EC4899" },
   { key: "reconocimiento", label: "Reconocimiento",           color: "#A3E635" },
 ];
+/** Las dimensiones de pulso de un equipo: su config propia o las de fábrica.
+ *  Cada org/equipo puede medir lo que quiera (PLAN: pulso adaptable). */
+export function teamPulseDims(team: { data?: { pulseDims?: PulseDim[] } } | null | undefined): PulseDim[] {
+  const d = team?.data?.pulseDims;
+  return d && d.length >= 3 ? d : PULSE_DIMS;
+}
 // Conversión entre la escala interna (0-100) y la que ve la gente (1-5).
 export const to5 = (v: number) => 1 + (v / 100) * 4;
 export const to100 = (v5: number) => Math.round(((v5 - 1) / 4) * 100);
@@ -232,6 +238,7 @@ export interface TeamData {
   explorationClosedAt?: string; // ISO; cuándo se cerró el módulo de Exploración
   celebrated?: { level: number; cycles: number }; // hasta dónde ya festejamos (evita repetir confetti)
   library?: LearningEntry[]; // Biblioteca de aprendizajes del equipo (todos los ciclos)
+  pulseDims?: PulseDim[];    // qué mide el pulso de ESTE equipo (config propia; default PULSE_DIMS)
 }
 
 /** Un aprendizaje guardado en la Biblioteca del equipo. */

@@ -175,7 +175,7 @@ export async function setOrgPlan(id: string, plan: "starter" | "pro" | "business
 }
 
 /** Mergea datos a nivel equipo (teams.data jsonb) sin pisar lo demás. */
-async function mergeTeamData(teamId: string, patch: Record<string, unknown>): Promise<{ error?: string }> {
+export async function mergeTeamData(teamId: string, patch: Record<string, unknown>): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { data: row } = await supabase.from("teams").select("data").eq("id", teamId).maybeSingle();
   const prev = (row?.data as Record<string, unknown>) ?? {};
