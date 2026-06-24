@@ -1127,16 +1127,18 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
 
         {isFacil && asyncSession && (() => {
           const until = (asyncSession.result as { asyncUntil?: string }).asyncUntil;
-          const days = until ? Math.max(0, Math.ceil((new Date(until).getTime() - Date.now()) / 86400000)) : null;
+          const overdue = !!until && new Date(until).getTime() < Date.now();
+          const days = until && !overdue ? Math.max(0, Math.ceil((new Date(until).getTime() - Date.now()) / 86400000)) : null;
+          const col = overdue ? "var(--warning)" : "var(--info)";
           return (
-            <Card pad={14} style={{ border: "1px solid color-mix(in srgb, var(--info) 40%, var(--line))", background: "color-mix(in srgb, var(--info) 7%, var(--card))" }}>
+            <Card pad={14} style={{ border: `1px solid color-mix(in srgb, ${col} 40%, var(--line))`, background: `color-mix(in srgb, ${col} 7%, var(--card))` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--info) 16%, transparent)", color: "var(--info)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Clock" size={16} /></span>
+                <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: `color-mix(in srgb, ${col} 16%, transparent)`, color: col, display: "grid", placeItems: "center", flex: "none" }}><Icon name={overdue ? "AlarmClock" : "Clock"} size={16} /></span>
                 <div style={{ flex: 1, minWidth: 160 }}>
-                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>Aporte asincrónico abierto</div>
-                  <div className="muted" style={{ fontSize: "var(--t-xs)" }}>El equipo está sumando su mirada{days != null ? ` · cierra en ${days} ${days === 1 ? "día" : "días"}` : ""}. Cuando estén las respuestas, abrí la sala y cerrá.</div>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{overdue ? "El aporte async venció" : "Aporte asincrónico abierto"}</div>
+                  <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{overdue ? "Abrí la sala y cerralo para guardar lo que entró." : `El equipo está sumando su mirada${days != null ? ` · cierra en ${days} ${days === 1 ? "día" : "días"}` : ""}. Cuando estén las respuestas, abrí la sala y cerrá.`}</div>
                 </div>
-                <Button size="sm" variant="secondary" icon="Eye" onClick={() => router.push(`/sala/${asyncSession.id}`)}>Ir a la sala</Button>
+                <Button size="sm" variant={overdue ? "primary" : "secondary"} icon="Eye" onClick={() => router.push(`/sala/${asyncSession.id}`)}>{overdue ? "Cerrar" : "Ir a la sala"}</Button>
               </div>
             </Card>
           );

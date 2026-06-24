@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { createInitiative, getInitiatives, getTeam, getOrg } from "@/lib/repository";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { retroByKey } from "@/lib/retros";
-import { retroById } from "@/lib/retros/registry";
+import { retroById, canonicalRetro, phaseSplit } from "@/lib/retros/registry";
 import { WordCloud } from "@/components/WordCloud";
 import { RoomLiveFx } from "@/components/RoomLiveFx";
 import { SessionMusic } from "@/components/SessionMusic";
@@ -507,16 +507,29 @@ export default function SalaPage() {
           router.replace(`/sala/${res.session.id}`);
         }
       };
+      // ¿Cómo seguimos? Si la próxima retro tiene partes async-ables, ofrecemos
+      // mandarla async (cada uno aporta cuando puede) en vez de juntarse otra vez.
+      const stageOfType: Record<string, string> = { focus: "focus", proof: "ideation", learn: "learn" };
+      const nextCanon = canonicalRetro(stageOfType[afterClose] ?? afterClose);
+      const nextAsyncOk = !!nextCanon?.asyncAvailable && phaseSplit(nextCanon).asyncPhases.length > 0;
+      const sendAsyncNext = async () => {
+        if (!nextCanon) return;
+        const until = new Date(Date.now() + 7 * 86400000).toISOString();
+        const res = await createLiveSession({ teamId: session.teamId, initiativeId: session.initiativeId, type: nextCanon.sessionType, retro: nextCanon.id, firstStep: nextCanon.entryStep, async: true, asyncUntil: until });
+        if (res.session) { movedRef.current = true; leave(); }
+      };
       return (
         <Shell mood={teamMood}>
           <Card pad={28} style={{ textAlign: "center", maxWidth: 460 }}>
             <div style={{ width: 56, height: 56, borderRadius: "var(--r-lg)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center", margin: "0 auto 14px", animation: "pop-in .35s var(--spring)" }}><Icon name="Check" size={28} /></div>
             <h2 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>Etapa cerrada y guardada</h2>
-            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6, marginBottom: 20 }}>¿Siguen ahora con <b style={{ color: "var(--ink-0)" }}>{nextLabel[afterClose]}</b>? El equipo pasa automáticamente, sin volver a entrar.</p>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 6, marginBottom: 20 }}>¿Cómo siguen con <b style={{ color: "var(--ink-0)" }}>{nextLabel[afterClose]}</b>?</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <Button full size="lg" iconRight="ArrowRight" onClick={continueNow}>Continuar a {nextLabel[afterClose]} ahora</Button>
+              <Button full size="lg" iconRight="ArrowRight" onClick={continueNow}>Seguir en vivo ahora</Button>
+              {nextAsyncOk && <Button full variant="secondary" icon="Clock" onClick={sendAsyncNext}>Mandarlo async · cada uno aporta cuando puede</Button>}
               <Button full variant="secondary" icon="ArrowLeft" onClick={leave}>Terminar por hoy</Button>
             </div>
+            {nextAsyncOk && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 10 }}>Async: el equipo suma su parte sin reunirse; después abrís la sala y cerrás.</p>}
           </Card>
         </Shell>
       );
