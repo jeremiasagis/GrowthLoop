@@ -10,7 +10,7 @@
 
 import { overallOf, type Team } from "./data";
 import { getInitiatives } from "./repository";
-import { parseSignal } from "./loop";
+import { betQuality, parseSignal } from "./loop";
 
 export interface NorteSuggestion {
   key: string;
@@ -54,6 +54,21 @@ export function norteSuggestions(team: Team, now = Date.now()): NorteSuggestion[
       text: "El equipo tiene actividad pero ningún loop abierto. Arrancá uno para convertir lo que ven en una mejora medible.",
       cta: "Crear loop", tab: "seguimiento",
     });
+  }
+
+  // 2b) Apuesta sin señal/meta/plazo: no se va a poder medir si funcionó (B1).
+  for (const i of active) {
+    const hasBet = !!(i.data?.proof?.betThen || i.data?.proof?.bets?.[0]?.betThen);
+    if (!hasBet) continue;
+    const q = betQuality(i);
+    if (!q.ok) {
+      out.push({
+        key: `betq-${i.id}`, icon: "Target", color: "var(--st-proof)",
+        title: `"${i.title}": la apuesta no es medible`,
+        text: `Falta ${q.missing.join(", ")}. Sin eso no vas a poder saber si la mejora funcionó. Completala en el loop.`,
+        cta: "Ver loop", initId: i.id,
+      });
+    }
   }
 
   // 3) Una señal que no se mueve (varias mediciones sin cambio).

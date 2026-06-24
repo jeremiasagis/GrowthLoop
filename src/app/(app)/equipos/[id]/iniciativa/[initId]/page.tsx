@@ -21,6 +21,7 @@ import { SignalSource } from "@/components/SignalSource";
 import { CycleTimeline } from "@/components/CycleTimeline";
 import { LoopRing } from "@/components/LoopRing";
 import { LoopExpediente } from "@/components/LoopExpediente";
+import { loopRecommendation } from "@/lib/loop";
 import { playbookByKey } from "@/lib/playbooks";
 import { WordCloud } from "@/components/WordCloud";
 import { retrosForStage, stageOfSessionType, CANONICAL_RETRO, type RetroDefinition } from "@/lib/retros/registry";
@@ -719,6 +720,26 @@ export default function InitiativeDetailPage() {
               </div>
               {log.length > 1 && <div style={{ flex: 1, minWidth: 180 }}><SignalProgressChart log={log} target={pf?.signalTarget} height={54} /></div>}
               {dleft != null && dleft >= 0 && <Pill color="var(--warning)" bg="var(--warning-bg)" icon="Clock">{dleft === 0 ? "vence hoy" : `faltan ${dleft}d para el check`}</Pill>}
+            </div>
+          </Card>
+        );
+      })()}
+
+      {/* Decisión adaptativa: Norte lee cómo se movió la señal y sugiere el próximo paso (B2). */}
+      {(() => {
+        const rec = loopRecommendation(init);
+        if (!rec) return null;
+        const col = rec.kind === "implement" ? "var(--success)" : rec.kind === "iterate" ? "var(--warning)" : "var(--st-proof)";
+        const icon = rec.kind === "implement" ? "Trophy" : rec.kind === "iterate" ? "GitFork" : "TrendingUp";
+        return (
+          <Card pad={16} style={{ marginBottom: 22, border: `1px solid color-mix(in srgb, ${col} 32%, var(--line))`, background: `color-mix(in srgb, ${col} 6%, var(--card))` }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: `color-mix(in srgb, ${col} 16%, transparent)`, color: col, display: "grid", placeItems: "center", flex: "none" }}><Icon name={icon} size={16} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="eyebrow" style={{ color: col, marginBottom: 2, display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="Compass" size={11} /> Norte sugiere</div>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{rec.title}</div>
+                <div className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.5, marginTop: 2 }}>{rec.text}</div>
+              </div>
             </div>
           </Card>
         );

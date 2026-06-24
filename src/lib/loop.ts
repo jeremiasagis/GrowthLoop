@@ -95,3 +95,35 @@ export function loopSignalMoved(init: Initiative): boolean {
   const s = loopThread(init).signal;
   return s?.delta != null && s.delta !== 0;
 }
+
+/** ¿La apuesta es medible? (tiene señal + meta + plazo). Para el nudge de calidad (B1). */
+export function betQuality(init: Initiative): { ok: boolean; missing: string[] } {
+  const p = init.data?.proof ?? {};
+  const bet0 = p.bets?.[0];
+  const has = (v?: string) => !!(v && `${v}`.trim());
+  const missing: string[] = [];
+  if (!has(p.signalMetric ?? bet0?.signalMetric)) missing.push("señal");
+  if (!has(p.signalTarget ?? bet0?.signalTarget)) missing.push("meta");
+  if (!has(p.deadline ?? bet0?.deadline)) missing.push("plazo");
+  return { ok: missing.length === 0, missing };
+}
+
+/** Recomendación adaptativa según cómo se movió la señal (B2). Heurística, no prescriptiva. */
+export function loopRecommendation(init: Initiative): { kind: "iterate" | "keep" | "implement"; title: string; text: string } | null {
+  const s = loopThread(init).signal;
+  const log = init.data?.follow?.signalLog ?? [];
+  if (!s || !s.now) return null;
+  const now = parseSignal(s.now);
+  const target = parseSignal(s.target);
+  // Sin movimiento tras varias mediciones → ajustar o pivotar.
+  if (log.length >= 2 && (s.delta == null || s.delta === 0)) {
+    return { kind: "iterate", title: "La señal no se mueve", text: "Varias mediciones sin cambio: quizá la apuesta no es la correcta. Considerá iterar (ajustarla) o pivotar (volver a la causa)." };
+  }
+  if (s.delta != null && s.delta !== 0) {
+    // Llegó a la meta (en la dirección en que se viene moviendo) → cerrar implementando.
+    const reached = target != null && now != null && ((s.delta > 0 && now >= target) || (s.delta < 0 && now <= target));
+    if (reached) return { kind: "implement", title: "¡Llegaste a la meta!", text: "La señal alcanzó el objetivo. Es momento de cerrar el loop e implementar el cambio para que se sostenga." };
+    return { kind: "keep", title: "La señal se está moviendo", text: "Vas en la dirección correcta. Seguí midiendo; cuando llegue a la meta, cerrá implementando." };
+  }
+  return null;
+}
