@@ -133,7 +133,7 @@ function OrgModal({ onClose, onSubmit, editing }: { onClose: () => void; onSubmi
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", maxHeight: "90vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
           <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--violet-soft)", color: "var(--violet)", display: "grid", placeItems: "center" }}><Icon name="Building2" size={20} /></div>
           <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>{editing ? "Editar organización" : "Nueva organización"}</h3>

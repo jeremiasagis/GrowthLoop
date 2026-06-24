@@ -363,7 +363,7 @@ function InitiativeModal({ teamId, editing, onClose, onSaved }: { teamId: string
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(480px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(480px,100%)", maxHeight: "90vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
           <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center" }}><Icon name="Target" size={20} /></div>
           <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>{editing ? "Editar loop" : "Crear loop"}</h3>
@@ -1299,7 +1299,7 @@ function InviteMemberModal({ team, onClose }: { team: Team; onClose: () => void 
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px,100%)", maxHeight: "90vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 26, animation: "pop-in .25s var(--spring)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
           <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--success-bg)", color: "var(--green)", display: "grid", placeItems: "center" }}><Icon name="UserPlus" size={20} /></div>
           <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 700 }}>Invitar integrante</h3>
