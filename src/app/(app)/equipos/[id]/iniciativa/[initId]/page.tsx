@@ -21,7 +21,7 @@ import { SignalSource } from "@/components/SignalSource";
 import { CycleTimeline } from "@/components/CycleTimeline";
 import { LoopRing } from "@/components/LoopRing";
 import { LoopExpediente } from "@/components/LoopExpediente";
-import { loopRecommendation, relatedLearnings } from "@/lib/loop";
+import { loopRecommendation, relatedLearnings, syncedSignalLog } from "@/lib/loop";
 import { playbookByKey } from "@/lib/playbooks";
 import { WordCloud } from "@/components/WordCloud";
 import { retrosForStage, stageOfSessionType, CANONICAL_RETRO, type RetroDefinition } from "@/lib/retros/registry";
@@ -392,6 +392,15 @@ export default function InitiativeDetailPage() {
   const init = getInitiatives(teamId).find((i) => i.id === params.initId);
   const isFacil = user?.role === "facilitator";
 
+  // Señal automática interna: si el loop tiene fuente (clima/compromisos),
+  // el facilitador la mantiene al día sola al abrir el loop (idempotente).
+  useEffect(() => {
+    if (!isFacil || !team || !init || !init.data?.follow?.signalSource) return;
+    const next = syncedSignalLog(team, init);
+    if (next) patchInitiativeData(init.id, "follow", { signalLog: next }).then(() => refresh());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.initId]);
+
   if (!team || !init) {
     return (
       <div className="screen-pad">
@@ -726,7 +735,7 @@ export default function InitiativeDetailPage() {
           <Card pad={18} style={{ marginBottom: 22 }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, justifyContent: "space-between", flexWrap: "wrap" }}>
               <SectionTitle icon="Activity" sub={pf?.signalMetric || "La métrica del experimento"}>La señal</SectionTitle>
-              {isFacil && <SignalSource init={init} onChanged={refresh} />}
+              {isFacil && <SignalSource init={init} team={team} onChanged={refresh} />}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 4 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

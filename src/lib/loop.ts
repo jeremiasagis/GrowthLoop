@@ -7,7 +7,8 @@
    una sola función pura), sin migración ni tocar finalizeSession.
    ============================================================ */
 
-import type { Initiative, InitiativeData } from "./data";
+import type { Initiative, InitiativeData, Team } from "./data";
+import { overallOf } from "./data";
 
 export interface LoopThread {
   symptom?: string;   // el problema/síntoma que dio origen al loop
@@ -99,6 +100,64 @@ export function relatedLearnings<T extends { text: string }>(library: T[], query
     .sort((a, b) => b.score - a.score)
     .slice(0, max)
     .map((x) => x.e);
+}
+
+/* ============================================================
+   Señal automática INTERNA: la señal del loop se alimenta sola
+   desde datos que la app ya tiene (clima del equipo, compromisos
+   cumplidos), sin fuente externa ni carga manual de números.
+   Todo termina en follow.signalLog —la única fuente de verdad—,
+   así que el resto (hilo, gráfico, recomendación) no se toca.
+   ============================================================ */
+
+export type InternalSource = "pulse" | "commitments";
+
+export const SIGNAL_SOURCE_LABEL: Record<InternalSource, string> = {
+  pulse: "Clima del equipo",
+  commitments: "Compromisos cumplidos",
+};
+
+export const SIGNAL_SOURCE_UNIT: Record<InternalSource, string> = {
+  pulse: "/100",
+  commitments: "% hechos",
+};
+
+/** Valor actual (0-100) de una fuente interna, o null si todavía no hay datos. */
+export function internalSignalNow(team: Team, init: Initiative, source: InternalSource): number | null {
+  if (source === "pulse") {
+    const p = team.pulse?.[team.pulse.length - 1];
+    return p ? overallOf(p) : null;
+  }
+  const acts = init.data?.follow?.actionStatus ?? [];
+  if (!acts.length) return null;
+  const done = acts.filter((a) => a.status === "done").length;
+  return Math.round((done / acts.length) * 100);
+}
+
+/** Serie histórica {date,value} de una fuente interna (solo el clima tiene historia). */
+export function internalSignalSeries(team: Team, source: InternalSource): { date: string; value: string }[] {
+  if (source === "pulse") {
+    return (team.pulse ?? []).filter((p) => p.date).map((p) => ({ date: p.date, value: `${overallOf(p)}` }));
+  }
+  return [];
+}
+
+/** signalLog re-sincronizado con la fuente interna, o null si no hay nada nuevo que agregar. */
+export function syncedSignalLog(team: Team, init: Initiative): { date: string; value: string }[] | null {
+  const src = init.data?.follow?.signalSource;
+  if (!src) return null;
+  const log = init.data?.follow?.signalLog ?? [];
+  const dates = new Set(log.map((p) => p.date));
+  let add: { date: string; value: string }[] = [];
+  if (src === "pulse") {
+    add = internalSignalSeries(team, "pulse").filter((p) => !dates.has(p.date));
+  } else {
+    const v = internalSignalNow(team, init, "commitments");
+    const today = new Date().toISOString().slice(0, 10);
+    if (v != null && !dates.has(today)) add = [{ date: today, value: `${v}` }];
+  }
+  if (!add.length) return null;
+  return [...log, ...add].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** ¿El loop está cerrado? (terminado o con una decisión de Aprendizaje). */
