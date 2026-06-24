@@ -25,5 +25,7 @@ export async function authAndPlan(token: string): Promise<AiGuard> {
     const { data: org } = await sb.from("organizations").select("plan").eq("id", orgId).maybeSingle();
     plan = (org as { plan?: string } | null)?.plan ?? "starter";
   }
-  return { ok: true, aiAllowed: plan === "pro" || plan === "business" };
+  // Normalizamos para que un "Pro" / " pro " en la DB no niegue la IA por error.
+  const norm = plan.toLowerCase().trim();
+  return { ok: true, aiAllowed: norm === "pro" || norm === "business" };
 }

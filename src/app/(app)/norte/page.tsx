@@ -27,10 +27,31 @@ function teamLine(t: Team): string {
   return `${t.name} (${t.area || "—"}) · etapa ${stage} · clima ${pulse}`;
 }
 
+/* Tope de caracteres del contexto. Por debajo del slice de la ruta (14000)
+   para que el corte ocurra acá —en límites de registro— y nunca a la mitad. */
+const CTX_BUDGET = 13000;
+
+/* Une registros ENTEROS hasta CTX_BUDGET y, si quedó algo afuera, se lo dice
+   al modelo para que no reporte parcial como si fuera total. */
+function joinBudget(header: string, records: string[], sep: string, budget: number, noun: string): string {
+  const parts: string[] = [];
+  let used = header.length, kept = 0;
+  for (const r of records) {
+    if (kept > 0 && used + r.length + sep.length > budget) break;
+    parts.push(r); used += r.length + sep.length; kept++;
+  }
+  const body = parts.join(sep);
+  const omitted = records.length - kept;
+  const note = omitted > 0
+    ? `${sep}(Nota: se omitieron ${omitted} ${noun} por tamaño; este resumen incluye ${kept} de ${records.length}. No completes los faltantes: trabajá solo con lo incluido y aclaralo si hace falta.)`
+    : "";
+  return header ? header + sep + body + note : body + note;
+}
+
 function buildOrgReport(org: Org, teams: Team[]): string {
-  const L: string[] = [`Organización: ${org.name}. Sector: ${org.sector}. ${teams.length} equipo(s).`];
-  for (const t of teams) {
-    L.push(`\n## ${teamLine(t)}`);
+  const header = `Organización: ${org.name}. Sector: ${org.sector}. ${teams.length} equipo(s).`;
+  const records = teams.map((t) => {
+    const L: string[] = [`## ${teamLine(t)}`];
     if (t.data?.objective?.text) L.push(`Objetivo del equipo: ${t.data.objective.text}.`);
     const inits = getInitiatives(t.id);
     if (inits.length) {
@@ -42,19 +63,19 @@ function buildOrgReport(org: Org, teams: Team[]): string {
     } else L.push("Sin iniciativas todavía.");
     const lib = t.data?.library ?? [];
     if (lib.length) L.push(`Aprendizajes en biblioteca: ${lib.length}.`);
-  }
-  return L.join("\n");
+    return L.join("\n");
+  });
+  return joinBudget(header, records, "\n", CTX_BUDGET, "equipos");
 }
 
 function buildRetroPlan(teams: Team[]): string {
-  const L: string[] = [];
-  for (const t of teams) {
+  const records = teams.map((t) => {
     const inits = getInitiatives(t.id);
     const active = inits.filter((i) => i.status === "active").length;
     const last = t.sessions?.[t.sessions.length - 1];
-    L.push(`### ${t.name}\n- ${teamLine(t)}\n- Iniciativas activas: ${active} (de ${inits.length}).\n- Última sesión: ${last ? `${last.stage ?? "—"} (${last.date ?? "—"})` : "ninguna registrada"}.`);
-  }
-  return L.join("\n\n");
+    return `### ${t.name}\n- ${teamLine(t)}\n- Iniciativas activas: ${active} (de ${inits.length}).\n- Última sesión: ${last ? `${last.stage ?? "—"} (${last.date ?? "—"})` : "ninguna registrada"}.`;
+  });
+  return joinBudget("", records, "\n\n", CTX_BUDGET, "equipos");
 }
 
 const daysSince = (iso?: string): number | null => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null);
@@ -85,19 +106,17 @@ function buildTriage(teams: Team[]): string {
 
     if (al.length) blocks.push(`## ${t.name} (${t.area || "—"})\n${al.map((x) => `- ${x}`).join("\n")}`);
   }
-  return blocks.join("\n\n");
+  return joinBudget("", blocks, "\n\n", CTX_BUDGET, "equipos");
 }
 
 function buildLibraryDigest(teams: Team[]): string {
-  const L: string[] = ["Aprendizajes registrados por los equipos:"];
-  let n = 0;
+  const records: string[] = [];
   for (const t of teams) {
     for (const e of t.data?.library ?? []) {
-      n++;
-      L.push(`- [${t.name}] ${e.text}${e.type ? ` (tipo: ${e.type})` : ""}${e.stage ? `, etapa ${e.stage}` : ""}${e.transferable ? ", transferible" : ""}${e.highlighted ? ", destacado" : ""}.`);
+      records.push(`- [${t.name}] ${e.text}${e.type ? ` (tipo: ${e.type})` : ""}${e.stage ? `, etapa ${e.stage}` : ""}${e.transferable ? ", transferible" : ""}${e.highlighted ? ", destacado" : ""}.`);
     }
   }
-  return n ? L.join("\n") : "";
+  return records.length ? joinBudget("Aprendizajes registrados por los equipos:", records, "\n", CTX_BUDGET, "aprendizajes") : "";
 }
 
 export default function NortePage() {
