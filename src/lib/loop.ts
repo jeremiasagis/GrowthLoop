@@ -84,3 +84,14 @@ export function loopThread(init: Initiative): LoopThread {
 
   return { symptom, rootCause, bet, signal, learning, decision };
 }
+
+/** ¿El loop está cerrado? (terminado o con una decisión de Aprendizaje). */
+export function loopIsClosed(init: Initiative): boolean {
+  return init.status === "done" || !!init.data?.learn?.decision;
+}
+
+/** ¿El loop movió su señal? (la métrica norte del producto). */
+export function loopSignalMoved(init: Initiative): boolean {
+  const s = loopThread(init).signal;
+  return s?.delta != null && s.delta !== 0;
+}

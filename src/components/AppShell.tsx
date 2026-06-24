@@ -54,6 +54,7 @@ function navItemsFor(role: RoleKey | null): NavItem[] {
   if (role === "facilitator") {
     return [
       inicio,
+      { href: "/mis-loops", label: "Mis loops", icon: "RefreshCw" },
       { href: "/organizaciones", label: "Mis equipos", icon: "Building2" },
       { href: "/sesiones", label: "Sesiones", icon: "Radio" },
       reportes, norte, ajustes,
