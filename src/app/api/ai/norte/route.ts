@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-type Kind = "triage" | "orgReport" | "retroPlan" | "libraryDigest" | "teamReport";
+type Kind = "triage" | "orgReport" | "retroPlan" | "libraryDigest" | "teamReport" | "oneononePrep";
 
 const CFG: Record<Kind, { model: string; max: number; system: string }> = {
   triage: {
@@ -46,6 +46,12 @@ const CFG: Record<Kind, { model: string; max: number; system: string }> = {
     max: 1600,
     system:
       "Sos un consultor de mejora continua que le prepara a un sponsor o management un reporte ejecutivo de UN equipo. A partir de sus datos (objetivo, clima y su evolución, loops en curso con su señal antes→ahora→meta, decisiones, aprendizajes transferibles, vencimientos), escribí un reporte breve en español rioplatense, en markdown, con esta estructura: un titular de estado en una línea; '## Dónde está el equipo' (2-3 oraciones: clima, foco y ritmo); '## Loops en curso' (una viñeta por loop activo: qué problema ataca, en qué etapa está y cómo viene la señal); '## Qué se movió' (resultados o señales que cambiaron, con números si los hay); '## Aprendizajes clave' (1-3 transferibles); '## Dónde poner el foco' (1-3 recomendaciones priorizadas). Está pensado para alguien que NO estuvo en las sesiones: claro, directo, sin jerga ni relleno. No inventes datos; si falta información, decilo en una línea.",
+  },
+  oneononePrep: {
+    model: "claude-haiku-4-5",
+    max: 700,
+    system:
+      "Sos un coach que ayuda a un líder a preparar un 1-a-1 de DESARROLLO con un integrante de su equipo. A partir de las brechas del 360 (cómo se ve la persona vs. cómo la ve el equipo), el objetivo del equipo y los compromisos previos, devolvé una agenda breve: 4-6 puntos concretos para conversar, en español rioplatense, uno por línea, sin numerar ni viñetas (solo el texto del punto). Enfocá en desarrollo y crecimiento (nunca en evaluación de desempeño), empezá por lo apreciativo (fortalezas) y después los puntos ciegos. Cada punto, una frase accionable. No inventes datos que no estén en el contexto.",
   },
 };
 

@@ -12,6 +12,7 @@ import { getMyOpenSession, subscribeTeamSessions, type LiveSession } from "@/lib
 import { teamLiveStage } from "@/lib/data";
 import { loopThread } from "@/lib/loop";
 import { ciMaturity } from "@/lib/maturity";
+import { getReviewsForTeam, type TalentReview } from "@/lib/talent";
 
 export default function MemberHome() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function MemberHome() {
   const team = getMemberTeam(teamId);
   const firstName = (user?.name ?? "").split(" ")[0] || "miembro";
   const [live, setLive] = useState<LiveSession | null>(null);
+  const [openReviews, setOpenReviews] = useState<TalentReview[]>([]);
   const [, setTick] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -29,6 +31,7 @@ export default function MemberHome() {
     let active = true;
     const load = async () => { const s = await getMyOpenSession(); if (active) setLive(s); };
     load();
+    (async () => { const rs = (await getReviewsForTeam(tid)).filter((r) => r.status === "open"); if (active) setOpenReviews(rs); })();
     const unsub = subscribeTeamSessions(tid, load);
     const poll = setInterval(load, 3000);
     return () => { active = false; unsub(); clearInterval(poll); };
@@ -112,6 +115,19 @@ export default function MemberHome() {
               </div>
             </Card>
           ) : null}
+
+          {openReviews.map((r) => (
+            <Card key={r.id} pad={16} style={{ background: "color-mix(in srgb, var(--violet) 6%, var(--card))", borderColor: "color-mix(in srgb, var(--violet) 35%, transparent)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--violet) 16%, transparent)", color: "var(--violet)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Radar" size={16} /></span>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>Hay una evaluación 360 abierta</div>
+                  <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{r.subjectUserId === user?.id ? "Tu autoevaluación" : "Evaluá a tu compañero/a (anónimo)"}.</div>
+                </div>
+                <Button variant="secondary" iconRight="ArrowRight" onClick={() => router.push(`/360/${r.id}`)}>Evaluar</Button>
+              </div>
+            </Card>
+          ))}
 
           <Card pad={16}>
             <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: myCommits.length ? 10 : 0 }}><Icon name="ListChecks" size={13} /> Mis compromisos</div>

@@ -14,17 +14,17 @@ import type { RoleKey } from "@/lib/data";
 
 const SUPERADMIN_PREFIXES = [
   "/dashboard", "/organizaciones", "/equipos", "/mis-loops", "/admins", "/consola",
-  "/facilitadores", "/reportes", "/reporte", "/norte", "/sala", "/lab", "/ajustes",
+  "/facilitadores", "/reportes", "/reporte", "/norte", "/sala", "/360", "/lab", "/ajustes",
 ];
 const ADMIN_PREFIXES = [
   "/dashboard", "/organizaciones", "/equipos", "/mis-loops",
-  "/facilitadores", "/reportes", "/reporte", "/norte", "/sala", "/lab", "/ajustes",
+  "/facilitadores", "/reportes", "/reporte", "/norte", "/sala", "/360", "/lab", "/ajustes",
 ];
 const FACILITATOR_PREFIXES = [
   "/dashboard", "/organizaciones", "/equipos", "/mis-loops",
-  "/sesiones", "/foda", "/sala", "/reportes", "/reporte", "/norte", "/lab", "/ajustes",
+  "/sesiones", "/foda", "/sala", "/360", "/reportes", "/reporte", "/norte", "/lab", "/ajustes",
 ];
-const MEMBER_PREFIXES = ["/member", "/sessions", "/sala"];
+const MEMBER_PREFIXES = ["/member", "/sessions", "/sala", "/360"];
 // Coordinador: observador de una organización (solo lectura, panel propio).
 const COORDINATOR_PREFIXES = ["/coordinador"];
 
