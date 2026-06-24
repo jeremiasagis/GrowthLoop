@@ -19,6 +19,7 @@ const DEC: Record<string, { l: string; c: string }> = {
   pivot: { l: "Pivotar", c: "var(--warning)" },
   pause: { l: "Pausar", c: "var(--ink-2)" },
 };
+const SUST: Record<string, string> = { sustained: "se sostuvo", partial: "parcial", reverted: "se revirtió" };
 
 export function LoopExpediente({ init }: { init: Initiative }) {
   const t = loopThread(init);
@@ -47,7 +48,7 @@ export function LoopExpediente({ init }: { init: Initiative }) {
     { icon: "GraduationCap", label: "Aprendido", color: "var(--st-learn)", node: t.learning ?? null },
     {
       icon: "Flag", label: "Decisión", color: "var(--st-learn)",
-      node: t.decision ? <span style={{ fontWeight: 700, color: DEC[t.decision]?.c ?? "var(--ink-0)" }}>{DEC[t.decision]?.l ?? t.decision}</span> : null,
+      node: t.decision ? <span style={{ fontWeight: 700, color: DEC[t.decision]?.c ?? "var(--ink-0)" }}>{DEC[t.decision]?.l ?? t.decision}{t.sustained && SUST[t.sustained] ? <span style={{ fontWeight: 600, color: "var(--ink-2)" }}> · {SUST[t.sustained]}</span> : null}</span> : null,
     },
   ];
 

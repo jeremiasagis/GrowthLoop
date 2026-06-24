@@ -21,7 +21,7 @@ import { SignalSource } from "@/components/SignalSource";
 import { CycleTimeline } from "@/components/CycleTimeline";
 import { LoopRing } from "@/components/LoopRing";
 import { LoopExpediente } from "@/components/LoopExpediente";
-import { loopRecommendation } from "@/lib/loop";
+import { loopRecommendation, relatedLearnings } from "@/lib/loop";
 import { playbookByKey } from "@/lib/playbooks";
 import { WordCloud } from "@/components/WordCloud";
 import { retrosForStage, stageOfSessionType, CANONICAL_RETRO, type RetroDefinition } from "@/lib/retros/registry";
@@ -639,6 +639,24 @@ export default function InitiativeDetailPage() {
 
       {/* expediente: el hilo del loop en una vista */}
       <LoopExpediente init={init} />
+
+      {/* compounding: ¿ya aprendimos algo parecido? (B5) */}
+      {(() => {
+        const lib = (team.data?.library ?? []) as { id?: string; text: string }[];
+        const q = [init.title, init.data?.focus?.rootCause, init.data?.proof?.betThen].filter(Boolean).join(" ");
+        const rel = relatedLearnings(lib, q);
+        if (!rel.length) return null;
+        return (
+          <Card pad={16} style={{ marginBottom: 22, border: "1px solid color-mix(in srgb, var(--st-learn) 28%, var(--line))", background: "color-mix(in srgb, var(--st-learn) 6%, var(--card))" }}>
+            <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--st-learn)" }}><Icon name="GraduationCap" size={13} /> Ya aprendimos algo parecido</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {rel.map((e, i) => (
+                <div key={e.id ?? i} style={{ display: "flex", gap: 8, fontSize: "var(--t-sm)", lineHeight: 1.45 }}><Icon name="Sparkles" size={13} style={{ color: "var(--st-learn)", flexShrink: 0, marginTop: 3 }} /><span>{e.text}</span></div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* loop circular vivo */}
       <Card pad={20} style={{ marginBottom: 22 }}>

@@ -25,20 +25,21 @@ const META: Record<St, { l: string; c: string; bg: string; i: string }> = {
 };
 const normSt = (s?: string): St => (ORDER.includes(s as St) ? (s as St) : "pending");
 
-type Commit = { init: Initiative; text: string; who: string; status: St };
+type Commit = { init: Initiative; text: string; who: string; status: St; due?: string };
 
 /** Acciones únicas de un loop (apuesta + destrabes), con su estado actual. */
 function commitsOf(init: Initiative): Commit[] {
   const d = init.data ?? {};
   const raw = [...(d.proof?.actions ?? []), ...(d.follow?.newActions ?? [])];
-  const statusBy = new Map((d.follow?.actionStatus ?? []).map((a) => [a.text, a.status]));
+  const byText = new Map((d.follow?.actionStatus ?? []).map((a) => [a.text, a]));
   const seen = new Set<string>();
   const out: Commit[] = [];
   for (const a of raw) {
     const text = (a.text ?? "").trim();
     if (!text || seen.has(text)) continue;
     seen.add(text);
-    out.push({ init, text, who: a.who ?? "", status: normSt(statusBy.get(text)) });
+    const st = byText.get(text);
+    out.push({ init, text, who: a.who ?? "", status: normSt(st?.status), due: st?.due });
   }
   return out;
 }
@@ -57,20 +58,21 @@ export function TeamCommitments({ team, isFacil }: { team: Team; isFacil: boolea
   all.forEach((c) => { counts[c.status] += 1; });
   const pct = Math.round((counts.done / all.length) * 100);
 
-  const setStatus = async (c: Commit, status: St) => {
+  // Mergea un patch (status y/o due) en el item de actionStatus de un compromiso.
+  const patchCommit = async (c: Commit, patch: { status?: St; due?: string }) => {
     if (!isFacil) return;
     const key = `${c.init.id}:${c.text}`;
     setBusy(key);
     const cur = c.init.data?.follow?.actionStatus ?? [];
     const next = cur.some((a) => a.text === c.text)
-      ? cur.map((a) => (a.text === c.text ? { ...a, status, who: a.who || c.who } : a))
-      : [...cur, { text: c.text, who: c.who, status }];
+      ? cur.map((a) => (a.text === c.text ? { ...a, ...patch, who: a.who || c.who } : a))
+      : [...cur, { text: c.text, who: c.who, status: c.status, ...patch }];
     const { error } = await patchInitiativeData(c.init.id, "follow", { actionStatus: next });
     setBusy(null);
-    if (error) { show("No se pudo guardar el estado.", "TriangleAlert"); return; }
+    if (error) { show("No se pudo guardar.", "TriangleAlert"); return; }
     setTick((t) => t + 1);
   };
-  const cycle = (c: Commit) => setStatus(c, ORDER[(ORDER.indexOf(c.status) + 1) % ORDER.length]);
+  const cycle = (c: Commit) => patchCommit(c, { status: ORDER[(ORDER.indexOf(c.status) + 1) % ORDER.length] });
 
   return (
     <Card pad={20}>
@@ -105,10 +107,14 @@ export function TeamCommitments({ team, isFacil }: { team: Team; isFacil: boolea
               {g.commits.map((c, i) => {
                 const m = META[c.status];
                 const key = `${c.init.id}:${c.text}`;
+                const overdue = !!c.due && c.status !== "done" && new Date(c.due).getTime() < Date.now();
                 return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: `3px solid ${m.c}`, borderRadius: "var(--r-md)" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: `3px solid ${overdue ? "var(--risk)" : m.c}`, borderRadius: "var(--r-md)" }}>
                     <span style={{ flex: 1, minWidth: 0, fontSize: "var(--t-sm)", lineHeight: 1.4, textDecoration: c.status === "done" ? "line-through" : "none", opacity: c.status === "done" ? 0.7 : 1 }}>{c.text}</span>
                     {c.who && <Pill color="var(--ink-2)" bg="var(--card)" icon="User">{c.who}</Pill>}
+                    {isFacil
+                      ? <input type="date" value={c.due ? c.due.slice(0, 10) : ""} onChange={(e) => patchCommit(c, { due: e.target.value || undefined })} title="Fecha límite" style={{ flex: "none", background: overdue ? "var(--risk-bg)" : "var(--card)", border: `1px solid ${overdue ? "var(--risk)" : "var(--line-2)"}`, borderRadius: "var(--r-sm)", color: overdue ? "var(--risk)" : "var(--ink-2)", padding: "3px 6px", fontSize: "var(--t-xs)", outline: "none" }} />
+                      : c.due && <Pill color={overdue ? "var(--risk)" : "var(--ink-2)"} bg={overdue ? "var(--risk-bg)" : "var(--card)"} icon={overdue ? "AlarmClock" : "Calendar"}>{overdue ? "venció" : new Date(c.due).toLocaleDateString("es", { day: "2-digit", month: "short" })}</Pill>}
                     <button
                       onClick={() => isFacil && cycle(c)}
                       disabled={!isFacil || busy === key}

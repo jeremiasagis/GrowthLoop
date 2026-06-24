@@ -16,6 +16,7 @@ export interface LoopThread {
   signal?: { before?: string; now?: string; delta?: number | null; metric?: string; target?: string }; // la señal (Probar)
   learning?: string;  // el aprendizaje clave (Aprender)
   decision?: string;  // la decisión de cierre (implement/iterate/pivot/pause)
+  sustained?: string; // resultado de consolidación: ¿el cambio se sostuvo? (sustained/partial/reverted)
 }
 
 /** Parsea un valor de señal ("72%", "3,5", "80 entregas") a número, o null. */
@@ -81,8 +82,23 @@ export function loopThread(init: Initiative): LoopThread {
     ?? undefined;
 
   const decision = learn.decision ?? undefined;
+  const sustained = d.consolidate?.outcome ?? undefined;
 
-  return { symptom, rootCause, bet, signal, learning, decision };
+  return { symptom, rootCause, bet, signal, learning, decision, sustained };
+}
+
+const STOP = new Set("para porque como cuando donde tienen tiene hacer hace cada todo todos esta este esto entre desde sobre pero más menos muy con sin los las del que una uno unas unos por sus nos les más nuestra nuestro equipo".split(" "));
+/** Aprendizajes pasados relacionados con un texto (compounding, B5). Match determinístico por palabras. */
+export function relatedLearnings<T extends { text: string }>(library: T[], query: string, max = 3): T[] {
+  const tok = (s: string) => (s.toLowerCase().match(/[a-záéíóúñ]+/g) ?? []).filter((w) => w.length > 3 && !STOP.has(w));
+  const q = new Set(tok(query));
+  if (!q.size) return [];
+  return library
+    .map((e) => ({ e, score: tok(e.text).filter((w) => q.has(w)).length }))
+    .filter((x) => x.score >= 2)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, max)
+    .map((x) => x.e);
 }
 
 /** ¿El loop está cerrado? (terminado o con una decisión de Aprendizaje). */

@@ -99,6 +99,22 @@ export function norteSuggestions(team: Team, now = Date.now()): NorteSuggestion[
     });
   }
 
+  // 4b) Compromisos vencidos sin cerrar (B3).
+  let overdue = 0;
+  for (const i of active) {
+    for (const a of i.data?.follow?.actionStatus ?? []) {
+      if (a.due && a.status !== "done" && new Date(a.due).getTime() < now) overdue++;
+    }
+  }
+  if (overdue > 0) {
+    out.push({
+      key: "overdue-commits", icon: "AlarmClock", color: "var(--risk)",
+      title: `${overdue} compromiso${overdue > 1 ? "s" : ""} vencido${overdue > 1 ? "s" : ""}`,
+      text: "Hay compromisos que pasaron su fecha y siguen abiertos. Revisalos con el equipo para no perder tracción.",
+      cta: "Ver loops", tab: "seguimiento",
+    });
+  }
+
   // 5) Confianza baja: cuidar la base antes de pedir más.
   if (team.psychSafety > 0 && team.psychSafety < 60) {
     out.push({
