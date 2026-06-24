@@ -410,6 +410,16 @@ export async function patchInitiativeData(id: string, dataKey: string, dataValue
   return {};
 }
 
+/** El miembro marca el estado de UN compromiso suyo (vía RPC security definer).
+ *  Los miembros no pueden escribir initiatives directamente; la RPC valida pertenencia. */
+export async function setMyCommitmentStatus(initId: string, text: string, status: string): Promise<{ error?: string }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.rpc("set_my_commitment_status", { p_init_id: initId, p_text: text, p_status: status });
+  if (error) return { error: error.message };
+  await reloadData();
+  return {};
+}
+
 /** Cambia el estado de una iniciativa (en curso / cerrada / pausada). */
 export async function setInitiativeStatus(id: string, status: Initiative["status"]): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
