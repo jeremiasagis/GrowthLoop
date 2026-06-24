@@ -77,7 +77,7 @@ function mapInitiative(i: any, sessionCount: number): Initiative {
 }
 
 function mapTeam(t: any, initiatives: Initiative[] = []): Team {
-  const members = (t.team_members ?? []).map((m: any) => ({ id: m.id, name: m.name, initials: m.initials }));
+  const members = (t.team_members ?? []).map((m: any) => ({ id: m.id, userId: m.user_id ?? undefined, name: m.name, initials: m.initials }));
   const pulse: PulsePoint[] = (t.pulse_points ?? [])
     .map((p: any): PulsePoint => ({
       label: p.label, date: p.date, confianza: p.confianza, comunic: p.comunic,

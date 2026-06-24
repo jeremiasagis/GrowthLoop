@@ -118,10 +118,14 @@ export function overallOf(p: PulsePoint): number {
 
 // ── People ──
 export interface Person {
-  id?: string;     // id de la ficha team_members (para gestionarla)
+  id?: string;       // id de la ficha team_members (para gestionarla)
+  userId?: string;   // user_id de auth (null hasta que la persona se une); necesario para 360/1-a-1
   name: string;
   initials: string;
 }
+
+/** Competencia evaluable en el 360 (capa individual). */
+export interface Competency { key: string; label: string }
 export const FACILITATOR: Person & { role: string } = {
   name: "Daniela Ríos",
   role: "Facilitadora",
@@ -239,6 +243,7 @@ export interface TeamData {
   celebrated?: { level: number; cycles: number }; // hasta dónde ya festejamos (evita repetir confetti)
   library?: LearningEntry[]; // Biblioteca de aprendizajes del equipo (todos los ciclos)
   pulseDims?: PulseDim[];    // qué mide el pulso de ESTE equipo (config propia; default PULSE_DIMS)
+  competencies?: Competency[]; // competencias del 360 de este equipo (config propia)
 }
 
 /** Un aprendizaje guardado en la Biblioteca del equipo. */
