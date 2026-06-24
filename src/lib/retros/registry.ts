@@ -15,6 +15,7 @@ export interface RetroPhase {
   name: string;
   minutes?: number;
   note?: string;
+  mode?: "async" | "live"; // PLAN-TECNICO · WS4: si la fase puede ir async o conviene en vivo
 }
 
 export interface RetroDefinition {
@@ -51,6 +52,112 @@ export const STARTER_RETRO_IDS = new Set<string>([
 /** ¿Esta retro está disponible para un plan dado? Starter solo las básicas; Pro/Business todas. */
 export function retroInPlan(retroId: string, plan: string | undefined): boolean {
   return plan !== "starter" || STARTER_RETRO_IDS.has(retroId);
+}
+
+/* ============================================================
+   CURADURÍA (PLAN-PRODUCTO · Pilar 2 / §4) — overlay no invasivo.
+   En vez de editar las 49 entradas, este mapa agrega el propósito,
+   si es herramienta transversal (vs paso del loop), y la relación
+   primaria↔variante de los clusters de retros que dan el mismo
+   output. La UI del catálogo lee esto vía curationOf().
+   ============================================================ */
+
+export type RetroIntent =
+  | "diagnosticar" | "priorizar" | "causa" | "idear"
+  | "decidir" | "medir" | "cerrar" | "alinear";
+
+export const INTENTS: { key: RetroIntent; label: string; icon: string }[] = [
+  { key: "diagnosticar", label: "Diagnosticar", icon: "Stethoscope" },
+  { key: "priorizar", label: "Priorizar", icon: "ListOrdered" },
+  { key: "causa", label: "Encontrar la causa", icon: "GitBranch" },
+  { key: "idear", label: "Idear / diseñar", icon: "Lightbulb" },
+  { key: "decidir", label: "Decidir", icon: "GitFork" },
+  { key: "medir", label: "Medir", icon: "Activity" },
+  { key: "cerrar", label: "Cerrar / celebrar", icon: "Flag" },
+  { key: "alinear", label: "Alinear al equipo", icon: "Users" },
+];
+
+export interface RetroCuration {
+  intent?: RetroIntent;
+  isTool?: boolean;     // herramienta transversal (sirve en cualquier etapa), no un paso del loop
+  primaryOf?: string;   // es la primaria del output (clave de cluster)
+  variantOf?: string;   // es variante de esta retro (id de la primaria)
+}
+
+export const CURATION: Record<string, RetroCuration> = {
+  // ── Exploración ──
+  "exploration-where-are-we": { intent: "diagnosticar", primaryOf: "foto-estado" },
+  "exploration-why-we-exist": { intent: "alinear" },
+  "exploration-workflow": { intent: "diagnosticar" },
+  "exploration-relationships": { intent: "alinear" },
+  "exploration-mad-sad-glad": { intent: "diagnosticar", isTool: true, primaryOf: "clima" },
+  "exploration-one-word": { intent: "diagnosticar", isTool: true, variantOf: "exploration-mad-sad-glad" },
+  "exploration-timeline": { intent: "diagnosticar", isTool: true },
+  "exploration-hot-air-balloon": { intent: "diagnosticar", variantOf: "exploration-sailboat" },
+  "exploration-team-radar": { intent: "medir", isTool: true, primaryOf: "radar-clima" },
+  "exploration-sailboat": { intent: "diagnosticar", primaryOf: "fuerzas" },
+  "exploration-circles-soup": { intent: "diagnosticar" },
+  "exploration-foda": { intent: "diagnosticar", primaryOf: "foda" },
+  "exploration-close": { intent: "cerrar" },
+  "objectives-tensions": { intent: "priorizar" },
+  // ── Analizar (focus) ──
+  "focus-impact-effort": { intent: "priorizar", primaryOf: "priorizar" },
+  "focus-where-is-the-block": { intent: "causa", primaryOf: "donde-se-rompe" },
+  "focus-why-is-it-happening": { intent: "causa", primaryOf: "causa-raiz" },
+  "focus-impact-frequency": { intent: "priorizar", variantOf: "focus-impact-effort" },
+  "focus-client-voice": { intent: "causa" },
+  "focus-fishbone": { intent: "causa", variantOf: "focus-why-is-it-happening" },
+  "focus-perfection-game": { intent: "medir", isTool: true },
+  "focus-opposite-pairs": { intent: "causa" },
+  "focus-service-design": { intent: "causa", primaryOf: "journey-cliente" },
+  "focus-stacey-matrix": { intent: "diagnosticar", isTool: true },
+  // ── Diseñar (ideation) ──
+  "ideation-bet-design": { intent: "idear" },
+  "ideation-how-might-we": { intent: "idear" },
+  "ideation-which-do-we-choose": { intent: "decidir" },
+  "ideation-what-could-fail": { intent: "idear" },
+  "ideation-experiment-design": { intent: "idear" },
+  "ideation-start-stop-continue": { intent: "idear", isTool: true, primaryOf: "empezar-dejar-seguir" },
+  "ideation-daki": { intent: "idear", isTool: true, variantOf: "ideation-start-stop-continue" },
+  "ideation-storyboarding": { intent: "idear", isTool: true },
+  "ideation-the-archer": { intent: "idear", isTool: true },
+  "ideation-lean-coffee": { intent: "alinear", isTool: true },
+  // ── Probar (follow) ──
+  "follow-how-are-we-doing": { intent: "medir", primaryOf: "check-in-prueba" },
+  "follow-what-is-blocking-us": { intent: "medir" },
+  "follow-roti": { intent: "medir", isTool: true },
+  "follow-perfection-game": { intent: "medir", isTool: true, variantOf: "focus-perfection-game" },
+  "follow-team-radar": { intent: "medir", isTool: true, variantOf: "exploration-team-radar" },
+  "follow-starfish": { intent: "idear", isTool: true, variantOf: "ideation-start-stop-continue" },
+  // ── Aprender (learn) ──
+  "learn-cycle-close": { intent: "cerrar" },
+  "learn-what-happened": { intent: "cerrar", primaryOf: "que-paso" },
+  "learn-what-did-we-learn": { intent: "cerrar" },
+  "learn-what-is-next": { intent: "decidir" },
+  "learn-how-are-we-as-a-team": { intent: "alinear", isTool: true },
+  "learn-4ls": { intent: "cerrar", isTool: true, variantOf: "learn-what-happened" },
+  "learn-kudos": { intent: "cerrar", isTool: true },
+  "learn-letter-to-future-self": { intent: "cerrar", isTool: true },
+  "learn-speed-dating": { intent: "alinear", isTool: true },
+};
+
+/** Curaduría de una retro (propósito, si es herramienta, primaria/variante). */
+export function curationOf(id: string): RetroCuration {
+  return CURATION[id] ?? {};
+}
+
+/* ── Async por fase (PLAN-TECNICO · WS4) ──
+   Si la fase no trae `mode` explícito, se infiere por su naturaleza:
+   divergir/recolectar → async; converger/decidir/relacional → en vivo.
+   Default seguro: en vivo. */
+const ASYNC_HINTS = /escrib|individual|an[oó]nim|votaci|votar|punt[uú]|reflexi|carta|pulso|aporte|brainstorm|lluvia/i;
+const LIVE_HINTS = /agrup|cluster|discut|debat|dise[ñn]|decisi|decid|[aá]rbol|consenso|plenario|conversaci|encuadre|presentar|firma|cierre/i;
+
+export function phaseMode(phase: RetroPhase): "async" | "live" {
+  if (phase.mode) return phase.mode;
+  if (LIVE_HINTS.test(phase.name)) return "live";
+  if (ASYNC_HINTS.test(phase.name)) return "async";
+  return "live";
 }
 
 export const RETRO_REGISTRY: RetroDefinition[] = [
