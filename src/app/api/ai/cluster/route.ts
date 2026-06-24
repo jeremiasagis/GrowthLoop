@@ -8,18 +8,16 @@
    ============================================================ */
 
 import { authAndPlan } from "@/lib/ai-guard";
+import { callAnthropic, extractToolInput } from "@/lib/ai-call";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5";
 
 type Card = { id: string; text: string };
 
 export async function POST(req: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return Response.json({ error: "La IA no está configurada (falta ANTHROPIC_API_KEY)." }, { status: 500 });
-
   // Autenticación + plan (server-side).
   const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const guard = await authAndPlan(token);
@@ -57,29 +55,15 @@ export async function POST(req: Request) {
     },
   };
 
-  let res: Response;
-  try {
-    res = await fetch(ANTHROPIC_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: MODEL, max_tokens: 1024, system,
-        tools: [tool], tool_choice: { type: "tool", name: "agrupar" },
-        messages: [{ role: "user", content: userMsg }],
-      }),
-    });
-  } catch {
-    return Response.json({ error: "No se pudo contactar a la IA." }, { status: 502 });
-  }
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 300);
-    return Response.json({ error: "La IA no respondió bien.", detail }, { status: 502 });
-  }
+  const r = await callAnthropic({
+    model: MODEL, max_tokens: 1024, system,
+    tools: [tool], tool_choice: { type: "tool", name: "agrupar" },
+    messages: [{ role: "user", content: userMsg }],
+  });
+  if (!r.ok) return Response.json({ error: r.error, detail: r.detail }, { status: r.status });
 
-  const data = await res.json();
-  const toolUse = (data.content ?? []).find((b: { type?: string }) => b.type === "tool_use") as
-    | { input?: { clusters?: { name?: string; cardIds?: string[] }[] } } | undefined;
-  const raw = toolUse?.input?.clusters ?? [];
+  const input = extractToolInput<{ clusters?: { name?: string; cardIds?: string[] }[] }>(r.data, "agrupar");
+  const raw = input?.clusters ?? [];
   const valid = new Set(cards.map((c) => c.id));
   const seen = new Set<string>();
   const clusters = raw

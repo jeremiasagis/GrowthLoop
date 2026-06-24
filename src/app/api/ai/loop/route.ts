@@ -8,10 +8,11 @@
    ============================================================ */
 
 import { authAndPlan } from "@/lib/ai-guard";
+import { callAnthropic, extractToolInput } from "@/lib/ai-call";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5";
 
 const SYSTEM =
@@ -41,9 +42,6 @@ const TOOL = {
 };
 
 export async function POST(req: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return Response.json({ error: "La IA no está configurada (falta ANTHROPIC_API_KEY)." }, { status: 500 });
-
   const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const guard = await authAndPlan(token);
   if (!guard.ok) return Response.json({ error: "No autorizado." }, { status: 401 });
@@ -55,26 +53,14 @@ export async function POST(req: Request) {
   if (!problem) return Response.json({ error: "Contame el problema en una frase." }, { status: 400 });
   const context = (body.context ?? "").slice(0, 2000);
 
-  let res: Response;
-  try {
-    res = await fetch(ANTHROPIC_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: MODEL, max_tokens: 900, system: SYSTEM,
-        tools: [TOOL], tool_choice: { type: "tool", name: "armar_loop" },
-        messages: [{ role: "user", content: `Problema: ${problem}${context ? `\n\nContexto del equipo:\n${context}` : ""}` }],
-      }),
-    });
-  } catch {
-    return Response.json({ error: "No se pudo contactar a la IA." }, { status: 502 });
-  }
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 300);
-    return Response.json({ error: "La IA no respondió bien.", detail }, { status: 502 });
-  }
-  const data = await res.json();
-  const tool = (data.content ?? []).find((b: { type?: string }) => b.type === "tool_use");
-  if (!tool?.input) return Response.json({ error: "La IA no devolvió una propuesta." }, { status: 502 });
-  return Response.json(tool.input);
+  const r = await callAnthropic({
+    model: MODEL, max_tokens: 900, system: SYSTEM,
+    tools: [TOOL], tool_choice: { type: "tool", name: "armar_loop" },
+    messages: [{ role: "user", content: `Problema: ${problem}${context ? `\n\nContexto del equipo:\n${context}` : ""}` }],
+  });
+  if (!r.ok) return Response.json({ error: r.error, detail: r.detail }, { status: r.status });
+
+  const input = extractToolInput(r.data, "armar_loop");
+  if (!input) return Response.json({ error: "La IA no devolvió una propuesta." }, { status: 502 });
+  return Response.json(input);
 }

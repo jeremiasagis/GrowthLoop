@@ -9,10 +9,10 @@
    ============================================================ */
 
 import { authAndPlan } from "@/lib/ai-guard";
+import { callAnthropic, extractText } from "@/lib/ai-call";
 
 export const runtime = "nodejs";
-
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+export const maxDuration = 60;
 
 type Kind = "triage" | "orgReport" | "retroPlan" | "libraryDigest" | "teamReport" | "oneononePrep";
 
@@ -49,16 +49,13 @@ const CFG: Record<Kind, { model: string; max: number; system: string }> = {
   },
   oneononePrep: {
     model: "claude-haiku-4-5",
-    max: 700,
+    max: 1000,
     system:
       "Sos un coach que ayuda a un líder a preparar un 1-a-1 de DESARROLLO con un integrante de su equipo. A partir de las brechas del 360 (cómo se ve la persona vs. cómo la ve el equipo), el objetivo del equipo y los compromisos previos, devolvé una agenda breve: 4-6 puntos concretos para conversar, en español rioplatense, uno por línea, sin numerar ni viñetas (solo el texto del punto). Enfocá en desarrollo y crecimiento (nunca en evaluación de desempeño), empezá por lo apreciativo (fortalezas) y después los puntos ciegos. Cada punto, una frase accionable. No inventes datos que no estén en el contexto.",
   },
 };
 
 export async function POST(req: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return Response.json({ error: "La IA no está configurada (falta ANTHROPIC_API_KEY)." }, { status: 500 });
-
   const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const guard = await authAndPlan(token);
   if (!guard.ok) return Response.json({ error: "No autorizado." }, { status: 401 });
@@ -72,24 +69,10 @@ export async function POST(req: Request) {
   const context = (body.context ?? "").trim();
   if (!context) return Response.json({ error: "No hay datos suficientes para esta acción." }, { status: 400 });
 
-  let res: Response;
-  try {
-    res = await fetch(ANTHROPIC_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: cfg.model, max_tokens: cfg.max, system: cfg.system,
-        messages: [{ role: "user", content: context.slice(0, 14000) }],
-      }),
-    });
-  } catch {
-    return Response.json({ error: "No se pudo contactar a la IA." }, { status: 502 });
-  }
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 300);
-    return Response.json({ error: "La IA no respondió bien.", detail }, { status: 502 });
-  }
-  const data = await res.json();
-  const text = (data.content ?? []).filter((b: { type?: string }) => b.type === "text").map((b: { text?: string }) => b.text ?? "").join("").trim();
-  return Response.json({ text });
+  const r = await callAnthropic({
+    model: cfg.model, max_tokens: cfg.max, system: cfg.system,
+    messages: [{ role: "user", content: context.slice(0, 14000) }],
+  });
+  if (!r.ok) return Response.json({ error: r.error, detail: r.detail }, { status: r.status });
+  return Response.json({ text: extractText(r.data), truncated: r.truncated });
 }

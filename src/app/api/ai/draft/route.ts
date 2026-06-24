@@ -7,10 +7,11 @@
    ============================================================ */
 
 import { authAndPlan } from "@/lib/ai-guard";
+import { callAnthropic, extractText, extractToolInput } from "@/lib/ai-call";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5";
 
 const PROMPTS: Record<string, { system: string; maxTokens: number }> = {
@@ -27,9 +28,6 @@ const PROMPTS: Record<string, { system: string; maxTokens: number }> = {
 };
 
 export async function POST(req: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return Response.json({ error: "La IA no está configurada (falta ANTHROPIC_API_KEY)." }, { status: 500 });
-
   const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const guard = await authAndPlan(token);
   if (!guard.ok) return Response.json({ error: "No autorizado." }, { status: 401 });
@@ -58,45 +56,22 @@ export async function POST(req: Request) {
       },
     };
     const system = "Sos un facilitador experto en experimentos de mejora. A partir del contexto (idea elegida, causa raíz, tensión), diseñá UNA apuesta concreta y testeable. Español rioplatense, frases cortas y sin jerga. El umbral debe ser un número concreto y realista para ~15 días.";
-    let res: Response;
-    try {
-      res = await fetch(ANTHROPIC_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: MODEL, max_tokens: 500, system,
-          tools: [tool], tool_choice: { type: "tool", name: "disenar_apuesta" },
-          messages: [{ role: "user", content: context.slice(0, 6000) }],
-        }),
-      });
-    } catch { return Response.json({ error: "No se pudo contactar a la IA." }, { status: 502 }); }
-    if (!res.ok) return Response.json({ error: "La IA no respondió bien.", detail: (await res.text()).slice(0, 300) }, { status: 502 });
-    const data = await res.json();
-    const toolUse = (data.content ?? []).find((b: { type?: string }) => b.type === "tool_use") as { input?: Record<string, string> } | undefined;
-    return Response.json({ fields: toolUse?.input ?? {} });
+    const r = await callAnthropic({
+      model: MODEL, max_tokens: 500, system,
+      tools: [tool], tool_choice: { type: "tool", name: "disenar_apuesta" },
+      messages: [{ role: "user", content: context.slice(0, 6000) }],
+    });
+    if (!r.ok) return Response.json({ error: r.error, detail: r.detail }, { status: r.status });
+    return Response.json({ fields: extractToolInput<Record<string, string>>(r.data, "disenar_apuesta") ?? {} });
   }
 
   // ── Texto libre (causa raíz, narrativa) ──
   const cfg = PROMPTS[kind];
   if (!cfg) return Response.json({ error: "Pedido inválido." }, { status: 400 });
-  let res: Response;
-  try {
-    res = await fetch(ANTHROPIC_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: MODEL, max_tokens: cfg.maxTokens, system: cfg.system,
-        messages: [{ role: "user", content: context.slice(0, 6000) }],
-      }),
-    });
-  } catch {
-    return Response.json({ error: "No se pudo contactar a la IA." }, { status: 502 });
-  }
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 300);
-    return Response.json({ error: "La IA no respondió bien.", detail }, { status: 502 });
-  }
-  const data = await res.json();
-  const text = (data.content ?? []).filter((b: { type?: string }) => b.type === "text").map((b: { text?: string }) => b.text ?? "").join("").trim();
-  return Response.json({ text });
+  const r = await callAnthropic({
+    model: MODEL, max_tokens: cfg.maxTokens, system: cfg.system,
+    messages: [{ role: "user", content: context.slice(0, 6000) }],
+  });
+  if (!r.ok) return Response.json({ error: r.error, detail: r.detail }, { status: r.status });
+  return Response.json({ text: extractText(r.data) });
 }

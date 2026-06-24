@@ -8,18 +8,16 @@
    ============================================================ */
 
 import { authAndPlan } from "@/lib/ai-guard";
+import { callAnthropic, extractToolInput } from "@/lib/ai-call";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5";
 
 type Item = { id: string; text: string; type?: string };
 
 export async function POST(req: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return Response.json({ error: "La IA no está configurada (falta ANTHROPIC_API_KEY)." }, { status: 500 });
-
   const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const guard = await authAndPlan(token);
   if (!guard.ok) return Response.json({ error: "No autorizado." }, { status: 401 });
@@ -46,25 +44,17 @@ export async function POST(req: Request) {
   const system = "Sos el asistente de la biblioteca de aprendizajes de un equipo de mejora continua. Respondé SOLO con base en los aprendizajes provistos, en español rioplatense, sin inventar. Si la pregunta no se relaciona con ningún aprendizaje, decilo con honestidad.";
   const userMsg = `Pregunta: ${question}\n\nAprendizajes (id · [tipo] · texto):\n${items.map((i) => `${i.id} · [${i.type ?? "—"}] · ${i.text}`).join("\n")}`;
 
-  let res: Response;
-  try {
-    res = await fetch(ANTHROPIC_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: MODEL, max_tokens: 700, system,
-        tools: [tool], tool_choice: { type: "tool", name: "responder" },
-        messages: [{ role: "user", content: userMsg }],
-      }),
-    });
-  } catch { return Response.json({ error: "No se pudo contactar a la IA." }, { status: 502 }); }
-  if (!res.ok) return Response.json({ error: "La IA no respondió bien.", detail: (await res.text()).slice(0, 300) }, { status: 502 });
+  const r = await callAnthropic({
+    model: MODEL, max_tokens: 700, system,
+    tools: [tool], tool_choice: { type: "tool", name: "responder" },
+    messages: [{ role: "user", content: userMsg }],
+  });
+  if (!r.ok) return Response.json({ error: r.error, detail: r.detail }, { status: r.status });
 
-  const data = await res.json();
-  const toolUse = (data.content ?? []).find((b: { type?: string }) => b.type === "tool_use") as { input?: { answer?: string; relevantIds?: string[] } } | undefined;
+  const input = extractToolInput<{ answer?: string; relevantIds?: string[] }>(r.data, "responder");
   const valid = new Set(items.map((i) => i.id));
   return Response.json({
-    answer: (toolUse?.input?.answer ?? "").trim(),
-    relevantIds: (toolUse?.input?.relevantIds ?? []).filter((id) => valid.has(id)),
+    answer: (input?.answer ?? "").trim(),
+    relevantIds: (input?.relevantIds ?? []).filter((id) => valid.has(id)),
   });
 }
