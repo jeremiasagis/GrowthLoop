@@ -160,6 +160,16 @@ export function phaseMode(phase: RetroPhase): "async" | "live" {
   return "live";
 }
 
+/** Separa las fases de una retro en async-ables y en-vivo, con sus minutos. */
+export function phaseSplit(retro: RetroDefinition): {
+  asyncPhases: RetroPhase[]; livePhases: RetroPhase[]; asyncMin: number; liveMin: number;
+} {
+  const asyncPhases = retro.phases.filter((p) => phaseMode(p) === "async");
+  const livePhases = retro.phases.filter((p) => phaseMode(p) === "live");
+  const mins = (ps: RetroPhase[]) => ps.reduce((a, p) => a + (p.minutes ?? 0), 0);
+  return { asyncPhases, livePhases, asyncMin: mins(asyncPhases), liveMin: mins(livePhases) };
+}
+
 export const RETRO_REGISTRY: RetroDefinition[] = [
   // ══════════ EXPLORACIÓN · módulo de diagnóstico ══════════
   {

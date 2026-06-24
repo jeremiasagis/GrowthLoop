@@ -14,7 +14,7 @@ import { Button, Pill } from "./ui";
 import { useToast } from "./Toast";
 import { createLiveSession } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { retrosForStage, retroInPlan, type RetroDefinition } from "@/lib/retros/registry";
+import { retrosForStage, retroInPlan, phaseMode, phaseSplit, type RetroDefinition } from "@/lib/retros/registry";
 import { getOrg } from "@/lib/repository";
 import { CYCLE_STAGES, STAGES, normalizeStage, planOf, planLimits, type Initiative, type StageKey, type Team } from "@/lib/data";
 
@@ -190,15 +190,29 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
             <button onClick={() => setStep(2)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 8 }}><Icon name="ChevronLeft" size={13} /> Retros</button>
             <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, marginBottom: 4 }}>{retro.name}</h2>
             <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 14 }}>{retro.purpose}</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
-              {retro.phases.map((p, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: "var(--t-sm)" }}>
-                  <span style={{ width: 20, height: 20, borderRadius: 99, background: "var(--card-2)", color: "var(--ink-2)", display: "grid", placeItems: "center", fontSize: 10, fontWeight: 800, flex: "none" }}>{i + 1}</span>
-                  <span style={{ flex: 1 }}>{p.name}</span>
-                  {p.minutes && <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>{p.minutes}′</span>}
-                </div>
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+              {retro.phases.map((p, i) => {
+                const m = phaseMode(p);
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: "var(--t-sm)" }}>
+                    <span style={{ width: 20, height: 20, borderRadius: 99, background: "var(--card-2)", color: "var(--ink-2)", display: "grid", placeItems: "center", fontSize: 10, fontWeight: 800, flex: "none" }}>{i + 1}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+                    <span title={m === "async" ? "Puede hacerse async" : "Conviene en vivo"} style={{ fontSize: 10, fontWeight: 700, color: m === "async" ? "var(--info)" : "var(--ink-3)", display: "inline-flex", alignItems: "center", gap: 3, flex: "none" }}><Icon name={m === "async" ? "Clock" : "Radio"} size={10} /> {m}</span>
+                    {p.minutes && <span className="num muted" style={{ fontSize: "var(--t-xs)", width: 26, textAlign: "right", flex: "none" }}>{p.minutes}′</span>}
+                  </div>
+                );
+              })}
             </div>
+            {(() => {
+              const sp = phaseSplit(retro);
+              if (!sp.asyncPhases.length || !retro.asyncAvailable) return null;
+              return (
+                <div style={{ marginBottom: 14, fontSize: "var(--t-xs)", color: "var(--ink-2)", display: "flex", alignItems: "center", gap: 7, padding: "8px 10px", background: "color-mix(in srgb, var(--info) 7%, var(--card))", border: "1px solid color-mix(in srgb, var(--info) 24%, transparent)", borderRadius: "var(--r-md)" }}>
+                  <Icon name="Lightbulb" size={13} style={{ color: "var(--info)", flexShrink: 0 }} />
+                  <span><b>{sp.asyncPhases.length}</b> {sp.asyncPhases.length === 1 ? "fase puede" : "fases pueden"} ir async{sp.liveMin > 0 ? <> → la parte en vivo es ~{sp.liveMin}′ en vez de {retro.duration}′</> : null}.</span>
+                </div>
+              );
+            })()}
             {retro.sensitive && (
               <div style={{ padding: "10px 12px", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", borderRadius: "var(--r-md)", marginBottom: 14, fontSize: "var(--t-sm)", display: "flex", gap: 8 }}>
                 <Icon name="ShieldAlert" size={16} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />

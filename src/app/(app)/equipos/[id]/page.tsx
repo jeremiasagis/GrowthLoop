@@ -1071,6 +1071,16 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Initiative | null>(null);
   const [filter, setFilter] = useState<Initiative["status"]>("active");
+  // Aporte async abierto (para que el facilitador sepa que hay una recolección en curso).
+  const [asyncSession, setAsyncSession] = useState<LiveSession | null>(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const s = await getOpenSessionForTeam(team.id);
+      if (active) setAsyncSession(s && (s.result as { async?: boolean })?.async ? s : null);
+    })();
+    return () => { active = false; };
+  }, [team.id]);
   // Sin candados: se puede crear una iniciativa sin haber hecho la Sesión Fundacional.
   const newInitiative = () => setModal(true);
   const live = getTeam(team.id) ?? team;
@@ -1113,6 +1123,23 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
             </div>
           )}
         </div>
+
+        {isFacil && asyncSession && (() => {
+          const until = (asyncSession.result as { asyncUntil?: string }).asyncUntil;
+          const days = until ? Math.max(0, Math.ceil((new Date(until).getTime() - Date.now()) / 86400000)) : null;
+          return (
+            <Card pad={14} style={{ border: "1px solid color-mix(in srgb, var(--info) 40%, var(--line))", background: "color-mix(in srgb, var(--info) 7%, var(--card))" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--info) 16%, transparent)", color: "var(--info)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Clock" size={16} /></span>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>Aporte asincrónico abierto</div>
+                  <div className="muted" style={{ fontSize: "var(--t-xs)" }}>El equipo está sumando su mirada{days != null ? ` · cierra en ${days} ${days === 1 ? "día" : "días"}` : ""}. Cuando estén las respuestas, abrí la sala y cerrá.</div>
+                </div>
+                <Button size="sm" variant="secondary" icon="Eye" onClick={() => router.push(`/sala/${asyncSession.id}`)}>Ir a la sala</Button>
+              </div>
+            </Card>
+          );
+        })()}
 
         {reminders.length > 0 && (
           <Card pad={16} style={{ border: "1px solid color-mix(in srgb, var(--st-follow) 35%, var(--line))", background: "color-mix(in srgb, var(--st-follow) 6%, var(--card))" }}>
