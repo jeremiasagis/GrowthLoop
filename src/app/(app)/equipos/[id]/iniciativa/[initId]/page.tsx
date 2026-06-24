@@ -20,6 +20,7 @@ import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { SignalSource } from "@/components/SignalSource";
 import { CycleTimeline } from "@/components/CycleTimeline";
 import { LoopRing } from "@/components/LoopRing";
+import { LoopExpediente } from "@/components/LoopExpediente";
 import { WordCloud } from "@/components/WordCloud";
 import { retrosForStage, stageOfSessionType, CANONICAL_RETRO, type RetroDefinition } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, planLimits, overallOf, type Initiative, type StageKey, type Team } from "@/lib/data";
@@ -626,6 +627,9 @@ export default function InitiativeDetailPage() {
         <Card pad={16}><Stat label="Responsable" value={responsible || "—"} icon="User" color="var(--info)" /></Card>
         <Card pad={16}><Stat label="Creada" value={fmtDate(init.createdAt)} icon="Calendar" color="var(--ink-2)" /></Card>
       </div>
+
+      {/* expediente: el hilo del loop en una vista */}
+      <LoopExpediente init={init} />
 
       {/* loop circular vivo */}
       <Card pad={20} style={{ marginBottom: 22 }}>
