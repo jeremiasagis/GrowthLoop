@@ -63,6 +63,7 @@ function navItemsFor(role: RoleKey | null): NavItem[] {
   if (role === "superadmin") {
     return [
       inicio,
+      { href: "/consola", label: "Consola", icon: "LayoutDashboard" },
       { href: "/organizaciones", label: "Organizaciones", icon: "Building2" },
       { href: "/admins", label: "Admins", icon: "ShieldCheck" },
       facilitadores, reportes, norte, ajustes,

@@ -13,7 +13,7 @@
 import type { RoleKey } from "@/lib/data";
 
 const SUPERADMIN_PREFIXES = [
-  "/dashboard", "/organizaciones", "/equipos", "/admins",
+  "/dashboard", "/organizaciones", "/equipos", "/admins", "/consola",
   "/facilitadores", "/reportes", "/reporte", "/norte", "/sala", "/lab", "/ajustes",
 ];
 const ADMIN_PREFIXES = [
