@@ -21,6 +21,7 @@ import { SignalSource } from "@/components/SignalSource";
 import { CycleTimeline } from "@/components/CycleTimeline";
 import { LoopRing } from "@/components/LoopRing";
 import { LoopExpediente } from "@/components/LoopExpediente";
+import { playbookByKey } from "@/lib/playbooks";
 import { WordCloud } from "@/components/WordCloud";
 import { retrosForStage, stageOfSessionType, CANONICAL_RETRO, type RetroDefinition } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, planLimits, overallOf, type Initiative, type StageKey, type Team } from "@/lib/data";
@@ -627,6 +628,13 @@ export default function InitiativeDetailPage() {
         <Card pad={16}><Stat label="Responsable" value={responsible || "—"} icon="User" color="var(--info)" /></Card>
         <Card pad={16}><Stat label="Creada" value={fmtDate(init.createdAt)} icon="Calendar" color="var(--ink-2)" /></Card>
       </div>
+
+      {/* guía del playbook */}
+      {init.data?.playbook && playbookByKey(init.data.playbook) && (
+        <div style={{ marginBottom: 16, fontSize: "var(--t-xs)", color: "var(--violet)", display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "color-mix(in srgb, var(--violet) 8%, var(--card))", border: "1px solid color-mix(in srgb, var(--violet) 26%, transparent)", borderRadius: "var(--r-full)" }}>
+          <Icon name="Compass" size={12} /> Playbook · <b>{playbookByKey(init.data.playbook)!.name}</b>: Norte guía el camino de retros y la señal.
+        </div>
+      )}
 
       {/* expediente: el hilo del loop en una vista */}
       <LoopExpediente init={init} />

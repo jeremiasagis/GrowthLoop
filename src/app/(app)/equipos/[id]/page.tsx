@@ -23,6 +23,7 @@ import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { TeamExecReport } from "@/components/TeamExecReport";
 import { TeamCommitments } from "@/components/TeamCommitments";
 import { MaturityPanel } from "@/components/MaturityPanel";
+import { NorteSuggestions } from "@/components/NorteSuggestions";
 import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
 import { LOOP_PLAYBOOKS, playbookByKey } from "@/lib/playbooks";
@@ -1140,6 +1141,8 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
             </Card>
           );
         })()}
+
+        {isFacil && <NorteSuggestions team={live} onGoTab={onGoTab} />}
 
         {reminders.length > 0 && (
           <Card pad={16} style={{ border: "1px solid color-mix(in srgb, var(--st-follow) 35%, var(--line))", background: "color-mix(in srgb, var(--st-follow) 6%, var(--card))" }}>
