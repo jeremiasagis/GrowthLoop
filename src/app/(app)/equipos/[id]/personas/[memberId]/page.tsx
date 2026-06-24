@@ -81,7 +81,7 @@ export default function PersonaDetailPage() {
 
   return (
     <div className="screen-pad" style={{ maxWidth: 820 }}>
-      <button onClick={() => router.push(`/equipos/${team.id}/personas`)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 10 }}><Icon name="ChevronLeft" size={13} /> Personas</button>
+      <button onClick={() => router.push(`/equipos/${team.id}/personas`)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 10 }}><Icon name="ChevronLeft" size={13} /> Desarrollo</button>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
         <span style={{ width: 46, height: 46, borderRadius: 99, background: "var(--card-2)", color: "var(--ink-1)", display: "grid", placeItems: "center", fontWeight: 800, flex: "none" }}>{member.initials}</span>
         <div><h1 style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{member.name}</h1><p className="muted" style={{ fontSize: "var(--t-sm)" }}>Desarrollo individual · {team.name}</p></div>

@@ -1590,7 +1590,7 @@ export default function TeamPage() {
       <PrimerosPasos team={team} isFacil={isFacil} onInvite={() => setInviteOpen(true)} onGoTab={setTab} />
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 0 }}><Tabs tabs={TABS} active={tab} onChange={setTab} /></div>
-        {isFacil && <Button size="sm" variant="secondary" icon="Users" onClick={() => router.push(`/equipos/${team.id}/personas`)}>Personas</Button>}
+        {isFacil && <Button size="sm" variant="secondary" icon="Users" onClick={() => router.push(`/equipos/${team.id}/personas`)}>Desarrollo</Button>}
       </div>
 
       {tab === "exploracion" && (

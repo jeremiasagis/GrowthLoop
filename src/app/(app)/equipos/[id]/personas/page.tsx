@@ -43,7 +43,7 @@ export default function PersonasPage() {
         <button onClick={() => router.push(`/equipos/${team.id}`)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600 }}><Icon name="ChevronLeft" size={13} /> {team.name}</button>
       </div>
       <div style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Personas</h1>
+        <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Desarrollo</h1>
         <p className="muted" style={{ marginTop: 4 }}>Acompañá a cada integrante: su 360 de competencias y sus 1-a-1, conectados a las señales del equipo.</p>
       </div>
 
