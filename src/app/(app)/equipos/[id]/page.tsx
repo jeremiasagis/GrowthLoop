@@ -18,7 +18,7 @@ import { useToast } from "@/components/Toast";
 import { createLiveSession, getOpenSessionForTeam, setResult, type LiveSession } from "@/lib/session";
 import { JoinModal } from "@/components/session/JoinModal";
 import { SessionLauncher } from "@/components/SessionLauncher";
-import { retrosForStage, type RetroDefinition } from "@/lib/retros/registry";
+import { retrosForStage, INTENTS, curationOf, type RetroDefinition, type RetroIntent } from "@/lib/retros/registry";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { TeamExecReport } from "@/components/TeamExecReport";
 import { TeamCommitments } from "@/components/TeamCommitments";
@@ -867,24 +867,55 @@ function HealthCard({ team }: { team: Team }) {
   );
 }
 
-/** Catálogo de retros: todas las retros, buscables y filtrables por etapa, para correr sueltas. */
+/** Catálogo de retros: organizado por propósito, separando pasos del loop
+ *  de la caja de herramientas, con curaduría (primarias + variantes). */
 function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [selRetro, setSelRetro] = useState<RetroDefinition | null>(null);
   const [q, setQ] = useState("");
-  const [stageF, setStageF] = useState<StageKey | "all">("all");
+  const [intentF, setIntentF] = useState<RetroIntent | "all">("all");
+  const [showVariants, setShowVariants] = useState(false);
   const GROUPS: StageKey[] = ["exploration", ...CYCLE_STAGES];
   const openRetro = (r: RetroDefinition) => { setSelRetro(r); setLauncherOpen(true); };
   const doneNames = new Set(team.sessions.map((s) => s.retro));
 
   const allRetros = GROUPS.flatMap((st) => retrosForStage(st).filter((r) => r.implemented));
   const ql = q.trim().toLowerCase();
-  const filtered = allRetros.filter((r) => (stageF === "all" || r.stage === stageF) && (!ql || r.name.toLowerCase().includes(ql) || r.description.toLowerCase().includes(ql)));
-  const chips: { key: StageKey | "all"; label: string }[] = [
-    { key: "all", label: "Todas" },
-    { key: "exploration", label: "Exploración" },
-    ...CYCLE_STAGES.map((st) => ({ key: st as StageKey | "all", label: STAGES[st].label })),
-  ];
+  const visible = allRetros.filter((r) => {
+    const c = curationOf(r.id);
+    if (!showVariants && c.variantOf) return false;
+    if (intentF !== "all" && c.intent !== intentF) return false;
+    return !ql || r.name.toLowerCase().includes(ql) || r.description.toLowerCase().includes(ql);
+  });
+  const steps = visible.filter((r) => !curationOf(r.id).isTool);
+  const tools = visible.filter((r) => curationOf(r.id).isTool);
+  const intentsPresent = INTENTS.filter((it) => allRetros.some((r) => curationOf(r.id).intent === it.key));
+
+  const card = (r: RetroDefinition) => {
+    const c = curationOf(r.id);
+    const done = doneNames.has(r.name);
+    const intent = INTENTS.find((i) => i.key === c.intent);
+    return (
+      <button key={r.id} disabled={!isFacil} onClick={() => { if (isFacil) openRetro(r); }}
+        style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 6, padding: "11px 12px", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${r.category === "growthloop" ? "var(--green)" : "var(--ink-3)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "pointer" : "default" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {intent && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-2)", background: "var(--card-2)", padding: "2px 7px", borderRadius: 99, display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name={intent.icon} size={10} /> {intent.label}</span>}
+          {c.variantOf && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-3)" }}>· variante</span>}
+          <span className="num muted" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="Timer" size={11} /> {r.duration}′</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={13} style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
+          <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
+          {done && <Icon name="Check" size={13} style={{ color: "var(--green)" }} />}
+          {r.sensitive && <Icon name="ShieldAlert" size={13} style={{ color: "var(--warning)" }} />}
+        </div>
+        <div className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.description}</div>
+      </button>
+    );
+  };
+  const grid = (list: RetroDefinition[]) => (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px,1fr))", gap: 10 }}>{list.map(card)}</div>
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -892,10 +923,10 @@ function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
 
       <Card pad={16}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ width: 38, height: 38, borderRadius: "var(--r-md)", background: "var(--card-2)", color: "var(--ink-1)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Layers" size={19} /></span>
+          <span style={{ width: 38, height: 38, borderRadius: "var(--r-md)", background: "var(--card-2)", color: "var(--ink-1)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Wrench" size={19} /></span>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Catálogo de retros</div>
-            <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 1 }}>Hacé cualquier retro <b style={{ color: "var(--ink-1)" }}>suelta</b>. Para una mejora estructurada, creá un <b style={{ color: "var(--ink-1)" }}>Loop</b>.</p>
+            <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Caja de herramientas</div>
+            <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 1 }}>Hacé cualquier retro <b style={{ color: "var(--ink-1)" }}>suelta</b>. Para una mejora estructurada y medible, creá un <b style={{ color: "var(--ink-1)" }}>Loop</b>.</p>
           </div>
         </div>
       </Card>
@@ -905,41 +936,31 @@ function RetroCatalog({ team, isFacil }: { team: Team; isFacil: boolean }) {
           <Icon name="Search" size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--ink-3)" }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar retro…" style={{ width: "100%", background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "9px 12px 9px 34px", fontSize: "var(--t-sm)", outline: "none" }} />
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {chips.map((c) => {
-            const on = stageF === c.key;
-            const col = c.key === "all" ? "var(--ink-1)" : STAGES[c.key as StageKey].color;
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          <span className="eyebrow" style={{ marginRight: 2 }}>¿Qué necesitás?</span>
+          {[{ key: "all" as const, label: "Todo", icon: "LayoutGrid" }, ...intentsPresent].map((c) => {
+            const on = intentF === c.key;
             return (
-              <button key={c.key} onClick={() => setStageF(c.key)} style={{ padding: "5px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${on ? col : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${col} 14%, var(--card))` : "var(--card)", color: on ? col : "var(--ink-2)" }}>{c.label}</button>
+              <button key={c.key} onClick={() => setIntentF(c.key as RetroIntent | "all")} style={{ padding: "5px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${on ? "var(--green)" : "var(--line-2)"}`, background: on ? "color-mix(in srgb, var(--green) 12%, var(--card))" : "var(--card)", color: on ? "var(--green)" : "var(--ink-2)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name={c.icon} size={11} /> {c.label}</button>
             );
           })}
+          <button onClick={() => setShowVariants((v) => !v)} style={{ marginLeft: "auto", padding: "5px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${showVariants ? "var(--ink-1)" : "var(--line-2)"}`, background: showVariants ? "var(--card-2)" : "var(--card)", color: showVariants ? "var(--ink-0)" : "var(--ink-3)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name={showVariants ? "Eye" : "EyeOff"} size={11} /> Variantes</button>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px,1fr))", gap: 10 }}>
-        {filtered.map((r) => {
-          const done = doneNames.has(r.name);
-          const stMeta = STAGES[r.stage];
-          return (
-            <button key={r.id} disabled={!isFacil} onClick={() => { if (isFacil) openRetro(r); }}
-              style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 6, padding: "11px 12px", background: "var(--card)", border: "1px solid var(--line)", borderLeft: `3px solid ${r.category === "growthloop" ? "var(--green)" : "var(--ink-3)"}`, borderRadius: "var(--r-md)", cursor: isFacil ? "pointer" : "default" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: stMeta.color, background: `color-mix(in srgb, ${stMeta.color} 14%, transparent)`, padding: "2px 7px", borderRadius: 99 }}>{r.stage === "exploration" ? "Exploración" : stMeta.label}</span>
-                <span className="num muted" style={{ marginLeft: "auto", fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="Timer" size={11} /> {r.duration}′</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                <Icon name={r.category === "growthloop" ? "Sparkles" : "BookOpen"} size={13} style={{ color: r.category === "growthloop" ? "var(--green)" : "var(--ink-3)", flexShrink: 0 }} />
-                <span style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{r.name}</span>
-                {done && <Icon name="Check" size={13} style={{ color: "var(--green)" }} />}
-                {r.sensitive && <Icon name="ShieldAlert" size={13} style={{ color: "var(--warning)" }} />}
-              </div>
-              <div className="muted" style={{ fontSize: "var(--t-xs)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.description}</div>
-            </button>
-          );
-        })}
-        {filtered.length === 0 && <p className="muted" style={{ fontSize: "var(--t-sm)", gridColumn: "1/-1", padding: "20px 0", textAlign: "center" }}>No hay retros con ese filtro.</p>}
-      </div>
-
+      {steps.length > 0 && (
+        <div>
+          <SectionTitle icon="Repeat" sub="Las que alimentan las etapas de un loop">Pasos del loop ({steps.length})</SectionTitle>
+          <div style={{ marginTop: 8 }}>{grid(steps)}</div>
+        </div>
+      )}
+      {tools.length > 0 && (
+        <div>
+          <SectionTitle icon="Wrench" sub="Check-ins, cierres, priorización, radares — sirven en cualquier momento">Caja de herramientas ({tools.length})</SectionTitle>
+          <div style={{ marginTop: 8 }}>{grid(tools)}</div>
+        </div>
+      )}
+      {visible.length === 0 && <p className="muted" style={{ fontSize: "var(--t-sm)", padding: "20px 0", textAlign: "center" }}>No hay retros con ese filtro.</p>}
     </div>
   );
 }
@@ -1389,7 +1410,7 @@ export default function TeamPage() {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
 
   const TABS = [
-    { key: "exploracion", label: "Catálogo", icon: "Layers" },
+    { key: "exploracion", label: "Herramientas", icon: "Wrench" },
     { key: "seguimiento", label: "Loops", icon: "RefreshCw" },
     { key: "sesiones", label: "Sesiones", icon: "History" },
     { key: "pulso", label: "Pulso", icon: "Activity" },
