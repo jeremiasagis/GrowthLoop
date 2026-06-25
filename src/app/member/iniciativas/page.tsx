@@ -78,7 +78,7 @@ export default function MemberIniciativas() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {shown.map((i) => { const isLiveHere = live && live.initiativeId === i.id; return (
-            <Card key={i.id} pad={18} style={{ display: "flex", flexDirection: "column", gap: 12, opacity: i.status === "done" ? 0.72 : 1, borderColor: isLiveHere ? "color-mix(in srgb, var(--green) 45%, transparent)" : undefined }}>
+            <Card key={i.id} pad={18} hover onClick={() => router.push(`/member/iniciativas/${i.id}`)} style={{ display: "flex", flexDirection: "column", gap: 12, cursor: "pointer", opacity: i.status === "done" ? 0.72 : 1, borderColor: isLiveHere ? "color-mix(in srgb, var(--green) 45%, transparent)" : undefined }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: "var(--t-md)" }}>{i.title}</div>
@@ -90,7 +90,8 @@ export default function MemberIniciativas() {
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", paddingTop: 4, borderTop: "1px solid var(--line)" }}>
                 <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="Calendar" size={13} /> Creada {fmtDate(i.createdAt)}</span>
                 <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="History" size={13} /> {i.sessionsCount ?? 0} sesiones</span>
-                {isLiveHere && <span style={{ marginLeft: "auto" }}><Button size="sm" icon="Radio" onClick={() => router.push(`/sala/${live!.id}`)}>Entrar a la sesión</Button></span>}
+                <span className="muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>Ver el hilo <Icon name="ChevronRight" size={13} /></span>
+                {isLiveHere && <span onClick={(e) => e.stopPropagation()}><Button size="sm" icon="Radio" onClick={() => router.push(`/sala/${live!.id}`)}>Entrar a la sesión</Button></span>}
               </div>
             </Card>
           ); })}
