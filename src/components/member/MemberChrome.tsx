@@ -34,7 +34,7 @@ const NAV = [
   { href: "/member/iniciativas", label: "Iniciativas", icon: "Target" },
   { href: "/member/sesiones", label: "Sesiones", icon: "Radio" },
   { href: "/member/biblioteca", label: "Biblioteca", icon: "Library" },
-  { href: "/member/reflection", label: "Reflexiones", icon: "BookHeart" },
+  { href: "/member/desarrollo", label: "Mi desarrollo", icon: "Sprout" },
   { href: "/member/perfil", label: "Perfil", icon: "UserRound" },
 ];
 

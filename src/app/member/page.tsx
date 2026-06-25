@@ -196,24 +196,19 @@ export default function MemberHome() {
         </div>
       </div>
 
-      {/* ── MI VOZ ── */}
+      {/* ── MI CRECIMIENTO ── */}
       <div>
-        <SectionTitle icon="MessageCircleHeart" sub="Tu recorrido y tu espacio">Mi voz</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 12, marginTop: 10 }}>
-          {[
-            { href: "/member/reflection", label: "Mis reflexiones", icon: "BookHeart", desc: "Tus notas privadas" },
-            { href: "/member/sesiones", label: "Sesiones", icon: "Radio", desc: "Lo que hicimos juntos" },
-            { href: "/member/equipo", label: "Mi equipo", icon: "Users", desc: "Integrantes y facilitador" },
-          ].map((l) => (
-            <Card key={l.href} pad={16} hover onClick={() => router.push(l.href)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 38, height: 38, borderRadius: "var(--r-md)", background: "var(--card-2)", color: "var(--green)", display: "grid", placeItems: "center", flex: "none" }}><Icon name={l.icon} size={18} /></div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{l.label}</div>
-                <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{l.desc}</div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <SectionTitle icon="Sprout" sub="Tu desarrollo dentro del equipo">Mi crecimiento</SectionTitle>
+        <button onClick={() => router.push("/member/desarrollo")} style={{ textAlign: "left", width: "100%", marginTop: 10 }}>
+          <Card pad={18} hover style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer", background: "linear-gradient(180deg, color-mix(in srgb, var(--violet) 7%, var(--card)), var(--card))", borderColor: "color-mix(in srgb, var(--violet) 28%, var(--line))" }}>
+            <div style={{ width: 42, height: 42, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--violet) 16%, transparent)", color: "var(--violet)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Radar" size={21} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>Mi desarrollo</div>
+              <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Tu 360 (cómo te ve el equipo) y tus 1-a-1</div>
+            </div>
+            <Icon name="ChevronRight" size={16} style={{ color: "var(--ink-3)" }} />
+          </Card>
+        </button>
       </div>
     </div>
   );
