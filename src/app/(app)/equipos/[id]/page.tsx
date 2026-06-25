@@ -24,6 +24,7 @@ import { TeamExecReport } from "@/components/TeamExecReport";
 import { TeamCommitments } from "@/components/TeamCommitments";
 import { MaturityPanel } from "@/components/MaturityPanel";
 import { NorteSuggestions } from "@/components/NorteSuggestions";
+import { TeamVoicePanel } from "@/components/TeamVoicePanel";
 import { Celebration } from "@/components/Celebration";
 import { teamProgress } from "@/lib/gamification";
 import { LOOP_PLAYBOOKS, playbookByKey } from "@/lib/playbooks";
@@ -1194,6 +1195,8 @@ function SeguimientoPanel({ team, isFacil, onOpenPulse, onInvite, onGoTab }: { t
         })()}
 
         {isFacil && <NorteSuggestions team={live} onGoTab={onGoTab} />}
+
+        {isFacil && <TeamVoicePanel team={team} />}
 
         {reminders.length > 0 && (
           <Card pad={16} style={{ border: "1px solid color-mix(in srgb, var(--st-follow) 35%, var(--line))", background: "color-mix(in srgb, var(--st-follow) 6%, var(--card))" }}>

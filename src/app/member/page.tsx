@@ -13,6 +13,7 @@ import { teamLiveStage } from "@/lib/data";
 import { loopThread } from "@/lib/loop";
 import { ciMaturity } from "@/lib/maturity";
 import { getReviewsForTeam, type TalentReview } from "@/lib/talent";
+import { MemberVoice } from "@/components/member/MemberVoice";
 
 export default function MemberHome() {
   const router = useRouter();
@@ -209,6 +210,14 @@ export default function MemberHome() {
             <Icon name="ChevronRight" size={16} style={{ color: "var(--ink-3)" }} />
           </Card>
         </button>
+      </div>
+
+      {/* ── MI VOZ ── */}
+      <div style={{ marginTop: 22 }}>
+        <SectionTitle icon="Megaphone" sub="Lo que ves desde tu lugar alimenta la mejora">Mi voz</SectionTitle>
+        <div style={{ marginTop: 10 }}>
+          <MemberVoice teamId={team.id} />
+        </div>
       </div>
     </div>
   );
