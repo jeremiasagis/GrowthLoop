@@ -19,6 +19,7 @@ import { getMyOpenSession, subscribeTeamSessions, type LiveSession } from "@/lib
 import { LoopExpediente } from "@/components/LoopExpediente";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { loopThread } from "@/lib/loop";
+import { myCommitments } from "@/lib/member/commitments";
 import { CYCLE_STAGES } from "@/lib/data";
 
 const STATUS_PILL: Record<string, { l: string; c: string }> = {
@@ -63,20 +64,9 @@ export default function MemberLoopDetail() {
   const curIdx = Math.max(0, CYCLE_STAGES.indexOf(init.stage));
   const st = STATUS_PILL[init.status];
 
-  // Mis compromisos en ESTE loop (match por nombre, igual que el home).
-  const firstLower = (user?.name ?? "").split(" ")[0].toLowerCase();
-  const myName = (user?.name ?? "").toLowerCase().trim();
+  // Mis compromisos en ESTE loop.
   const d = init.data ?? {};
-  const statusBy = new Map((d.follow?.actionStatus ?? []).map((a) => [a.text, a.status]));
-  const seen = new Set<string>();
-  const myCommits: { text: string; status: string }[] = [];
-  for (const a of [...(d.proof?.actions ?? []), ...(d.follow?.newActions ?? [])]) {
-    const text = (a.text ?? "").trim();
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    const who = (a.who ?? "").toLowerCase();
-    if (who && (who.includes(firstLower) || (myName && who.includes(myName)))) myCommits.push({ text, status: statusBy.get(text) ?? "pending" });
-  }
+  const myCommits = myCommitments([init], user?.name);
   const mark = async (text: string, status: string) => {
     setBusy(text);
     const { error } = await setMyCommitmentStatus(init.id, text, status);

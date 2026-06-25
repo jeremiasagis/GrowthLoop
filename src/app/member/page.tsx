@@ -14,6 +14,7 @@ import { loopThread } from "@/lib/loop";
 import { ciMaturity } from "@/lib/maturity";
 import { getReviewsForTeam, type TalentReview } from "@/lib/talent";
 import { MemberVoice } from "@/components/member/MemberVoice";
+import { myCommitments } from "@/lib/member/commitments";
 
 export default function MemberHome() {
   const router = useRouter();
@@ -45,24 +46,8 @@ export default function MemberHome() {
   const inits = team.initiatives ?? [];
   const activeInits = inits.filter((i) => i.status === "active");
 
-  // Mis compromisos: las acciones de los loops activos asignadas a mí (por nombre).
-  const myName = (user?.name ?? "").toLowerCase().trim();
-  const firstLower = firstName.toLowerCase();
-  const myCommits: { initId: string; text: string; status: string }[] = [];
-  for (const i of activeInits) {
-    const d = i.data ?? {};
-    const statusBy = new Map((d.follow?.actionStatus ?? []).map((a) => [a.text, a.status]));
-    const seen = new Set<string>();
-    for (const a of [...(d.proof?.actions ?? []), ...(d.follow?.newActions ?? [])]) {
-      const text = (a.text ?? "").trim();
-      if (!text || seen.has(text)) continue;
-      seen.add(text);
-      const who = (a.who ?? "").toLowerCase();
-      if (who && (who.includes(firstLower) || (myName && who.includes(myName)))) {
-        myCommits.push({ initId: i.id, text, status: statusBy.get(text) ?? "pending" });
-      }
-    }
-  }
+  // Mis compromisos: las acciones de los loops activos asignadas a mí.
+  const myCommits = myCommitments(activeInits, user?.name);
   const mark = async (initId: string, text: string, status: string) => {
     const key = `${initId}:${text}`;
     setBusy(key);

@@ -5,7 +5,9 @@ import { Icon } from "@/components/icon";
 import { Avatar, Bar, Card, Pill, PulseRadar, StageBadge } from "@/components/ui";
 import { getFacilitators, getMemberTeam } from "@/lib/repository";
 import { useMemberTeam } from "@/lib/member/team";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { getMyFootprint } from "@/lib/session";
+import { myCommitments } from "@/lib/member/commitments";
 import { PULSE_DIMS, dimVal, teamLiveStage, to5 } from "@/lib/data";
 
 const FOOT_BADGES = [
@@ -17,10 +19,13 @@ const FOOT_BADGES = [
 
 export default function MemberEquipo() {
   const { teamId } = useMemberTeam();
+  const { user } = useAuth();
   const team = getMemberTeam(teamId);
   const [foot, setFoot] = useState<{ sessions: number; contributions: number } | null>(null);
   useEffect(() => { getMyFootprint().then(setFoot); }, []);
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo todavía.</p></Card></div>;
+
+  const myDone = myCommitments(team.initiatives ?? [], user?.name).filter((c) => c.status === "done").length;
 
   const lead = team.facilitatorId ? getFacilitators().find((f) => f.id === team.facilitatorId) : undefined;
   const lastPulse = team.pulse[team.pulse.length - 1];
@@ -57,6 +62,7 @@ export default function MemberEquipo() {
           <div style={{ display: "flex", gap: 22 }}>
             <div><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{foot?.sessions ?? "—"}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>sesiones</div></div>
             <div><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{foot?.contributions ?? "—"}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>aportes</div></div>
+            <div><div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, color: myDone > 0 ? "var(--green)" : "var(--ink-0)" }}>{myDone}</div><div className="muted" style={{ fontSize: "var(--t-xs)" }}>compromisos cumplidos</div></div>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginLeft: "auto" }}>
             {foot && FOOT_BADGES.filter((b) => b.test(foot)).map((b) => (
