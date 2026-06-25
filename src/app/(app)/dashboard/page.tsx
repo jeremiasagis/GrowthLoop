@@ -4,12 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import {
-  Avatar, AvatarStack, Button, Card, EmptyState, SectionTitle, Sparkline, StageBadge, Stat,
+  Avatar, AvatarStack, Button, Card, EmptyState, SectionTitle, Sparkline, StageBadge,
 } from "@/components/ui";
 import { STAGES, overallOf, teamLiveStage, to5, type Team } from "@/lib/data";
 import { getFacilitators, getTeams } from "@/lib/repository";
 import { teamProgress } from "@/lib/gamification";
 import { OpenSessionsBanner } from "@/components/OpenSessionsBanner";
+import { RoleDashboard } from "@/components/RoleDashboard";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ── Onboarding del facilitador: primeros pasos guiados ─────── */
@@ -169,14 +170,7 @@ export default function DashboardPage() {
   const teams = getTeams();
   const facilitators = getFacilitators();
   const activeFacils = facilitators.filter((f) => f.status === "active");
-  const allInits = teams.flatMap((t) => t.initiatives ?? []);
   const sessionsTotal = teams.reduce((a, t) => a + (t.sessions?.length ?? 0), 0);
-  const stats = [
-    { label: "Equipos activos",      value: teams.length, icon: "Users",        color: "var(--green)" },
-    { label: "Ideación en curso",    value: allInits.filter((i) => i.stage === "proof" && i.status === "active").length, icon: "FlaskConical", color: "var(--st-proof)" },
-    { label: "Sesiones realizadas",  value: sessionsTotal, icon: "Radio",     color: "var(--violet)" },
-    { label: "Iniciativas resueltas", value: allInits.filter((i) => i.status === "done").length, icon: "CircleCheck", color: "var(--success)" },
-  ];
   const alertColor: Record<string, [string, string]> = {
     risk: ["var(--risk)", "var(--risk-bg)"],
     warning: ["var(--warning)", "var(--warning-bg)"],
@@ -246,12 +240,8 @@ export default function DashboardPage() {
       {/* onboarding del coach */}
       {isFacil && <CoachOnboarding teams={teams} go={go} />}
 
-      {/* stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }} className="stagger">
-        {stats.map((s) => (
-          <Card key={s.label} pad={18}><Stat {...s} /></Card>
-        ))}
-      </div>
+      {/* panorama (KPIs con Δ + distribución + por equipo) */}
+      <RoleDashboard teams={teams} role={role} go={go} />
 
       {/* admin: Mi organización */}
       {isAdmin && (
