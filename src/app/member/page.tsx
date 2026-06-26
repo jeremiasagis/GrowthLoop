@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
-import { Button, Card, SectionTitle, StageBadge } from "@/components/ui";
+import { Button, Card, SectionTitle, Sparkline, StageBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getMemberTeam, setMyCommitmentStatus } from "@/lib/repository";
 import { useMemberTeam } from "@/lib/member/team";
 import { useToast } from "@/components/Toast";
 import { getMyOpenSession, subscribeTeamSessions, type LiveSession } from "@/lib/session";
-import { teamLiveStage } from "@/lib/data";
+import { teamLiveStage, overallOf } from "@/lib/data";
 import { loopThread } from "@/lib/loop";
 import { ciMaturity } from "@/lib/maturity";
 import { getReviewsForTeam, type TalentReview } from "@/lib/talent";
@@ -60,6 +60,9 @@ export default function MemberHome() {
   // Nuestro progreso: loops activos con su hilo (señal).
   const progress = activeInits.map((i) => ({ init: i, thread: loopThread(i) }));
   const maturity = ciMaturity(team);
+  const climaSeries = team.pulse.map(overallOf);
+  const climaNow = climaSeries.length ? climaSeries[climaSeries.length - 1] : null;
+  const climaUp = climaSeries.length >= 2 ? climaNow! - climaSeries[climaSeries.length - 2] : 0;
 
   const asyncOpen = live && (live.result as { async?: boolean } | undefined)?.async;
   const asyncUntil = asyncOpen ? (live!.result as { asyncUntil?: string }).asyncUntil : undefined;
@@ -147,6 +150,18 @@ export default function MemberHome() {
               <span style={{ fontSize: "var(--t-sm)" }}><Icon name="Gauge" size={14} style={{ color: "var(--green)" }} /> Madurez: <b style={{ color: "var(--green)" }}>{maturity.overallLabel}</b></span>
               <span className="muted" style={{ fontSize: "var(--t-sm)" }}><b className="num" style={{ color: "var(--ink-0)" }}>{team.sessions.length}</b> sesiones</span>
             </div>
+            {climaNow != null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="eyebrow" style={{ marginBottom: 2 }}>Cómo venimos · clima</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800 }}>{climaNow}</span>
+                    {climaUp !== 0 && <span style={{ fontSize: "var(--t-xs)", fontWeight: 700, color: climaUp > 0 ? "var(--success)" : "var(--risk)" }}>{climaUp > 0 ? "▲ +" : "▼ "}{climaUp}</span>}
+                  </div>
+                </div>
+                <Sparkline data={climaSeries.length > 1 ? climaSeries : [...climaSeries, ...climaSeries]} color="var(--green)" w={120} h={34} />
+              </div>
+            )}
           </Card>
           {progress.length > 0 && (
             <Card pad={16}>
