@@ -5,9 +5,10 @@
    distribuciones y series que pinta el RoleDashboard.
    ============================================================ */
 
-import type { Team } from "@/lib/data";
+import type { Team, Org } from "@/lib/data";
 import { overallOf, STAGES, CYCLE_STAGES } from "@/lib/data";
 import { loopIsClosed, loopSignalMoved } from "@/lib/loop";
+import { ciMaturity } from "@/lib/maturity";
 
 export interface DashMetrics {
   teamsCount: number;
@@ -86,4 +87,50 @@ export function dashMetrics(teams: Team[]): DashMetrics {
   }
 
   return { teamsCount: teams.length, loopsActive, loopsClosedSignal, climaNow, climaDelta, commitmentsPct, sessions, overdue, loopsByStage, byTeamClima, climaTrend };
+}
+
+/* ── Lente de plataforma (superadmin): agrupado por organización ── */
+const MATURITY_LABELS = ["Incipiente", "En formación", "En práctica", "Consolidada", "Referente"];
+const MATURITY_COLORS = ["var(--risk)", "var(--warning)", "var(--st-proof)", "var(--info)", "var(--green)"];
+const PLAN_META: Record<string, { label: string; color: string }> = {
+  starter: { label: "Starter", color: "var(--ink-2)" },
+  pro: { label: "Pro", color: "var(--green)" },
+  business: { label: "Business", color: "var(--violet)" },
+};
+
+export interface PlatformBreakdown {
+  orgsCount: number;
+  byOrgClima: { label: string; value: number; color: string }[];
+  orgsByPlan: { label: string; value: number; color: string }[];
+  teamsByMaturity: { label: string; value: number; color: string }[];
+}
+
+export function platformBreakdown(teams: Team[], orgs: Org[]): PlatformBreakdown {
+  // Clima promedio por organización.
+  const byOrg = new Map<string, number[]>();
+  for (const t of teams) {
+    const p = t.pulse ?? [];
+    if (!p.length) continue;
+    const k = t.org || "—";
+    const arr = byOrg.get(k) ?? [];
+    arr.push(overallOf(p[p.length - 1]));
+    byOrg.set(k, arr);
+  }
+  const byOrgClima = [...byOrg.entries()]
+    .map(([label, vals]) => { const v = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length); return { label, value: v, color: climaColor(v) }; })
+    .sort((a, b) => a.value - b.value);
+
+  // Organizaciones por plan.
+  const planCount = new Map<string, number>();
+  for (const o of orgs) { const k = (o.plan ?? "starter").toLowerCase().trim(); planCount.set(k, (planCount.get(k) ?? 0) + 1); }
+  const orgsByPlan = [...planCount.entries()].map(([k, value]) => ({ label: PLAN_META[k]?.label ?? k, value, color: PLAN_META[k]?.color ?? "var(--ink-2)" }));
+
+  // Equipos por nivel de madurez.
+  const matCount = [0, 0, 0, 0, 0];
+  for (const t of teams) matCount[Math.round(ciMaturity(t).overall)]++;
+  const teamsByMaturity = matCount
+    .map((value, i) => ({ label: MATURITY_LABELS[i], value, color: MATURITY_COLORS[i] }))
+    .filter((s) => s.value > 0);
+
+  return { orgsCount: orgs.length, byOrgClima, orgsByPlan, teamsByMaturity };
 }
