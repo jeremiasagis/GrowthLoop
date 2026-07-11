@@ -229,10 +229,12 @@ export async function createLiveSession(p: { teamId: string; initiativeId?: stri
   // que el facilitador toma cuando quiere — ya no se antepone a las retros.
   const NORMAL_FIRST: Record<string, string> = { founding: "welcome", explore: "cards", focus: "matrix", proof: "ideas", learn: "result", pulse: "pulse" };
   const firstStep = p.firstStep ?? (NORMAL_FIRST[p.type] || "cards");
-  // Cerrar cualquier sesión anterior que haya quedado abierta en el equipo
-  // (evita "fantasmas" en vivo y garantiza una sola sesión activa por equipo).
+  // Cerrar sesiones EN VIVO anteriores que hayan quedado abiertas (evita
+  // "fantasmas"). Las ASINCRÓNICAS NO se tocan: son de larga duración, siguen
+  // recolectando y el facilitador las cierra a mano — force-cerrarlas perdería
+  // el aporte agregado sin finalizar.
   await supabase.from("sessions").update({ status: "closed", closed_at: new Date().toISOString() })
-    .eq("team_id", p.teamId).eq("status", "live");
+    .eq("team_id", p.teamId).eq("status", "live").or("mode.eq.live,mode.is.null");
   // Modo asincrónico: la sesión queda abierta en el paso de aportes; cada uno suma
   // cuando puede y el facilitador la cierra después. El flag va en result (sin migración).
   const baseResult = p.firstStep ? { entryStep: p.firstStep } : {};

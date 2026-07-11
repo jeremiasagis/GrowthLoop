@@ -17,6 +17,8 @@ export interface DashMetrics {
   climaNow: number | null;     // 0-100
   climaDelta: number | null;   // puntos vs medición anterior
   commitmentsPct: number | null;
+  commitmentsDone: number;
+  commitmentsTotal: number;
   sessions: number;
   overdue: number;
   loopsByStage: { label: string; value: number; color: string }[];
@@ -52,6 +54,7 @@ export function dashMetrics(teams: Team[]): DashMetrics {
     for (const a of i.data?.follow?.actionStatus ?? []) { total++; if (a.status === "done") done++; }
   }
   const commitmentsPct = total ? Math.round((done / total) * 100) : null;
+  const commitmentsDone = done, commitmentsTotal = total;
 
   const sessions = teams.reduce((a, t) => a + (t.sessions?.length ?? 0), 0);
 
@@ -86,7 +89,7 @@ export function dashMetrics(teams: Team[]): DashMetrics {
     if (vals.length) climaTrend.push(Math.round(vals.reduce((a, b) => a + b, 0) / vals.length));
   }
 
-  return { teamsCount: teams.length, loopsActive, loopsClosedSignal, climaNow, climaDelta, commitmentsPct, sessions, overdue, loopsByStage, byTeamClima, climaTrend };
+  return { teamsCount: teams.length, loopsActive, loopsClosedSignal, climaNow, climaDelta, commitmentsPct, commitmentsDone, commitmentsTotal, sessions, overdue, loopsByStage, byTeamClima, climaTrend };
 }
 
 /* ── Lente de plataforma (superadmin): agrupado por organización ── */

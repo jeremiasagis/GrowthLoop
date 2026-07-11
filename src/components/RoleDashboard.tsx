@@ -31,7 +31,7 @@ export function RoleDashboard({ teams, role, go }: { teams: Team[]; role?: strin
         <KpiCard title="Loops activos" sub="en curso" value={m.loopsActive} />
         <KpiCard title="Loops cerrados" sub="con señal movida" value={m.loopsClosedSignal} accent="var(--success)" />
         <KpiCard title="Clima" sub="promedio (0-100)" value={m.climaNow != null ? m.climaNow : "—"} delta={m.climaDelta ?? undefined} deltaSuffix="" spark={m.climaTrend} accent={m.climaNow != null && m.climaNow < 50 ? "var(--risk)" : m.climaNow != null && m.climaNow < 70 ? "var(--warning)" : "var(--green)"} />
-        <KpiCard title="Compromisos" sub="cumplidos" value={m.commitmentsPct != null ? `${m.commitmentsPct}%` : "—"} accent="var(--st-follow)" />
+        <KpiCard title="Compromisos" sub={m.commitmentsTotal ? `${m.commitmentsDone}/${m.commitmentsTotal} cumplidos` : "cumplidos"} value={m.commitmentsPct != null ? `${m.commitmentsPct}%` : "—"} accent="var(--st-follow)" />
         <KpiCard title="Sesiones" sub="realizadas" value={m.sessions} accent="var(--violet)" />
         <KpiCard title="Vencidos" sub="por atender" value={m.overdue} accent={m.overdue ? "var(--risk)" : "var(--green)"} onClick={role === "facilitator" && go ? () => go("/mis-loops") : undefined} />
       </div>

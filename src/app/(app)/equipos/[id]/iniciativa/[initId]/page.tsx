@@ -235,14 +235,20 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
             </div>
           </div>
         )}
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          {decMeta && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--t-sm)", padding: "5px 12px", borderRadius: "var(--r-full)", background: `color-mix(in srgb, ${decMeta.c} 12%, transparent)`, border: `1px solid ${decMeta.c}`, color: decMeta.c, fontWeight: 700 }}>Decisión: {decMeta.t}</span>}
-          {hon && honTotal > 0 && (
-            <span className="num muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", gap: 8 }}>
+        {decMeta && <div><span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--t-sm)", padding: "5px 12px", borderRadius: "var(--r-full)", background: `color-mix(in srgb, ${decMeta.c} 12%, transparent)`, border: `1px solid ${decMeta.c}`, color: decMeta.c, fontWeight: 700 }}>Decisión: {decMeta.t}</span></div>}
+        {hon && honTotal > 0 && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>Honestidad del equipo ({honTotal} {honTotal === 1 ? "voz" : "voces"})</div>
+            <div style={{ display: "flex", height: 12, borderRadius: 99, overflow: "hidden", border: "1px solid var(--line)" }}>
+              {hon.green > 0 && <div title={`Bien: ${hon.green}`} style={{ width: `${(hon.green / honTotal) * 100}%`, background: "var(--green)" }} />}
+              {hon.yellow > 0 && <div title={`Mixto: ${hon.yellow}`} style={{ width: `${(hon.yellow / honTotal) * 100}%`, background: "var(--warning)" }} />}
+              {hon.red > 0 && <div title={`No funcionó: ${hon.red}`} style={{ width: `${(hon.red / honTotal) * 100}%`, background: "var(--risk)" }} />}
+            </div>
+            <div className="num muted" style={{ fontSize: "var(--t-xs)", display: "inline-flex", gap: 10, marginTop: 5 }}>
               <span style={{ color: "var(--green)" }}>🟢 {hon.green}</span><span style={{ color: "var(--warning)" }}>🟡 {hon.yellow}</span><span style={{ color: "var(--risk)" }}>🔴 {hon.red}</span>
-            </span>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

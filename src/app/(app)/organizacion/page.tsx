@@ -74,7 +74,7 @@ export default function OrganizacionPage() {
             </Card>
             <KpiCard title="Equipos" sub="en la organización" value={teams.length} accent="var(--violet)" />
             <KpiCard title="Loops activos" sub="en curso" value={m.loopsActive} />
-            <KpiCard title="Compromisos" sub="cumplidos" value={m.commitmentsPct != null ? `${m.commitmentsPct}%` : "—"} accent="var(--st-follow)" />
+            <KpiCard title="Compromisos" sub={m.commitmentsTotal ? `${m.commitmentsDone}/${m.commitmentsTotal} cumplidos` : "cumplidos"} value={m.commitmentsPct != null ? `${m.commitmentsPct}%` : "—"} accent="var(--st-follow)" />
             <KpiCard title="Equipos a atender" sub="riesgo ≥ 25" value={attention.length} accent={attention.length ? "var(--risk)" : "var(--green)"} onClick={attention.length ? () => document.getElementById("org-atencion")?.scrollIntoView({ behavior: "smooth" }) : undefined} />
           </div>
         );
