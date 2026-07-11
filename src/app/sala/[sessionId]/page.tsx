@@ -1944,9 +1944,21 @@ export default function SalaPage() {
     const whVoters = new Set(votes.map((v) => v.voterKey)).size;
     const WH_DOTS = 3;
     const whRemaining = WH_DOTS - myVoteCount;
-    const vVals = inputs.filter((i) => i.key === "whval");
-    const vCount = (k: string) => vVals.filter((v) => (v.value as { v?: string }).v === k).length;
-    const myWhVal = (inputs.find((i) => i.userId === user.id && i.key === "whval")?.value as { v?: string } | undefined)?.v;
+    // Convergencia: voto de nodos para elegir 1-3 causas raíz (vía inputs).
+    const whPickShown = !!session.result.whPickShown;
+    const myPick = ((inputs.find((i) => i.userId === user.id && i.key === "whpick")?.value as { ids?: string[] } | undefined)?.ids) ?? [];
+    const pickCounts: Record<string, number> = {};
+    inputs.filter((i) => i.key === "whpick").forEach((i) => { for (const id of ((i.value as { ids?: string[] }).ids ?? [])) pickCounts[id] = (pickCounts[id] ?? 0) + 1; });
+    const whPickers = new Set(inputs.filter((i) => i.key === "whpick" && ((i.value as { ids?: string[] }).ids?.length)).map((i) => i.userId)).size;
+    const rootNodes = Object.entries(pickCounts).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([id]) => tree.find((n) => n.id === id)).filter((n): n is { id: string; text: string; parent?: string } => !!n && !!n.text.trim());
+    const rootTexts = rootNodes.map((n) => n.text.trim());
+    const togglePick = (id: string) => {
+      const has = myPick.includes(id);
+      let next = has ? myPick.filter((x) => x !== id) : [...myPick, id];
+      if (next.length > 3) next = next.slice(-3);
+      tapInput("whpick", { ids: next });
+    };
     const addWh = async () => { const t = (cardDraft.whc ?? "").trim(); if (!t) return; await addCard(sessionId, "whc", t, true); setCardDraft((d) => ({ ...d, whc: "" })); if (user) setMyCards(await getMyCards(sessionId, user.id)); };
     const whGroup = async () => { if (!sel.length) return; setBusy(true); const id = await createCluster(sessionId, `Causa ${clusters.length + 1}`); if (id) for (const cid of sel) await assignCardToCluster(cid, id); setSel([]); setBusy(false); load(); };
     const treePatch = (next: { id: string; text: string; parent?: string }[]) => patchResult({ whTree: next });
@@ -1963,12 +1975,18 @@ export default function SalaPage() {
     ) : null;
     const whFinish = async () => {
       setBusy(true);
-      const total = vVals.length || 1;
-      const agreement = Math.round((vCount("yes") / total) * 100);
+      // Las raíces elegidas por voto; si nadie votó, caemos al nodo más profundo.
+      const fallback = tree.filter((n) => n.text.trim() && !tree.some((c) => c.parent === n.id)).slice(0, 1).map((n) => n.text.trim());
+      const roots = (rootTexts.length ? rootTexts : fallback).filter(Boolean);
+      const primary = roots[0] ?? whRoot;
+      const allCauses = tree.filter((n) => n.text.trim()).map((n) => n.text.trim());
       await finalizeSession(session, {
         pulseAvg: avg, cardCount: whCount,
-        summaryText: `Causa raíz: ${whRoot.slice(0, 70)}${whRoot.length > 70 ? "…" : ""} · acuerdo ${agreement}%`,
-        dataKey: "focus", dataValue: { rootCause: whRoot, cause: whRoot, secondaryCauses: ranked.slice(2).map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })) },
+        summaryText: roots.length > 1
+          ? `Causas raíz (${roots.length}): ${roots.join(" · ").slice(0, 90)}`
+          : `Causa raíz: ${primary.slice(0, 70)}${primary.length > 70 ? "…" : ""}`,
+        dataKey: "focus",
+        dataValue: { rootCause: primary, cause: primary, roots, causes: allCauses, causeTree: tree, secondaryCauses: ranked.slice(3).map((c) => ({ name: c.name, votes: votesByCluster[c.id] ?? 0 })) },
       });
       setBusy(false); leave();
     };
@@ -2061,7 +2079,7 @@ export default function SalaPage() {
         ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || clusters.length === 0} onClick={async () => { setBusy(true); await setStep(sessionId, "whvote", 3); setBusy(false); }}>Votar las más probables</Button>
         : null;
     } else if (step === "whvote") {
-      sub = whVoteShown ? "Las 2 más votadas arrancan el árbol de causas." : "¿Qué causas son las más probables? 3 puntos por persona, en anónimo.";
+      sub = whVoteShown ? "Las más votadas arrancan las ramas del árbol de causas." : "¿Qué causas son las más probables? 3 puntos por persona, en anónimo.";
       const max = Math.max(1, ...ranked.map((c) => votesByCluster[c.id] ?? 0));
       content = (
         <>
@@ -2070,10 +2088,10 @@ export default function SalaPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {ranked.map((cl, i) => (
                 <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span className="num" style={{ width: 20, fontWeight: 700, color: i < 2 ? "var(--st-focus)" : "var(--ink-3)" }}>{i + 1}</span>
+                  <span className="num" style={{ width: 20, fontWeight: 700, color: i < 3 ? "var(--st-focus)" : "var(--ink-3)" }}>{i + 1}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}{i < 2 && <Pill color="var(--st-focus)" bg="color-mix(in srgb, var(--st-focus) 14%, transparent)" icon="GitBranch">rama del árbol</Pill>}</div>
-                    <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i < 2 ? "var(--st-focus)" : "var(--violet)"} height={7} />
+                    <div style={{ fontWeight: 600, fontSize: "var(--t-sm)", marginBottom: 5 }}>{cl.name}{i < 3 && <Pill color="var(--st-focus)" bg="color-mix(in srgb, var(--st-focus) 14%, transparent)" icon="GitBranch">rama del árbol</Pill>}</div>
+                    <Bar value={((votesByCluster[cl.id] ?? 0) / max) * 100} color={i < 3 ? "var(--st-focus)" : "var(--violet)"} height={7} />
                   </div>
                   <span className="num" style={{ fontWeight: 700, width: 22, textAlign: "right" }}>{votesByCluster[cl.id] ?? 0}</span>
                 </div>
@@ -2111,7 +2129,7 @@ export default function SalaPage() {
           ? <Button full size="lg" iconRight="ArrowRight" disabled={busy} onClick={async () => {
               setBusy(true);
               if (!tree.length && ranked.length) {
-                const roots = ranked.slice(0, 2).map((c, i) => ({ id: `r${i}`, text: c.name }));
+                const roots = ranked.slice(0, 3).map((c, i) => ({ id: `r${i}`, text: c.name }));
                 await setResult(sessionId, { whTree: roots });
               }
               await setStep(sessionId, "whtree", 4); setBusy(false);
@@ -2120,13 +2138,13 @@ export default function SalaPage() {
         : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Repartí tus {WH_DOTS} puntos.</p>;
     } else if (step === "whtree") {
       wide = true;
-      sub = isFacil ? "Preguntá en cadena: “¿y por qué está pasando eso?” — máx 3 niveles. Agregá lo que diga el equipo." : "El árbol de causas se arma en vivo: ¿y por qué está pasando eso?";
+      sub = isFacil ? "Preguntá “¿y por qué está pasando eso?” — y ojo: una causa puede tener MÁS DE UNA razón. Sumá todas las ramas que aparezcan." : "El árbol de causas se arma en vivo: cada causa puede abrirse en varias razones.";
       content = (
         <>
           {TroubleChip}
           <Card pad={20}>
-            <CauseTree nodes={tree} editable={isFacil} maxDepth={3}
-              onAdd={(pid) => treePatch([...((resultRef.current.whTree as typeof tree) ?? tree), { id: `n${Date.now().toString(36)}`, text: "", parent: pid }])}
+            <CauseTree nodes={tree} editable={isFacil} maxDepth={4}
+              onAdd={(pid) => treePatch([...((resultRef.current.whTree as typeof tree) ?? tree), { id: `n${Date.now().toString(36)}${Math.floor(performance.now() % 1000)}`, text: "", parent: pid }])}
               onEdit={(id, text) => treePatch((((resultRef.current.whTree as typeof tree) ?? tree)).map((n) => n.id === id ? { ...n, text } : n))}
               onDelete={treeDelete} />
           </Card>
@@ -2145,46 +2163,51 @@ export default function SalaPage() {
         </>
       );
       controls = isFacil
-        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !tree.length} onClick={async () => { setBusy(true); await setStep(sessionId, "whvalidate", 5); setBusy(false); }}>Validar la causa raíz</Button>
+        ? <Button full size="lg" iconRight="ArrowRight" disabled={busy || !tree.length} onClick={async () => { setBusy(true); await setStep(sessionId, "whvalidate", 5); setBusy(false); }}>Elegir las causas raíz</Button>
         : null;
     } else {
-      sub = "La causa raíz, formulada. El equipo valida antes de cerrar.";
-      const deepest = tree.filter((n) => n.text.trim() && !tree.some((c) => c.parent === n.id));
-      const template = whRoot || (deepest.length ? `La causa raíz de la traba es ${deepest[0].text}` : "La causa raíz de la traba es ");
+      wide = true;
+      sub = whPickShown
+        ? "Estas son las causas raíz que eligió el equipo. De acá nacen las apuestas."
+        : "De todo el árbol, ¿cuáles son las causas raíz reales? Marcá hasta 3, en anónimo.";
       content = (
         <>
           {TroubleChip}
           <Card pad={20}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-              <div className="eyebrow">La causa raíz, en una oración</div>
-              {isFacil && aiEnabled && (() => {
-                const causes = tree.filter((n) => n.text.trim()).map((n) => `- ${n.text}`).join("\n") || "(sin causas)";
-                const ctx = `La traba que estamos analizando: ${subject}.\n\nCausas que el equipo identificó (de más general a más profunda):\n${causes}`;
-                const fill = async () => { const t = await aiDraft("rootcause", ctx); if (t) { await setResult(sessionId, { whRoot: t }); resultRef.current.whRoot = t; await load(); } };
-                return <button onClick={fill} disabled={aiBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: "1px solid color-mix(in srgb, var(--violet) 45%, var(--line-2))", background: "color-mix(in srgb, var(--violet) 12%, var(--card))", color: "var(--violet)", cursor: aiBusy ? "default" : "pointer", opacity: aiBusy ? 0.7 : 1 }}><Icon name={aiBusy ? "Loader" : "Sparkles"} size={13} /> {aiBusy ? "Redactando…" : "Sugerir con IA"}</button>;
-              })()}
-            </div>
-            {isFacil
-              ? <textarea key={template} defaultValue={template} onBlur={(e) => patchResult({ whRoot: e.target.value.trim() })} rows={3} style={{ width: "100%", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--st-focus) 45%, var(--line-2))", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "12px 14px", fontSize: "var(--t-md)", fontWeight: 600, outline: "none", lineHeight: 1.5, resize: "vertical" }} />
-              : <p style={{ fontSize: "var(--t-md)", fontWeight: 600, lineHeight: 1.55, color: whRoot ? "var(--ink-0)" : "var(--ink-3)" }}>{whRoot || "El facilitador está redactando…"}</p>}
-            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {!isFacil ? (
-                <>
-                  <Button size="sm" variant={myWhVal === "yes" ? "primary" : "secondary"} onClick={() => tapInput("whval", { v: "yes" })}>Sí</Button>
-                  <Button size="sm" variant={myWhVal === "partial" ? "primary" : "secondary"} onClick={() => tapInput("whval", { v: "partial" })}>Parcialmente</Button>
-                  <Button size="sm" variant={myWhVal === "no" ? "primary" : "secondary"} onClick={() => tapInput("whval", { v: "no" })}>No</Button>
-                </>
-              ) : <span className="muted" style={{ fontSize: "var(--t-sm)" }}>Si no es “Sí”, ajustá hasta el acuerdo.</span>}
-              <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-sm)", fontWeight: 700 }}>
-                <span style={{ color: "var(--success)" }}>Sí {vCount("yes")}</span> · <span style={{ color: "var(--warning)" }}>Parcial {vCount("partial")}</span> · <span style={{ color: "var(--risk)" }}>No {vCount("no")}</span>
-              </span>
-            </div>
+            {!whPickShown && !isFacil && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: "var(--t-sm)" }}>
+                <span className="muted">Tus marcas:</span>
+                {Array.from({ length: 3 }).map((_, i) => <span key={i} style={{ width: 15, height: 15, borderRadius: 99, background: i < myPick.length ? "var(--st-focus)" : "var(--card-2)", border: `1px solid ${i < myPick.length ? "var(--st-focus)" : "var(--line-2)"}` }} />)}
+                <span className="faint" style={{ fontSize: "var(--t-xs)" }}>· tocá los nodos que creas que son la raíz</span>
+              </div>
+            )}
+            <CauseTree
+              nodes={tree}
+              editable={false}
+              pickable={!whPickShown && !isFacil}
+              myPicks={myPick}
+              onPick={togglePick}
+              counts={whPickShown ? pickCounts : undefined}
+              roots={whPickShown ? rootNodes.map((n) => n.id) : undefined}
+            />
+            {whPickShown && (
+              rootNodes.length ? (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+                  <div className="eyebrow" style={{ color: "var(--st-focus)", marginBottom: 8 }}>{rootNodes.length > 1 ? "Causas raíz elegidas" : "Causa raíz elegida"} → {rootNodes.length} {rootNodes.length === 1 ? "apuesta" : "apuestas"} en Diseñar</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {rootNodes.map((n, i) => <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--t-sm)", fontWeight: 700 }}><span style={{ width: 20, height: 20, borderRadius: 99, background: "var(--st-focus)", color: "#fff", display: "grid", placeItems: "center", fontSize: 11 }}>{i + 1}</span>{n.text}<span className="num muted" style={{ fontSize: "var(--t-xs)" }}>· {pickCounts[n.id]} votos</span></div>)}
+                  </div>
+                </div>
+              ) : <p className="muted" style={{ marginTop: 14, fontSize: "var(--t-sm)", fontStyle: "italic" }}>Nadie marcó todavía. Podés cerrar igual: tomamos la causa más profunda.</p>
+            )}
           </Card>
         </>
       );
       controls = isFacil
-        ? <Button full size="lg" icon="Check" disabled={busy || !whRoot.trim()} onClick={whFinish}>{busy ? "Guardando…" : `Cerrar con esta causa raíz (Sí: ${vCount("yes")})`}</Button>
-        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Validá: Sí / Parcialmente / No.</p>;
+        ? (whPickShown
+          ? <Button full size="lg" icon="Check" disabled={busy} onClick={whFinish}>{busy ? "Guardando…" : rootNodes.length > 1 ? `Cerrar con ${rootNodes.length} causas raíz` : "Cerrar con esta causa raíz"}</Button>
+          : <Button full size="lg" icon="Eye" disabled={busy} onClick={() => setResult(sessionId, { whPickShown: true })}>Mostrar elección ({whPickers}/{totalInRoom})</Button>)
+        : <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)" }}>Marcá hasta 3 nodos como causa raíz.</p>;
     }
     return (
       <Shell onExit={exit} mood={teamMood}>
