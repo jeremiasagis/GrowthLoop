@@ -9,6 +9,7 @@ import { ROLES, type RoleKey } from "@/lib/data";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { RoleSwitcher } from "./auth/RoleSwitcher";
 import { ThemeToggle } from "./ThemeToggle";
+import { CommandPalette } from "./CommandPalette";
 
 /* ── Brand mark: a continuous loop with a moving node ─────── */
 export function GrowthMark({ size = 26 }: { size?: number }) {
@@ -123,9 +124,18 @@ function Sidebar() {
         height: "100vh", position: "sticky", top: 0, flexDirection: "column", padding: "20px 14px",
       }}
     >
-      <div style={{ padding: "4px 8px 22px" }}><Logo /></div>
+      <div style={{ padding: "4px 8px 18px" }}><Logo /></div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
+      <button onClick={() => window.dispatchEvent(new CustomEvent("gl-open-cmdk"))}
+        style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 12px", marginBottom: 12, borderRadius: "var(--r-md)", border: "1px solid var(--line-2)", background: "var(--card)", color: "var(--ink-2)", fontSize: "var(--t-sm)", textAlign: "left" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "color-mix(in srgb, var(--green) 40%, var(--line-2))"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line-2)"; }}>
+        <Icon name="Search" size={15} />
+        <span style={{ flex: 1 }}>Buscar…</span>
+        <kbd style={{ fontSize: 10, fontWeight: 700, border: "1px solid var(--line-2)", borderRadius: 5, padding: "1px 5px", color: "var(--ink-3)" }}>⌘K</kbd>
+      </button>
+
+      <nav style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 0 }}>
         {items.map((item) => {
           const on = isActive(pathname, item.href);
           return (
@@ -270,6 +280,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <>
       <MobileChrome />
+      <CommandPalette />
       <div className="gl-shell">
         <Sidebar />
         <main className="gl-main">{children}</main>
