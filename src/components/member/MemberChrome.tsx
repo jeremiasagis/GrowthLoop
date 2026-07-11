@@ -31,6 +31,7 @@ function MemberTeamSwitcher() {
 const NAV = [
   { href: "/member", label: "Inicio", icon: "House" },
   { href: "/member/equipo", label: "Mi equipo", icon: "Users" },
+  { href: "/member/fundaciones", label: "Fundaciones", icon: "Landmark" },
   { href: "/member/iniciativas", label: "Iniciativas", icon: "Target" },
   { href: "/member/sesiones", label: "Sesiones", icon: "Radio" },
   { href: "/member/biblioteca", label: "Biblioteca", icon: "Library" },
