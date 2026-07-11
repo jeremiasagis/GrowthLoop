@@ -816,6 +816,7 @@ function PrimerosPasos({ team, isFacil, onInvite, onGoTab }: { team: Team; isFac
 /** Columna derecha del equipo: pulso, salud, ritmo y contrato (compartida entre pestañas). */
 /** Panel de gamificación del equipo: nivel, XP, racha, misión y logros. */
 function TeamProgressPanel({ team, onGoTab }: { team: Team; onGoTab?: (tab: string) => void }) {
+  const router = useRouter();
   const g = teamProgress(team);
   const next = g.achievements.find((a) => !a.got && a.goal);
   return (
@@ -845,9 +846,9 @@ function TeamProgressPanel({ team, onGoTab }: { team: Team; onGoTab?: (tab: stri
       {/* Misión actual */}
       {g.mission && (() => {
         const m = g.mission;
-        const clickable = !!(onGoTab && m.tab);
+        const clickable = !!(m.href || (onGoTab && m.tab));
         return (
-          <button onClick={() => clickable && onGoTab!(m.tab!)} disabled={!clickable}
+          <button onClick={() => { if (m.href) router.push(m.href); else if (onGoTab && m.tab) onGoTab(m.tab); }} disabled={!clickable}
             style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 12, width: "100%", textAlign: "left", padding: "8px 10px", marginLeft: -10, marginRight: -10, borderRadius: "var(--r-md)", cursor: clickable ? "pointer" : "default", background: "transparent" }}>
             <span style={{ width: 30, height: 30, borderRadius: 99, background: "var(--green-soft)", color: "var(--green)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="Target" size={16} /></span>
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -1443,6 +1444,7 @@ export default function TeamPage() {
   const { user } = useAuth();
   const { show } = useToast();
   const isFacil = user?.role === "facilitator";
+  const isSuper = user?.role === "superadmin";
   const team = getTeam(params.id ?? "");
   const [tab, setTab] = useState("seguimiento");
   const [, setTeamNonce] = useState(0);
@@ -1498,7 +1500,9 @@ export default function TeamPage() {
     { key: "sesiones", label: "Sesiones", icon: "History" },
     { key: "pulso", label: "Pulso", icon: "Activity" },
     { key: "ritmo", label: "Ritmo", icon: "CalendarClock" },
-    { key: "exploracion", label: "Herramientas", icon: "Wrench" },
+    // "Herramientas" (catálogo de retros suelto) solo para superadmin: el
+    // facilitador trabaja con el flujo guiado, no elige retros a mano.
+    ...(isSuper ? [{ key: "exploracion", label: "Herramientas", icon: "Wrench" }] : []),
   ];
 
   return (

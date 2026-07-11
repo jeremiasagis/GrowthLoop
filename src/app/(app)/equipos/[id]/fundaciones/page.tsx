@@ -3,12 +3,15 @@
 /* Fundaciones del equipo (facilitador) — las fotos congeladas que
    definen al equipo: contrato, FODA y clima, con su historial. */
 
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Card } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getTeam } from "@/lib/repository";
 import { FoundationsPanel } from "@/components/FoundationsPanel";
+import { SessionLauncher } from "@/components/SessionLauncher";
+import { retroById, type RetroDefinition } from "@/lib/retros/registry";
 
 export default function EquipoFundaciones() {
   const router = useRouter();
@@ -16,6 +19,7 @@ export default function EquipoFundaciones() {
   const team = getTeam(teamId);
   const { user } = useAuth();
   const canEdit = user?.role === "facilitator" || user?.role === "admin" || user?.role === "superadmin";
+  const [launch, setLaunch] = useState<RetroDefinition | null>(null);
 
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">Equipo no encontrado.</p></Card></div>;
 
@@ -26,7 +30,8 @@ export default function EquipoFundaciones() {
         <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Fundaciones</h1>
         <p className="muted" style={{ marginTop: 4 }}>Las fotos que definen al equipo: contrato, FODA y clima. Cada una queda congelada e histórica — hacé una nueva cuando quieran y compará con la anterior.</p>
       </div>
-      <FoundationsPanel team={team} canEdit={canEdit} />
+      <FoundationsPanel team={team} canEdit={canEdit} onLaunch={(id) => { const r = retroById(id); if (r) setLaunch(r); }} />
+      {launch && <SessionLauncher team={team} initialRetro={launch} onClose={() => setLaunch(null)} />}
     </div>
   );
 }

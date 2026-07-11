@@ -124,7 +124,13 @@ function currentOf(team: Team, kind: FoundationKind): Record<string, unknown> | 
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-function KindBlock({ team, kind, list, canEdit, onChanged }: { team: Team; kind: FoundationKind; list: Foundation[]; canEdit: boolean; onChanged: () => void }) {
+/** La retro que produce cada fundación (para hacer una versión nueva). */
+const KIND_RETRO: Partial<Record<FoundationKind, { id: string; label: string }>> = {
+  foda: { id: "exploration-foda", label: "Hacer el FODA" },
+  clima: { id: "exploration-team-radar", label: "Tomar el clima" },
+};
+
+function KindBlock({ team, kind, list, canEdit, onChanged, onLaunch }: { team: Team; kind: FoundationKind; list: Foundation[]; canEdit: boolean; onChanged: () => void; onLaunch?: (retroId: string) => void }) {
   const { show } = useToast();
   const meta = FOUNDATION_META[kind];
   const [busy, setBusy] = useState(false);
@@ -155,7 +161,10 @@ function KindBlock({ team, kind, list, canEdit, onChanged }: { team: Team; kind:
           <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>{meta.label}</div>
           <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{meta.desc}</div>
         </div>
-        {canEdit && current && <Button size="sm" variant="secondary" icon={busy ? "Loader" : "Camera"} disabled={busy} onClick={snapshot}>Congelar versión actual</Button>}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", flex: "none" }}>
+          {canEdit && onLaunch && KIND_RETRO[kind] && <Button size="sm" icon="Radio" onClick={() => onLaunch(KIND_RETRO[kind]!.id)}>{KIND_RETRO[kind]!.label}</Button>}
+          {canEdit && current && <Button size="sm" variant="secondary" icon={busy ? "Loader" : "Camera"} disabled={busy} onClick={snapshot}>Congelar versión actual</Button>}
+        </div>
       </div>
 
       {list.length === 0 ? (
@@ -192,7 +201,7 @@ function KindBlock({ team, kind, list, canEdit, onChanged }: { team: Team; kind:
   );
 }
 
-export function FoundationsPanel({ team, canEdit }: { team: Team; canEdit: boolean }) {
+export function FoundationsPanel({ team, canEdit, onLaunch }: { team: Team; canEdit: boolean; onLaunch?: (retroId: string) => void }) {
   const [founds, setFounds] = useState<Foundation[]>([]);
   useEffect(() => { let on = true; getFoundations(team.id).then((r) => { if (on) setFounds(r); }); return () => { on = false; }; }, [team.id]);
   const reload = () => getFoundations(team.id).then(setFounds);
@@ -200,7 +209,7 @@ export function FoundationsPanel({ team, canEdit }: { team: Team; canEdit: boole
   return (
     <div>
       {FOUNDATION_ORDER.map((kind) => (
-        <KindBlock key={kind} team={team} kind={kind} list={founds.filter((f) => f.kind === kind)} canEdit={canEdit} onChanged={reload} />
+        <KindBlock key={kind} team={team} kind={kind} list={founds.filter((f) => f.kind === kind)} canEdit={canEdit} onChanged={reload} onLaunch={onLaunch} />
       ))}
     </div>
   );

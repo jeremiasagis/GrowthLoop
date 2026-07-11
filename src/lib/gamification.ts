@@ -18,7 +18,7 @@ export interface TeamProgress {
   cadenceDays: number;
   achievements: Achievement[];
   unlocked: Achievement[];
-  mission: { label: string; tab?: string } | null;
+  mission: { label: string; tab?: string; href?: string } | null;
 }
 
 const LEVELS: { name: string; min: number }[] = [
@@ -110,8 +110,8 @@ export function teamProgress(team: Team, nowMs: number = Date.now()): TeamProgre
 
   // Misión actual: la primera acción pendiente del recorrido.
   let mission: TeamProgress["mission"] = null;
-  if (!data.foda) mission = { label: "Hagan el FODA del equipo", tab: "exploracion" };
-  else if (!(data.objective || (team.objectives ?? []).length)) mission = { label: "Definí el primer objetivo", tab: "objetivos" };
+  if (!data.foda) mission = { label: "Hagan el FODA del equipo", href: `/equipos/${team.id}/fundaciones` };
+  else if (!(data.objective || (team.objectives ?? []).length)) mission = { label: "Definí el primer objetivo", tab: "seguimiento" };
   else if (!inits.length) mission = { label: "Creen la primera iniciativa", tab: "seguimiento" };
   else if (streak === 0) mission = { label: "Retomen el ritmo: abran una sesión", tab: "seguimiento" };
   else {
