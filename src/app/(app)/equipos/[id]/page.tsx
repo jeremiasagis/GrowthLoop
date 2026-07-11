@@ -1494,11 +1494,11 @@ export default function TeamPage() {
   const lowSafety = team.psychSafety > 0 && team.psychSafety < 70;
 
   const TABS = [
-    { key: "exploracion", label: "Herramientas", icon: "Wrench" },
     { key: "seguimiento", label: "Loops", icon: "RefreshCw" },
     { key: "sesiones", label: "Sesiones", icon: "History" },
     { key: "pulso", label: "Pulso", icon: "Activity" },
     { key: "ritmo", label: "Ritmo", icon: "CalendarClock" },
+    { key: "exploracion", label: "Herramientas", icon: "Wrench" },
   ];
 
   return (
@@ -1572,14 +1572,30 @@ export default function TeamPage() {
             </button>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button variant="secondary" icon="Handshake" onClick={() => setContractOpen(true)}>Contrato</Button>
-          <Button variant="secondary" icon="Landmark" onClick={() => router.push(`/equipos/${team.id}/fundaciones`)}>Fundaciones</Button>
-          <Button variant="secondary" icon="Flag" onClick={() => router.push(`/equipos/${team.id}/desafios`)}>Desafíos</Button>
-          <Button variant="secondary" icon="Library" onClick={() => router.push(`/equipos/${team.id}/biblioteca`)}>Biblioteca</Button>
-          <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
-          <Button icon="Users" onClick={() => setMembersOpen(true)}>Integrantes</Button>
-          {isFacil && <Button variant="ghost" icon="Trash2" onClick={() => setDelOpen(true)} style={{ color: "var(--risk)" }}>Eliminar</Button>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* El recorrido del equipo (el flujo protagonista) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            {[
+              { label: "Fundaciones", icon: "Landmark", onClick: () => router.push(`/equipos/${team.id}/fundaciones`) },
+              { label: "Desafíos", icon: "Flag", onClick: () => router.push(`/equipos/${team.id}/desafios`) },
+              { label: "Loops", icon: "RefreshCw", onClick: () => setTab("seguimiento") },
+              { label: "Memoria", icon: "Library", onClick: () => router.push(`/equipos/${team.id}/biblioteca`) },
+            ].map((s, i, arr) => (
+              <div key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <button onClick={s.onClick} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: "var(--r-md)", border: "1px solid color-mix(in srgb, var(--green) 30%, var(--line-2))", background: "color-mix(in srgb, var(--green) 6%, var(--card))", color: "var(--ink-0)", fontWeight: 700, fontSize: "var(--t-sm)", cursor: "pointer" }}>
+                  <Icon name={s.icon} size={15} style={{ color: "var(--green)" }} /> {s.label}
+                </button>
+                {i < arr.length - 1 && <Icon name="ChevronRight" size={15} style={{ color: "var(--ink-3)" }} />}
+              </div>
+            ))}
+          </div>
+          {/* Acciones secundarias */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button size="sm" variant="secondary" icon="Handshake" onClick={() => setContractOpen(true)}>Contrato</Button>
+            <Button size="sm" variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
+            <Button size="sm" icon="Users" onClick={() => setMembersOpen(true)}>Integrantes</Button>
+            {isFacil && <Button size="sm" variant="ghost" icon="Trash2" onClick={() => setDelOpen(true)} style={{ color: "var(--risk)" }}>Eliminar</Button>}
+          </div>
         </div>
       </div>
 
