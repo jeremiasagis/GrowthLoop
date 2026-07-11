@@ -21,6 +21,7 @@ export interface NorteSuggestion {
   cta?: string;
   tab?: string;      // pestaña del equipo a la que lleva
   initId?: string;   // o un loop puntual
+  href?: string;     // o una ruta directa (ej. Fundaciones)
 }
 
 const daysSince = (iso?: string, now = Date.now()): number | null =>
@@ -120,8 +121,8 @@ export function norteSuggestions(team: Team, now = Date.now()): NorteSuggestion[
     out.push({
       key: "safety", icon: "ShieldAlert", color: "var(--warning)",
       title: "La confianza del equipo está baja",
-      text: "Antes de pedir más, quizá convenga una retro de relaciones para fortalecer la base.",
-      cta: "Ver herramientas", tab: "exploracion",
+      text: "Antes de pedir más, quizá convenga una retro de relaciones o de clima para fortalecer la base.",
+      cta: "Ir a Fundaciones", href: `/equipos/${team.id}/fundaciones`,
     });
   }
 

@@ -11,7 +11,7 @@ import { reloadData, useGLStore } from "./store";
 import { getSupabaseBrowserClient } from "./supabase/client";
 import {
   type Admin, type Facilitator,
-  type Initiative, type Org, type Reflection, type RoleKey, type StageKey,
+  type Initiative, type Org, type RoleKey, type StageKey,
   type Team, type TeamObjective,
 } from "./data";
 
@@ -532,31 +532,6 @@ export async function createAdmin(input: { name: string; email: string }): Promi
   const inv = await createInvitation({ email: input.email, name: input.name, role: "admin" });
   await reloadData();
   return { token: inv.token };
-}
-
-// ── Reflexiones privadas del miembro (Supabase, RLS por user_id) ──
-export async function getMyReflections(): Promise<Reflection[]> {
-  const supabase = getSupabaseBrowserClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return [];
-  const { data, error } = await supabase
-    .from("reflections").select("id, prompt, text, created_at")
-    .eq("user_id", auth.user.id).order("created_at", { ascending: false });
-  if (error || !data) return [];
-  return data.map((r) => ({
-    id: r.id, prompt: r.prompt, text: r.text,
-    date: new Date(r.created_at as string).toLocaleDateString("es", { day: "2-digit", month: "short" }),
-  }));
-}
-
-export async function addReflection(text: string, teamId?: string, prompt = "Reflexión libre"): Promise<{ error?: string }> {
-  const supabase = getSupabaseBrowserClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return { error: "No hay sesión." };
-  const { error } = await supabase.from("reflections").insert({
-    user_id: auth.user.id, team_id: teamId ?? null, prompt, text: text.trim(),
-  });
-  return { error: error?.message };
 }
 
 // ── Invitations (Supabase) ──

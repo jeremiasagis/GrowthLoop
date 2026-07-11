@@ -32,7 +32,7 @@ export function NorteSuggestions({ team, onGoTab }: { team: Team; onGoTab?: (tab
             </div>
             {s.cta && (
               <Button size="sm" variant="secondary"
-                onClick={() => { if (s.initId) router.push(`/equipos/${team.id}/iniciativa/${s.initId}`); else if (s.tab) onGoTab?.(s.tab); }}>
+                onClick={() => { if (s.href) router.push(s.href); else if (s.initId) router.push(`/equipos/${team.id}/iniciativa/${s.initId}`); else if (s.tab) onGoTab?.(s.tab); }}>
                 {s.cta}
               </Button>
             )}

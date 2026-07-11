@@ -406,16 +406,6 @@ export const ADMINS: Admin[] = [];
 
 export const orgById = (id: string) => ORGS.find((o) => o.id === id);
 
-// ── Member-facing mock data ──────────────────────────────────
-// Reflexiones privadas del miembro (solo él/ella las ve)
-export interface Reflection {
-  id: string;
-  date: string;
-  prompt: string;
-  text: string;
-}
-export const REFLECTIONS: Reflection[] = [];
-
 // Invitaciones pendientes (token → datos de la invitación)
 export interface Invite {
   token: string;

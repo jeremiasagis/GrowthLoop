@@ -87,6 +87,11 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
 
   const launch = async () => {
     if (!retro || busy) return;
+    // Revalidación: un retro puede llegar por initialRetro (Fundaciones, lentes
+    // de detección) sin pasar por los pasos 1-2. No lanzamos si está archivado
+    // en el almacén o si no está en el plan del equipo.
+    if (!isRetroActive(retroStatus, retro.id)) { show("Esta herramienta fue archivada. Elegí otra.", "Archive"); return; }
+    if (!retroInPlan(retro.id, plan)) { show("Esta herramienta está disponible en el plan Pro.", "Lock"); return; }
     const isAsync = mode === "async" && retro.asyncAvailable;
     setBusy(true);
     const res = await createLiveSession({

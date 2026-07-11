@@ -401,6 +401,22 @@ export default function InitiativeDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.initId]);
 
+  // Todos los hooks de estado se declaran ANTES de cualquier return temprano:
+  // si el store carga async, el early return de abajo cambiaría el número de
+  // hooks entre renders y React crashea ("Rendered more hooks…").
+  const [launcherOpen, setLauncherOpen] = useState(false);
+  const [selRetro, setSelRetro] = useState<RetroDefinition | null>(null);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [guidedBusy, setGuidedBusy] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
+  const [delBusy, setDelBusy] = useState(false);
+  const [closeStageOpen, setCloseStageOpen] = useState(false);
+  const [closeBusy, setCloseBusy] = useState(false);
+  const [finalHonesty, setFinalHonesty] = useState<"green" | "yellow" | "red" | null>(null);
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [aiReportBusy, setAiReportBusy] = useState(false);
+  const [conBusy, setConBusy] = useState(false);
+
   if (!team || !init) {
     return (
       <div className="screen-pad">
@@ -423,12 +439,8 @@ export default function InitiativeDetailPage() {
       : { label: "En curso", color: "var(--green)", bg: "var(--success-bg)", icon: "Activity" };
 
   // Modo libre: el botón abre el selector (etapa → retro → modo).
-  const [launcherOpen, setLauncherOpen] = useState(false);
-  const [selRetro, setSelRetro] = useState<RetroDefinition | null>(null);
-  const [swapOpen, setSwapOpen] = useState(false);
   const startLive = () => { setSelRetro(null); setLauncherOpen(true); };
   const openRetro = (r: RetroDefinition) => { setSelRetro(r); setLauncherOpen(true); };
-  const [guidedBusy, setGuidedBusy] = useState(false);
   const startGuided = async () => {
     if (guidedBusy) return;
     setGuidedBusy(true);
@@ -446,12 +458,7 @@ export default function InitiativeDetailPage() {
     if (res.error) show(res.error, "TriangleAlert"); else { show("Actualizada", "Check"); refresh(); }
   };
   const scrollTo = (st: StageKey) => document.getElementById(`stage-${st}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const [delOpen, setDelOpen] = useState(false);
-  const [delBusy, setDelBusy] = useState(false);
   // Cierre explícito de etapa (modo libre): resumen + confirmación.
-  const [closeStageOpen, setCloseStageOpen] = useState(false);
-  const [closeBusy, setCloseBusy] = useState(false);
-  const [finalHonesty, setFinalHonesty] = useState<"green" | "yellow" | "red" | null>(null);
   const nextSt = nextCycleStage(init.stage);
   const stageSessions = sessions.filter((s) => stageOfSessionType(s.stage) === init.stage);
   // Bloqueos obligatorios del ciclo:
@@ -530,8 +537,6 @@ export default function InitiativeDetailPage() {
   };
   // IA · Reporte ejecutivo del ciclo (Pro+).
   const aiEnabled = planLimits(team.orgId ? getOrg(team.orgId)?.plan : undefined).ai;
-  const [aiReport, setAiReport] = useState<string | null>(null);
-  const [aiReportBusy, setAiReportBusy] = useState(false);
   const buildReportCtx = (): string => {
     const d = init.data ?? {};
     const RES: Record<string, string> = { yes: "alcanzó el umbral", partial: "alcanzó parcialmente", no: "no alcanzó el umbral" };
@@ -589,7 +594,6 @@ export default function InitiativeDetailPage() {
   const conDue = con?.due;
   const conLeft = conDue ? Math.round((new Date(conDue).getTime() - Date.now()) / 86400000) : null;
   const conReady = conLeft != null && conLeft <= 0;
-  const [conBusy, setConBusy] = useState(false);
   const startConsolidation = async () => {
     if (conBusy) return;
     setConBusy(true);

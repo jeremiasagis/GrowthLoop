@@ -1536,7 +1536,7 @@ export default function TeamPage() {
               ))}
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              {isFacil && <Button variant="secondary" icon="Telescope" onClick={() => { setProtocolOpen(false); setTab("exploracion"); }}>Ir a una retro de clima</Button>}
+              {isFacil && <Button variant="secondary" icon="Telescope" onClick={() => { setProtocolOpen(false); router.push(`/equipos/${team.id}/fundaciones`); }}>Ir a una retro de clima</Button>}
               <Button icon="Check" onClick={() => setProtocolOpen(false)}>Entendido</Button>
             </div>
           </div>
@@ -1618,7 +1618,7 @@ export default function TeamPage() {
         {isFacil && <Button size="sm" variant="secondary" icon="Users" onClick={() => router.push(`/equipos/${team.id}/personas`)}>Desarrollo</Button>}
       </div>
 
-      {tab === "exploracion" && (
+      {tab === "exploracion" && isSuper && (
         <div className="team-grid">
           <div style={{ minWidth: 0 }}>
             <RetroCatalog team={getTeam(team.id) ?? team} isFacil={isFacil} />
