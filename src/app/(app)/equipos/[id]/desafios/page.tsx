@@ -18,6 +18,15 @@ import {
   getChallenges, createChallenge, updateChallenge, convertChallengeToLoop,
   suggestedChallenges, domainMeta, DOMAINS, type Challenge, type Suggestion, type ChallengeScope,
 } from "@/lib/challenges";
+import { retroById, type RetroDefinition } from "@/lib/retros/registry";
+import { SessionLauncher } from "@/components/SessionLauncher";
+
+/** Las 3 lentes de detección (retros para descubrir desafíos). Tope duro de 3. */
+const DETECT_LENSES = [
+  { id: "exploration-team-radar", label: "Cómo nos sentimos", icon: "Activity", color: "var(--warning)", desc: "Radar de clima" },
+  { id: "exploration-sailboat", label: "Qué nos frena", icon: "Anchor", color: "var(--st-proof)", desc: "Sailboat: vientos y anclas" },
+  { id: "focus-client-voice", label: "Mirada del cliente", icon: "Handshake", color: "var(--violet)", desc: "La voz del cliente" },
+];
 
 const SOURCE_LABEL: Record<string, string> = {
   fundacional: "FODA", clima: "Clima", plantear: "Un integrante", "360": "360", retro: "Retro", manual: "Manual",
@@ -48,6 +57,7 @@ export default function DesafiosPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [addTitle, setAddTitle] = useState("");
   const [pickDomain, setPickDomain] = useState<string | null>(null);
+  const [detectRetro, setDetectRetro] = useState<RetroDefinition | null>(null);
 
   useEffect(() => {
     if (!team?.id) return; const tid = team.id;
@@ -106,6 +116,24 @@ export default function DesafiosPage() {
         <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Desafíos</h1>
         <p className="muted" style={{ marginTop: 4 }}>Lo que el equipo tiene para mejorar, individual y colectivo. Los colectivos se convierten en loops; los individuales van a desarrollo.</p>
       </div>
+
+      {/* Salir a detectar */}
+      <Card pad={18} style={{ marginBottom: 18 }}>
+        <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, color: "var(--green)" }}><Icon name="Radar" size={13} /> Salir a detectar</div>
+        <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 12 }}>Corré una retro corta con el equipo para descubrir nuevos desafíos desde tres miradas.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 10 }}>
+          {DETECT_LENSES.map((l) => (
+            <button key={l.id} onClick={() => { const r = retroById(l.id); if (r) setDetectRetro(r); }}
+              style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: "12px", borderRadius: "var(--r-md)", border: `1px solid ${l.color}`, background: `color-mix(in srgb, ${l.color} 7%, var(--card))`, cursor: "pointer" }}>
+              <Icon name={l.icon} size={18} style={{ color: l.color, flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{l.label}</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{l.desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       {/* Sugeridos */}
       {sugg.length > 0 && (
@@ -194,6 +222,8 @@ export default function DesafiosPage() {
           </div>
         </div>
       )}
+
+      {detectRetro && <SessionLauncher team={team} initialRetro={detectRetro} onClose={() => setDetectRetro(null)} />}
     </div>
   );
 }
