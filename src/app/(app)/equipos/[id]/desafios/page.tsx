@@ -22,6 +22,8 @@ import {
 } from "@/lib/challenges";
 import { retroById, type RetroDefinition } from "@/lib/retros/registry";
 import { SessionLauncher } from "@/components/SessionLauncher";
+import { getDetectionSummary } from "@/lib/detect";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const DETECT_LENSES = [
   { id: "exploration-team-radar", label: "Cómo nos sentimos", icon: "Activity", color: "var(--warning)", desc: "Radar de clima" },
@@ -67,6 +69,8 @@ export default function DesafiosPage() {
   const [pickDomain, setPickDomain] = useState<string | null>(null);
   const [detectRetro, setDetectRetro] = useState<RetroDefinition | null>(null);
   const [dragOver, setDragOver] = useState<ColKey | null>(null);
+  const [synthBusy, setSynthBusy] = useState(false);
+  const [synth, setSynth] = useState<{ title: string; detail: string; scope: ChallengeScope; domain: string }[] | null>(null);
 
   useEffect(() => {
     if (!team?.id) return; const tid = team.id;
@@ -115,6 +119,36 @@ export default function DesafiosPage() {
     show("Se creó el loop", "Check"); reload();
   };
   const patch = async (c: Challenge, p: Partial<Challenge>) => { await updateChallenge(c.id, p); reload(); };
+
+  // WS6 · IA sintetiza lo detectado en las retros → desafíos propuestos.
+  const synthesize = async () => {
+    if (synthBusy) return;
+    setSynthBusy(true);
+    try {
+      const summary = await getDetectionSummary(team.id);
+      if (!summary.count) { show("Todavía no hay detecciones. Corré una lente de arriba primero.", "Info"); return; }
+      const { data: s } = await getSupabaseBrowserClient().auth.getSession();
+      const res = await fetch("/api/ai/detect-synth", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ context: summary.text }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { show(json.error ?? "No se pudo sintetizar.", "TriangleAlert"); return; }
+      const ch = (json.challenges ?? []) as { title: string; detail: string; scope: ChallengeScope; domain: string }[];
+      if (!ch.length) { show("La IA no encontró desafíos claros en lo detectado.", "Info"); return; }
+      setSynth(ch);
+    } catch { show("No se pudo sintetizar.", "TriangleAlert"); }
+    finally { setSynthBusy(false); }
+  };
+  const addSynth = async (c: { title: string; detail: string; scope: ChallengeScope; domain: string }, idx: number) => {
+    setBusy(`synth-${idx}`);
+    const { error } = await createChallenge({ teamId: team.id, title: c.title, detail: c.detail, scope: c.scope, domain: c.domain, source: "retro" });
+    setBusy(null);
+    if (error) { show("No se pudo agregar.", "TriangleAlert"); return; }
+    setSynth((prev) => prev?.filter((_, i) => i !== idx) ?? null);
+    show("Agregado al backlog", "Check"); reload();
+  };
 
   // ── Drag & drop ──
   const onDrop = async (col: ColKey, e: React.DragEvent) => {
@@ -232,8 +266,13 @@ export default function DesafiosPage() {
 
       {/* Salir a detectar */}
       <Card pad={16} style={{ marginBottom: 14 }}>
-        <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, color: "var(--green)" }}><Icon name="Radar" size={13} /> Salir a detectar</div>
-        <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 12 }}>Corré una retro corta con el equipo para descubrir nuevos desafíos desde tres miradas.</p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, color: "var(--green)" }}><Icon name="Radar" size={13} /> Salir a detectar</div>
+            <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 12 }}>Corré una retro corta con el equipo para descubrir nuevos desafíos desde tres miradas.</p>
+          </div>
+          <Button size="sm" variant="secondary" icon={synthBusy ? "Loader" : "Sparkles"} disabled={synthBusy} onClick={synthesize}>{synthBusy ? "Leyendo…" : "Sintetizar con IA"}</Button>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 10 }}>
           {DETECT_LENSES.map((l) => (
             <button key={l.id} onClick={() => { const r = retroById(l.id); if (r) setDetectRetro(r); }}
@@ -246,6 +285,28 @@ export default function DesafiosPage() {
             </button>
           ))}
         </div>
+        {synth && synth.length > 0 && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+            <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, color: "var(--violet)" }}><Icon name="Sparkles" size={13} /> La IA leyó lo detectado y propone</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {synth.map((c, i) => {
+                const dm = domainMeta(c.domain);
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: "color-mix(in srgb, var(--violet) 5%, var(--card-2))", border: "1px solid color-mix(in srgb, var(--violet) 22%, var(--line))", borderRadius: "var(--r-md)" }}>
+                    <Icon name={dm.icon} size={15} style={{ color: dm.color, flexShrink: 0, marginTop: 2 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: "var(--t-sm)" }}>{c.title}</div>
+                      {c.detail && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 1 }}>{c.detail}</p>}
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase" }}>{c.scope === "individual" ? "Individual" : "Colectivo"} · {dm.label}</span>
+                    </div>
+                    <Button size="sm" variant="secondary" icon={busy === `synth-${i}` ? "Loader" : "Plus"} disabled={busy === `synth-${i}`} onClick={() => addSynth(c, i)}>Agregar</Button>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => setSynth(null)} className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600, marginTop: 8 }}>Descartar propuestas</button>
+          </div>
+        )}
       </Card>
 
       {/* Alta manual */}
