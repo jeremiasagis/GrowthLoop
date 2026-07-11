@@ -14,9 +14,11 @@ export interface DetectionSummary { text: string; count: number }
 
 /** Resumen textual de las últimas sesiones de detección del equipo. */
 export async function getDetectionSummary(teamId: string, max = 4): Promise<DetectionSummary> {
+  // getClosedTeamSessions viene ASCENDENTE por fecha → tomamos las últimas `max`.
   const sessions = (await getClosedTeamSessions(teamId))
     .filter((s) => DETECT_RETRO_IDS.includes(s.retro ?? ""))
-    .slice(0, max);
+    .slice(-max)
+    .reverse();
   if (!sessions.length) return { text: "", count: 0 };
 
   const mems = await loadSessionMemories(sessions);

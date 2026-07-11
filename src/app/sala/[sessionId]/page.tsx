@@ -4238,13 +4238,17 @@ export default function SalaPage() {
       const today = new Date().toLocaleDateString("es", { day: "2-digit", month: "short" });
       const prevLog = (fl?.signalLog as { date: string; value: string }[] | undefined) ?? [];
       const signalLog = fv("fwSignalNow") ? [...prevLog, { date: today, value: fv("fwSignalNow") }] : prevLog;
+      // No pisar los obstáculos previos: preservamos y sumamos el nuevo (sin duplicar).
+      const prevBlockers = (fl?.blockers as string[] | undefined) ?? [];
+      const newBlocker = hasBlockers ? (fv("fwBlockers") || "").trim() : "";
+      const blockers = newBlocker ? [...new Set([...prevBlockers, newBlocker])] : prevBlockers;
       await finalizeSession(session, {
         pulseAvg: avg,
         summaryText: `Check-in: señal ${fv("fwSignalNow") || "—"} · ${decision === "stop" ? "detener" : decision === "adjust" ? "ajustar" : "continuar"}`,
         dataKey: "follow",
         dataValue: {
           signalNow: fv("fwSignalNow"), fidelity, fidelityNote: fv("fwFidelityNote"),
-          blockers: hasBlockers && fv("fwBlockers") ? [fv("fwBlockers")] : [],
+          blockers,
           adjustNote: fv("fwAdjust"), decision, startedAt: startedAt || new Date().toISOString(),
           honesty: hc, signalLog,
         },

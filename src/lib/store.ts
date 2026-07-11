@@ -78,19 +78,22 @@ function mapInitiative(i: any, sessionCount: number): Initiative {
 
 function mapTeam(t: any, initiatives: Initiative[] = []): Team {
   const members = (t.team_members ?? []).map((m: any) => ({ id: m.id, userId: m.user_id ?? undefined, name: m.name, initials: m.initials }));
-  const pulse: PulsePoint[] = (t.pulse_points ?? [])
+  // Orden cronológico REAL por created_at (ISO ordena lexicográfico = cronológico);
+  // el label "10 jul" ordenaba mal entre meses. pulse[0] = más viejo, [last] = más nuevo.
+  const pulse: PulsePoint[] = [...(t.pulse_points ?? [])]
+    .sort((a: any, b: any) => String(a.created_at ?? a.date ?? "").localeCompare(String(b.created_at ?? b.date ?? "")))
     .map((p: any): PulsePoint => ({
       label: p.label, date: p.date, confianza: p.confianza, comunic: p.comunic,
       claridad: p.claridad, foco: p.foco, seguridad: p.seguridad,
       dims: (p.dims as Record<string, number>) ?? undefined,
-    }))
-    .sort((a: PulsePoint, b: PulsePoint) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+    }));
+  // Historial de sesiones: más nueva primero, por created_at (el id base36 no es ordenable).
   const sessions: SessionLog[] = (t.session_logs ?? [])
     .map((s: any): SessionLog => ({
       id: s.id, date: s.date, createdAt: s.created_at ?? undefined, stage: s.stage as StageKey, retro: s.retro,
       pulse: s.pulse, delta: s.delta, out: s.out_text, initiativeId: s.initiative_id ?? undefined,
     }))
-    .sort((a: SessionLog, b: SessionLog) => numId(b.id) - numId(a.id));
+    .sort((a: SessionLog, b: SessionLog) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
 
   return {
     id: t.id, org: t.organizations?.name ?? "", orgId: t.org_id, name: t.name,
