@@ -72,13 +72,14 @@ function navItemsFor(role: RoleKey | null): NavItem[] {
   // Admin: gestiona su organización (orgs + facilitadores). No hace sesiones.
   return [
     inicio,
+    { href: "/organizacion", label: "Organización", icon: "Network" },
     { href: "/organizaciones", label: "Organizaciones", icon: "Building2" },
     facilitadores, reportes, norte, ajustes,
   ];
 }
 
 const isActive = (pathname: string, href: string) =>
-  href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+  href === "/dashboard" ? pathname === "/dashboard" : (pathname === href || pathname.startsWith(href + "/"));
 
 /* ── User card + logout (sidebar footer) ──────────────────── */
 function UserFooter() {
