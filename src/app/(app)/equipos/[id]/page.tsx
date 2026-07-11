@@ -26,6 +26,7 @@ import { MaturityPanel } from "@/components/MaturityPanel";
 import { NorteSuggestions } from "@/components/NorteSuggestions";
 import { TeamVoicePanel } from "@/components/TeamVoicePanel";
 import { Celebration } from "@/components/Celebration";
+import { StreakGrid } from "@/components/StreakGrid";
 import { teamProgress } from "@/lib/gamification";
 import { LOOP_PLAYBOOKS, playbookByKey } from "@/lib/playbooks";
 
@@ -706,6 +707,12 @@ function RitmoPanel({ team, isFacil, onSaved }: { team: Team; isFacil: boolean; 
 
   return (
     <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 16 }}>
+      <Card pad={20}>
+        <SectionTitle icon="Flame" sub="La actividad del equipo, día a día — la constancia se ve">Constancia</SectionTitle>
+        <div style={{ marginTop: 12 }}>
+          <StreakGrid dates={[...(team.sessions ?? []).map((s) => s.createdAt), ...(team.pulse ?? []).map((p) => p.date)]} />
+        </div>
+      </Card>
       <RitmoCard teamId={team.id} everyDays={declared} lastSessionAt={team.data?.lastSessionAt} isFacil={isFacil} onSaved={onSaved} />
 
       <Card pad={20}>

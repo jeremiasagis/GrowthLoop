@@ -16,6 +16,7 @@ import { getReviewsForTeam, type TalentReview } from "@/lib/talent";
 import { MemberVoice } from "@/components/member/MemberVoice";
 import { IdeaBoard } from "@/components/member/IdeaBoard";
 import { KudosWall } from "@/components/member/KudosWall";
+import { StreakGrid } from "@/components/StreakGrid";
 import { myCommitments } from "@/lib/member/commitments";
 import { teamProgress } from "@/lib/gamification";
 
@@ -172,6 +173,9 @@ export default function MemberHome() {
                 ))}
               </div>
             )}
+          </Card>
+          <Card pad={16}>
+            <StreakGrid dates={[...team.sessions.map((s) => s.createdAt), ...team.pulse.map((p) => p.date)]} />
           </Card>
           <Card pad={16}>
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", justifyContent: "space-between" }}>
