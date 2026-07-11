@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getTeams } from "@/lib/repository";
 import { dashMetrics } from "@/lib/dashboard";
-import { climaHeatmap, maturityRanking, riskRanking, focusRollup, orgInsightContext, toFive, type FocusRollup } from "@/lib/org-insights";
+import { climaHeatmap, maturityRanking, riskRanking, focusRollup, getOrgCompetencyAggregate, orgInsightContext, toFive, type FocusRollup, type OrgCompetency } from "@/lib/org-insights";
 import { OrgInsightPanel } from "@/components/OrgInsightPanel";
 import { DOMAIN_META } from "@/lib/challenges";
 
@@ -27,8 +27,9 @@ export default function OrganizacionPage() {
   const { user } = useAuth();
   const teams = getTeams();
   const [rollup, setRollup] = useState<FocusRollup | null>(null);
+  const [comp, setComp] = useState<OrgCompetency[] | null>(null);
 
-  useEffect(() => { let on = true; focusRollup(teams).then((r) => { if (on) setRollup(r); }); return () => { on = false; }; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [teams.length]);
+  useEffect(() => { let on = true; focusRollup(teams).then((r) => { if (on) setRollup(r); }); getOrgCompetencyAggregate().then((r) => { if (on) setComp(r); }); return () => { on = false; }; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [teams.length]);
 
   const m = useMemo(() => dashMetrics(teams), [teams]);
   const heat = useMemo(() => climaHeatmap(teams), [teams]);
@@ -190,6 +191,45 @@ export default function OrganizacionPage() {
             )}
           </Card>
         </div>
+      </div>
+
+      {/* 360 agregado de la organización */}
+      <div style={{ marginBottom: 26 }}>
+        <SectionTitle icon="Radar" sub="Competencias promediadas en toda la org — pares anónimos (mín. 5 evaluaciones)">Competencias de la organización (360)</SectionTitle>
+        <Card pad={18} style={{ marginTop: 10 }}>
+          {comp === null ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} h={16} />)}</div>
+          ) : comp.length === 0 ? (
+            <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Todavía no hay 360 cerrados en la organización. Cuando los facilitadores cierren evaluaciones, acá vas a ver, por competencia, cómo se ve la gente vs. cómo la ve el equipo — siempre agregado y anónimo.</p>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 14, justifyContent: "flex-end", fontSize: "var(--t-xs)", marginBottom: 12 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 10, height: 3, background: "var(--violet)" }} /> Mirada del equipo</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 10, height: 3, background: "var(--green)" }} /> Auto-percepción</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {comp.map((c) => (
+                  <div key={c.key}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: "var(--t-sm)", marginBottom: 5 }}>
+                      <span style={{ fontWeight: 600 }}>{c.label}</span>
+                      <span className="num muted" style={{ fontSize: "var(--t-xs)" }}>
+                        {c.peer != null ? <b style={{ color: "var(--violet)" }}>{c.peer.toFixed(1)}</b> : <span title="Se revela con ≥5 evaluaciones de pares">🔒 anónimo</span>}
+                        {c.self != null && <> · vos <b style={{ color: "var(--green)" }}>{c.self.toFixed(1)}</b></>}
+                        <span className="faint"> /5</span>
+                      </span>
+                    </div>
+                    <div style={{ position: "relative", height: 8, borderRadius: 99, background: "var(--card-2)", overflow: "hidden" }}>
+                      {c.self != null && <div style={{ position: "absolute", inset: 0, width: `${(c.self / 5) * 100}%`, background: "color-mix(in srgb, var(--green) 45%, transparent)", borderRadius: 99 }} />}
+                      {c.peer != null && <div style={{ position: "absolute", inset: 0, width: `${(c.peer / 5) * 100}%`, background: "var(--violet)", borderRadius: 99 }} />}
+                    </div>
+                    <div className="faint" style={{ fontSize: 10, marginTop: 3 }}>{c.nPeer} evaluaciones de pares · {c.nSubjects} {c.nSubjects === 1 ? "persona" : "personas"}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="faint" style={{ fontSize: "var(--t-xs)", marginTop: 14, lineHeight: 1.5 }}>Datos agregados y anónimos: nunca se muestra la evaluación de una persona puntual. Una competencia con menos de 5 evaluaciones de pares queda oculta.</p>
+            </>
+          )}
+        </Card>
       </div>
 
       {/* Ranking de atención */}

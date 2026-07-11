@@ -9,6 +9,7 @@
 import { overallOf, dimVal, teamPulseDims, to5, type PulseDim, type Team } from "@/lib/data";
 import { ciMaturity } from "@/lib/maturity";
 import { getChallenges, type Challenge } from "@/lib/challenges";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const climaColor = (v: number) => (v >= 70 ? "var(--success)" : v >= 50 ? "var(--warning)" : "var(--risk)");
 
@@ -124,6 +125,16 @@ export async function focusRollup(teams: Team[]): Promise<FocusRollup> {
 
 export const climaCellColor = climaColor;
 export const toFive = to5;
+
+/* ── 360 agregado por organización (vía RPC con anonimato) ── */
+export interface OrgCompetency { key: string; label: string; peer: number | null; self: number | null; nPeer: number; nSubjects: number }
+
+export async function getOrgCompetencyAggregate(): Promise<OrgCompetency[]> {
+  const sb = getSupabaseBrowserClient();
+  const { data, error } = await sb.rpc("get_org_competency_aggregate");
+  if (error || !data) return [];
+  return (data as OrgCompetency[]).filter((c) => c.nPeer > 0 || c.self != null);
+}
 
 /* ── Contexto para la IA (texto agregado y anónimo) ── */
 export function orgInsightContext(teams: Team[], rollup?: FocusRollup | null): string {
