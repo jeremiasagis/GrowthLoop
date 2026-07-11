@@ -124,3 +124,36 @@ export async function focusRollup(teams: Team[]): Promise<FocusRollup> {
 
 export const climaCellColor = climaColor;
 export const toFive = to5;
+
+/* ── Contexto para la IA (texto agregado y anónimo) ── */
+export function orgInsightContext(teams: Team[], rollup?: FocusRollup | null): string {
+  const L: string[] = [];
+  L.push(`Organización con ${teams.length} equipos.`);
+
+  const heat = climaHeatmap(teams);
+  L.push(`\nClima por dimensión (promedio org, 0-100):`);
+  heat.dims.forEach((d, i) => { const v = heat.colAvg[i]; if (v != null) L.push(`- ${d.label}: ${v}`); });
+
+  L.push(`\nClima general por equipo (0-100):`);
+  for (const r of heat.rows) {
+    const lows = r.cells.map((c, i) => ({ label: heat.dims[i].label, v: c.value })).filter((x) => x.v != null && x.v < 55);
+    L.push(`- ${r.team}: ${r.overall ?? "s/d"}${lows.length ? ` · flojo en ${lows.map((x) => `${x.label} (${x.v})`).join(", ")}` : ""}`);
+  }
+
+  L.push(`\nMadurez de mejora continua por equipo:`);
+  for (const m of maturityRanking(teams)) L.push(`- ${m.team}: ${m.label}`);
+
+  const risk = riskRanking(teams).filter((r) => r.score >= 25);
+  if (risk.length) {
+    L.push(`\nEquipos con señales de atención (riesgo 0-100):`);
+    for (const r of risk) L.push(`- ${r.team} (riesgo ${r.score}): ${r.flags.join(", ")}`);
+  } else {
+    L.push(`\nNingún equipo en zona de riesgo alto.`);
+  }
+
+  if (rollup && rollup.totalIndividual > 0) {
+    L.push(`\nDesarrollo individual: ${rollup.totalIndividual} focos activos (${rollup.done} logrados, ${rollup.doing} en progreso, ${rollup.selfProposed} propuestos por la propia gente).`);
+    if (rollup.byDomain.length) L.push(`Focos por área: ${rollup.byDomain.map((d) => `${d.key} (${d.count})`).join(", ")}.`);
+  }
+  return L.join("\n");
+}

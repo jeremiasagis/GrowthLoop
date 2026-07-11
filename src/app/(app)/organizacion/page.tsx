@@ -16,7 +16,8 @@ import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getTeams } from "@/lib/repository";
 import { dashMetrics } from "@/lib/dashboard";
-import { climaHeatmap, maturityRanking, riskRanking, focusRollup, toFive, type FocusRollup } from "@/lib/org-insights";
+import { climaHeatmap, maturityRanking, riskRanking, focusRollup, orgInsightContext, toFive, type FocusRollup } from "@/lib/org-insights";
+import { OrgInsightPanel } from "@/components/OrgInsightPanel";
 import { DOMAIN_META } from "@/lib/challenges";
 
 const MATURITY_COLORS = ["var(--risk)", "var(--warning)", "var(--st-proof)", "var(--info)", "var(--green)"];
@@ -77,6 +78,11 @@ export default function OrganizacionPage() {
           </div>
         );
       })()}
+
+      {/* Preguntale a tus datos (IA) */}
+      <div style={{ marginBottom: 26 }}>
+        <OrgInsightPanel buildContext={() => orgInsightContext(teams, rollup)} />
+      </div>
 
       {/* Heatmap de clima por dimensión × equipo */}
       <div style={{ marginBottom: 26 }}>
