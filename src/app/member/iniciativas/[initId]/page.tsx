@@ -66,7 +66,7 @@ export default function MemberLoopDetail() {
 
   // Mis compromisos en ESTE loop.
   const d = init.data ?? {};
-  const myCommits = myCommitments([init], user?.name);
+  const myCommits = myCommitments([init], user ? { id: user.id, name: user.name } : undefined, team.members);
   const mark = async (text: string, status: string) => {
     setBusy(text);
     const { error } = await setMyCommitmentStatus(init.id, text, status);

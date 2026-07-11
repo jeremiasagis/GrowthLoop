@@ -25,6 +25,7 @@ import { LoopExpediente } from "@/components/LoopExpediente";
 import { loopRecommendation, relatedLearnings, syncedSignalLog } from "@/lib/loop";
 import { playbookByKey } from "@/lib/playbooks";
 import { WordCloud } from "@/components/WordCloud";
+import { CauseTree } from "@/components/CauseTree";
 import { retrosForStage, stageOfSessionType, CANONICAL_RETRO, type RetroDefinition } from "@/lib/retros/registry";
 import { CYCLE_STAGES, PULSE_DIMS, STAGES, nextCycleStage, normalizeStage, planLimits, overallOf, type Initiative, type StageKey, type Team } from "@/lib/data";
 
@@ -167,11 +168,27 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
             </div>
           </div>
         )}
-        {!!d?.causes?.length && (
+        {!!d?.causeTree?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8, color: "var(--st-focus)" }}>El árbol de causas (por qué está pasando)</div>
+            <div style={{ padding: "10px 14px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
+              <CauseTree nodes={d.causeTree} editable={false} roots={d.causeTree.filter((n) => (d.roots ?? []).includes(n.text)).map((n) => n.id)} />
+            </div>
+          </div>
+        )}
+        {!d?.causeTree?.length && !!d?.causes?.length && (
           <div>
             <div className="eyebrow" style={{ marginBottom: 8 }}>Causas exploradas</div>
             <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
               {d.causes.map((c, i) => <span key={i} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>{c}</span>)}
+            </div>
+          </div>
+        )}
+        {!!d?.secondaryCauses?.length && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Otras causas votadas</div>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {d.secondaryCauses.map((c, i) => <span key={i} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>{c.name}{c.votes ? <span className="muted num"> · {c.votes}</span> : null}</span>)}
             </div>
           </div>
         )}
@@ -319,6 +336,14 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
           </div>
         ); })}
       </div>
+      {d?.narrative && (
+        <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--st-learn) 7%, var(--card-2))", border: "1px solid color-mix(in srgb, var(--st-learn) 25%, var(--line))", borderRadius: "var(--r-md)" }}>
+          <div className="eyebrow" style={{ color: "var(--st-learn)", marginBottom: 4 }}>La historia del ciclo</div>
+          <p style={{ fontSize: "var(--t-sm)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{d.narrative}</p>
+        </div>
+      )}
+      {d?.highlightedLearning && <div style={{ fontSize: "var(--t-sm)", display: "flex", gap: 8, alignItems: "flex-start" }}><Icon name="Star" size={15} style={{ color: "var(--st-learn)", flexShrink: 0, marginTop: 2 }} /><span><b>Aprendizaje clave:</b> {d.highlightedLearning}</span></div>}
+      {d?.decisionReason && <div style={{ fontSize: "var(--t-sm)", display: "flex", gap: 8, alignItems: "flex-start" }}><Icon name="GitFork" size={15} style={{ color: "var(--st-proof)", flexShrink: 0, marginTop: 2 }} /><span><b>Por qué esa decisión:</b> {d.decisionReason}</span></div>}
       {!!d?.highlights?.length && (
         <div>
           <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Star" size={13} style={{ color: "var(--st-learn)" }} /> Aprendizajes destacados</div>
@@ -334,6 +359,30 @@ function StageBody({ st, init, hasSession }: { st: StageKey; init: Initiative; h
             {d.learnings.map((l, i) => (
               <div key={i} style={{ display: "flex", gap: 8, fontSize: "var(--t-sm)", padding: "7px 10px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-learn)" }}><Icon name="Lightbulb" size={14} style={{ color: "var(--st-learn)" }} />{l}</div>
             ))}
+          </div>
+        </div>
+      )}
+      {!!d?.processAdjustments?.length && (
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>Ajustes de proceso acordados</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {d.processAdjustments.map((p, i) => <div key={i} style={{ display: "flex", gap: 8, fontSize: "var(--t-sm)", padding: "7px 10px", background: "var(--card-2)", borderRadius: "var(--r-sm)", borderLeft: "2px solid var(--st-proof)" }}><Icon name="Settings" size={14} style={{ color: "var(--st-proof)" }} />{p}</div>)}
+          </div>
+        </div>
+      )}
+      {!!d?.desires?.length && (
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 8 }}>Lo que el equipo desea para el próximo ciclo</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {d.desires.map((x, i) => <span key={i} style={{ fontSize: "var(--t-xs)", padding: "5px 10px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}>{x}</span>)}
+          </div>
+        </div>
+      )}
+      {!!d?.commitments?.length && (
+        <div style={{ padding: "12px 14px", background: "color-mix(in srgb, var(--violet) 6%, var(--card-2))", border: "1px solid color-mix(in srgb, var(--violet) 25%, var(--line))", borderRadius: "var(--r-md)" }}>
+          <div className="eyebrow" style={{ color: "var(--violet)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Send" size={13} /> Carta al equipo futuro{d.letterDate ? ` · se relee el ${fmtDate(d.letterDate)}` : ""}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {d.commitments.map((c, i) => <div key={i} style={{ fontSize: "var(--t-sm)", display: "flex", gap: 8 }}><Icon name="Check" size={14} style={{ color: "var(--violet)", flexShrink: 0, marginTop: 2 }} />{c}</div>)}
           </div>
         </div>
       )}

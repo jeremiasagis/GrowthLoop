@@ -56,7 +56,7 @@ export default function MemberHome() {
   const activeInits = inits.filter((i) => i.status === "active");
 
   // Mis compromisos: las acciones de los loops activos asignadas a mí.
-  const myCommits = myCommitments(activeInits, user?.name);
+  const myCommits = myCommitments(activeInits, user ? { id: user.id, name: user.name } : undefined, team.members);
   const mark = async (initId: string, text: string, status: string) => {
     const key = `${initId}:${text}`;
     setBusy(key);

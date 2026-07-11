@@ -25,7 +25,7 @@ export default function MemberEquipo() {
   useEffect(() => { getMyFootprint().then(setFoot); }, []);
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo todavía.</p></Card></div>;
 
-  const myDone = myCommitments(team.initiatives ?? [], user?.name).filter((c) => c.status === "done").length;
+  const myDone = myCommitments(team.initiatives ?? [], user ? { id: user.id, name: user.name } : undefined, team.members).filter((c) => c.status === "done").length;
 
   const lead = team.facilitatorId ? getFacilitators().find((f) => f.id === team.facilitatorId) : undefined;
   const lastPulse = team.pulse[team.pulse.length - 1];
