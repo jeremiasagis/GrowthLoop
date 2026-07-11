@@ -20,6 +20,7 @@ import {
   type ReviewAggregate, type OneOnOne,
 } from "@/lib/talent";
 import { to100 } from "@/lib/data";
+import { Skeleton } from "@/components/Skeleton";
 import { getMyFocuses, setMyFocusStatus, proposeMyFocus, FOCUS_STATUS, DOMAINS, DOMAIN_META, domainMeta, type Challenge } from "@/lib/challenges";
 
 const CPAL = ["var(--green)", "var(--violet)", "var(--info)", "var(--warning)", "#22d3ee", "#f59e0b", "#a78bfa", "#34d399"];
@@ -204,7 +205,7 @@ export default function MemberDesarrollo() {
       <Card pad={20} style={{ marginBottom: 22 }}>
         <SectionTitle icon="Radar" sub="Cómo te ves vos vs. cómo te ve el equipo">Mi 360</SectionTitle>
         {loading ? (
-          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 12 }}>Cargando…</p>
+          <div style={{ marginTop: 14, display: "grid", placeItems: "center" }}><Skeleton w={300} h={300} r={999} /></div>
         ) : agg ? (
           <div style={{ marginTop: 14 }}>
             <div style={{ maxWidth: 420, margin: "0 auto" }}>
@@ -244,7 +245,7 @@ export default function MemberDesarrollo() {
       <SectionTitle icon="MessagesSquare" sub="Tus conversaciones de desarrollo con el facilitador">Mis 1-a-1</SectionTitle>
       <div style={{ marginTop: 10 }}>
         {loading ? (
-          <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Cargando…</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} h={80} r={10} />)}</div>
         ) : ooos.length === 0 ? (
           <Card pad={0}><EmptyState icon="MessagesSquare" title="Sin 1-a-1 todavía">Cuando tengas un 1-a-1 con tu facilitador vas a ver acá la agenda, las notas y tus compromisos de desarrollo.</EmptyState></Card>
         ) : (

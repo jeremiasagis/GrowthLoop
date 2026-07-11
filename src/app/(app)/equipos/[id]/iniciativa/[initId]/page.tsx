@@ -15,6 +15,7 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { createLiveSession, discardSession, getInitiativeSessions, loadSessionMemories, type SessionCard, type SessionCluster, type SessionVote, type SessionMemory } from "@/lib/session";
 import { SessionLauncher } from "@/components/SessionLauncher";
+import { Celebration } from "@/components/Celebration";
 import { MemoryCard } from "@/components/RetroResult";
 import { SignalProgressChart } from "@/components/SignalProgressChart";
 import { SignalSource } from "@/components/SignalSource";
@@ -416,6 +417,7 @@ export default function InitiativeDetailPage() {
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [aiReportBusy, setAiReportBusy] = useState(false);
   const [conBusy, setConBusy] = useState(false);
+  const [celeb, setCeleb] = useState<{ title: string; subtitle?: string } | null>(null);
 
   if (!team || !init) {
     return (
@@ -512,6 +514,7 @@ export default function InitiativeDetailPage() {
       if (res.error) { show(res.error, "TriangleAlert"); return; }
       setCloseStageOpen(false); setFinalHonesty(null);
       show(dec === "iterate" ? "Iterar · vuelve a Diseñar" : dec === "pivot" ? "Pivotar · vuelve a Analizar" : dec === "pause" ? "Variable pausada" : dec === "implement" ? "Implementar · en Consolidación 30 días" : "Ciclo cerrado 🎉", "Check");
+      if (dec === "implement" || !dec || dec === "consolidate") setCeleb({ title: "¡Ciclo cerrado! 🎉", subtitle: `"${init.title}" completó una vuelta de mejora` });
       refresh();
       return;
     }
@@ -520,6 +523,7 @@ export default function InitiativeDetailPage() {
     if (res.error) { show(res.error, "TriangleAlert"); return; }
     setCloseStageOpen(false); setFinalHonesty(null);
     show(nextSt ? `Etapa cerrada · ahora en ${STAGES[nextSt].label}` : "Ciclo cerrado 🎉", "Check");
+    if (!nextSt) setCeleb({ title: "¡Ciclo cerrado! 🎉", subtitle: `"${init.title}" completó una vuelta de mejora` });
     refresh();
   };
   const doDelete = async () => { setDelBusy(true); const res = await deleteInitiative(init.id); setDelBusy(false); if (res.error) { show(res.error, "TriangleAlert"); return; } show("Iniciativa eliminada", "Trash2"); router.push(`/equipos/${team.id}`); };
@@ -605,6 +609,7 @@ export default function InitiativeDetailPage() {
 
   return (
     <div className="screen-pad">
+      <Celebration show={!!celeb} title={celeb?.title ?? ""} subtitle={celeb?.subtitle} onDone={() => setCeleb(null)} />
       {/* breadcrumb */}
       <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--t-sm)", marginBottom: 14, flexWrap: "wrap" }}>
         <button onClick={() => router.push("/organizaciones")} className="muted">Equipos</button>

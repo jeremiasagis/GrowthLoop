@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Card, EmptyState, SectionTitle } from "@/components/ui";
 import { KpiCard } from "@/components/charts";
+import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { getTeams } from "@/lib/repository";
 import { dashMetrics } from "@/lib/dashboard";
@@ -131,7 +132,11 @@ export default function OrganizacionPage() {
           <SectionTitle icon="Sprout" sub="En qué está creciendo la gente de la org">Desarrollo de las personas</SectionTitle>
           <Card pad={16} style={{ marginTop: 10 }}>
             {!rollup ? (
-              <p className="muted" style={{ fontSize: "var(--t-sm)" }}>Cargando…</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", gap: 10 }}>{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} h={54} r={8} />)}</div>
+                <Skeleton h={10} w="30%" />
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} h={14} />)}
+              </div>
             ) : rollup.totalIndividual === 0 ? (
               <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Todavía no hay focos de desarrollo individuales. Aparecen cuando el facilitador asigna focos en un 1-a-1 o la gente propone los suyos.</p>
             ) : (

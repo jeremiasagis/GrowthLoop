@@ -8,8 +8,26 @@
    Todo SVG/CSS propio, sin dependencia de charting.
    ============================================================ */
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Bar, Card, Sparkline, Trend } from "@/components/ui";
+
+/** Cuenta de 0 al objetivo con easing; respeta prefers-reduced-motion. */
+function useCountUp(target: number, ms = 850): number {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setV(target); return; }
+    let raf = 0, start = 0;
+    const step = (t: number) => {
+      if (!start) start = t;
+      const p = Math.min(1, (t - start) / ms);
+      setV(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return v;
+}
 
 export function KpiCard({
   title, sub, value, delta, deltaSuffix = "%", spark, sparkColor, accent = "var(--green)", onClick,
@@ -17,6 +35,9 @@ export function KpiCard({
   title: string; sub?: string; value: ReactNode; delta?: number; deltaSuffix?: string;
   spark?: number[]; sparkColor?: string; accent?: string; onClick?: () => void;
 }) {
+  const isNum = typeof value === "number";
+  const counted = useCountUp(isNum ? (value as number) : 0);
+  const shown: ReactNode = isNum ? counted : value;
   return (
     <Card pad={16} hover={!!onClick} onClick={onClick} style={{ display: "flex", flexDirection: "column", gap: 10, cursor: onClick ? "pointer" : "default" }}>
       <div style={{ minWidth: 0 }}>
@@ -25,7 +46,7 @@ export function KpiCard({
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-          <span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1, color: accent }}>{value}</span>
+          <span className="num" style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1, color: accent }}>{shown}</span>
           {delta != null && <Trend dir={delta > 0 ? "up" : delta < 0 ? "down" : "flat"} value={`${delta > 0 ? "+" : ""}${delta}${deltaSuffix}`} />}
         </div>
         {spark && spark.length > 1 && <Sparkline data={spark} color={sparkColor ?? accent} w={84} h={26} />}
