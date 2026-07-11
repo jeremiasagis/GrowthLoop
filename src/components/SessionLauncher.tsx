@@ -14,7 +14,16 @@ import { Button, Pill } from "./ui";
 import { useToast } from "./Toast";
 import { createLiveSession } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { retrosForStage, retroInPlan, phaseMode, phaseSplit, type RetroDefinition } from "@/lib/retros/registry";
+import { retrosForStage, retroInPlan, retroById, phaseMode, phaseSplit, type RetroDefinition } from "@/lib/retros/registry";
+
+/** El método canónico (retro) de cada etapa del loop — el que se lanza por
+    defecto (método invisible). El catálogo queda como "cambiar herramienta". */
+const CANONICAL_METHOD: Partial<Record<string, string>> = {
+  focus: "focus-fishbone",             // Causa
+  ideation: "ideation-bet-design",     // Apuesta
+  follow: "follow-how-are-we-doing",   // Probar
+  learn: "learn-cycle-close",          // Aprender y decidir
+};
 import { getOrg } from "@/lib/repository";
 import { CYCLE_STAGES, STAGES, normalizeStage, planOf, planLimits, type Initiative, type StageKey, type Team } from "@/lib/data";
 
@@ -27,9 +36,18 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPicks, setAiPicks] = useState<Record<string, string> | null>(null);
   const curIdx = initiative ? CYCLE_STAGES.indexOf(normalizeStage(initiative.stage)) : -1;
-  const [stage, setStage] = useState<StageKey | null>(initialRetro ? (initialRetro.stage as StageKey) : (initialStage ?? (initiative ? normalizeStage(initiative.stage) : null)));
-  const [retro, setRetro] = useState<RetroDefinition | null>(initialRetro ?? null);
-  const [step, setStep] = useState<1 | 2 | 3>(initialRetro ? 3 : initialStage ? 2 : 1);
+  // El método canónico de la etapa, si está disponible (implementado + en el plan).
+  const canonicalFor = (st: StageKey | null | undefined): RetroDefinition | undefined => {
+    const id = st ? CANONICAL_METHOD[st] : undefined;
+    if (!id) return undefined;
+    const r = retroById(id);
+    return r && r.implemented && retroInPlan(r.id, plan) ? r : undefined;
+  };
+  const initStage: StageKey | null = initialRetro ? (initialRetro.stage as StageKey) : (initialStage ?? (initiative ? normalizeStage(initiative.stage) : null));
+  const initCanon = initialRetro ? undefined : canonicalFor(initStage);
+  const [stage, setStage] = useState<StageKey | null>(initStage);
+  const [retro, setRetro] = useState<RetroDefinition | null>(initialRetro ?? initCanon ?? null);
+  const [step, setStep] = useState<1 | 2 | 3>(initialRetro ? 3 : initCanon ? 3 : initialStage ? 2 : 1);
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"live" | "async">("live");
   const [asyncDays, setAsyncDays] = useState(7);
@@ -121,7 +139,7 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
                 const on = stage === st;
                 const isModule = st === "exploration";
                 return (
-                  <button key={st} onClick={() => { setStage(st); setRetro(null); setStep(2); }}
+                  <button key={st} onClick={() => { setStage(st); setAiPicks(null); const canon = canonicalFor(st); if (canon) { setRetro(canon); setStep(3); } else { setRetro(null); setStep(2); } }}
                     style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: "var(--r-md)", textAlign: "left", background: on ? `color-mix(in srgb, ${meta.color} 12%, var(--card))` : "var(--card)", border: isModule ? `1.5px dashed ${on ? meta.color : "var(--line-2)"}` : `1px solid ${on ? meta.color : "var(--line-2)"}`, cursor: "pointer" }}>
                     <span style={{ width: 30, height: 30, borderRadius: 99, display: "grid", placeItems: "center", flex: "none", background: `color-mix(in srgb, ${meta.color} 16%, transparent)`, color: meta.color, fontWeight: 800, fontSize: "var(--t-xs)" }}>
                       {isModule ? <Icon name="Compass" size={15} /> : meta.n}
@@ -187,7 +205,7 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
 
         {step === 3 && retro && !created && (
           <>
-            <button onClick={() => setStep(2)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 8 }}><Icon name="ChevronLeft" size={13} /> Retros</button>
+            <button onClick={() => setStep(2)} className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 600, marginBottom: 8 }}><Icon name="Shuffle" size={13} /> Cambiar herramienta</button>
             <h2 style={{ fontSize: "var(--t-lg)", fontWeight: 800, marginBottom: 4 }}>{retro.name}</h2>
             <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 14 }}>{retro.purpose}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
