@@ -20,12 +20,12 @@ export async function authAndPlan(token: string): Promise<AiGuard> {
   // Plan = el de la organización del perfil del usuario.
   const { data: prof } = await sb.from("profiles").select("org_id").eq("id", u.user.id).maybeSingle();
   const orgId = (prof as { org_id?: string } | null)?.org_id;
-  let plan = "starter";
+  let plan = "free";
   if (orgId) {
     const { data: org } = await sb.from("organizations").select("plan").eq("id", orgId).maybeSingle();
-    plan = (org as { plan?: string } | null)?.plan ?? "starter";
+    plan = (org as { plan?: string } | null)?.plan ?? "free";
   }
   // Normalizamos para que un "Pro" / " pro " en la DB no niegue la IA por error.
   const norm = plan.toLowerCase().trim();
-  return { ok: true, aiAllowed: norm === "pro" || norm === "business" };
+  return { ok: true, aiAllowed: norm === "pro" || norm === "business" || norm === "enterprise" };
 }

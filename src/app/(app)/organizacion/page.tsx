@@ -14,7 +14,8 @@ import { Card, EmptyState, SectionTitle, Sparkline } from "@/components/ui";
 import { KpiCard } from "@/components/charts";
 import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getTeams } from "@/lib/repository";
+import { getTeams, getOrgs } from "@/lib/repository";
+import { planLimits } from "@/lib/data";
 import { dashMetrics } from "@/lib/dashboard";
 import { climaHeatmap, maturityRanking, riskRanking, focusRollup, getOrgCompetencyAggregate, orgInsightContext, toFive, type FocusRollup, type OrgCompetency } from "@/lib/org-insights";
 import { OrgInsightPanel } from "@/components/OrgInsightPanel";
@@ -38,6 +39,11 @@ export default function OrganizacionPage() {
 
   if (user && user.role !== "admin" && user.role !== "superadmin") {
     return <div className="screen-pad"><Card pad={0}><EmptyState icon="Lock" title="Solo para administración">Esta vista cruza información de los equipos de la organización y es exclusiva del rol admin.</EmptyState></Card></div>;
+  }
+  // Gateo por plan: la vista de organización abre en Pro+. El superadmin siempre la ve.
+  const orgViewOn = user?.role === "superadmin" || getOrgs().some((o) => planLimits(o.plan).orgView);
+  if (!orgViewOn) {
+    return <div className="screen-pad"><Card pad={0}><EmptyState icon="Sparkles" title="La vista de organización está en el plan Pro">Con Pro o superior, cruzás la cultura y el desarrollo de todos tus equipos: clima por dimensión, madurez comparada, equipos a atender, 360 agregado y “preguntale a tus datos”. Pedile al superadmin que actualice el plan de tu organización.</EmptyState></Card></div>;
   }
   if (!teams.length) {
     return <div className="screen-pad"><Card pad={0}><EmptyState icon="Building2" title="Todavía no hay equipos">Cuando tus facilitadores creen equipos, acá vas a ver el panorama cruzado de toda la organización.</EmptyState></Card></div>;

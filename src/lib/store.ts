@@ -62,7 +62,7 @@ function mapOrg(o: any, teams: Team[]): Org {
     leader: o.leader, leaderRole: o.leader_role,
     contract: o.contract, since: o.since, status: o.status,
     ownerId: o.owner_id ?? undefined, ownerEmail: o.owner_email ?? undefined,
-    plan: (o.plan ?? "starter") as Org["plan"], kind: (o.kind ?? "company") as Org["kind"],
+    plan: (o.plan ?? "free") as Org["plan"], kind: (o.kind ?? "company") as Org["kind"],
   };
 }
 

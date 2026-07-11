@@ -326,14 +326,19 @@ export interface Org {
 }
 
 // ── Planes (la "cuenta" = organization lleva el plan) ──
-export type PlanKey = "starter" | "pro" | "business";
-export interface PlanLimits { teams: number; facilitators: number; retros: "starter" | "all"; ai: boolean; }
+export type PlanKey = "free" | "pro" | "business" | "enterprise";
+// La métrica de escala es la cantidad de EQUIPOS. Free = 1 equipo, 1 loop
+// activo a la vez y sin IA. Todo lo pago abre IA + la vista de organización
+// (RRHH), que recién tiene sentido con 2+ equipos. Enterprise agrega escala
+// + servicio (SSO/SLA/soporte), que no se gestiona por código.
+export interface PlanLimits { teams: number; facilitators: number; activeLoops: number; retros: "starter" | "all"; ai: boolean; orgView: boolean; }
 export const PLANS: Record<PlanKey, { label: string; color: string; limits: PlanLimits }> = {
-  starter:  { label: "Starter",  color: "var(--ink-2)",  limits: { teams: 1,        facilitators: 1,        retros: "starter", ai: false } },
-  pro:      { label: "Pro",      color: "var(--green)",  limits: { teams: 10,       facilitators: 1,        retros: "all",     ai: true } },
-  business: { label: "Business", color: "var(--violet)", limits: { teams: Infinity, facilitators: Infinity, retros: "all",     ai: true } },
+  free:       { label: "Free",       color: "var(--ink-2)",   limits: { teams: 1,        facilitators: 1,        activeLoops: 1,        retros: "all", ai: false, orgView: false } },
+  pro:        { label: "Pro",        color: "var(--green)",   limits: { teams: 10,       facilitators: 10,       activeLoops: Infinity, retros: "all", ai: true,  orgView: true } },
+  business:   { label: "Business",   color: "var(--violet)",  limits: { teams: 50,       facilitators: 50,       activeLoops: Infinity, retros: "all", ai: true,  orgView: true } },
+  enterprise: { label: "Enterprise", color: "var(--warning)", limits: { teams: Infinity, facilitators: Infinity, activeLoops: Infinity, retros: "all", ai: true,  orgView: true } },
 };
-export function planOf(plan?: PlanKey): PlanKey { return plan ?? "starter"; }
+export function planOf(plan?: PlanKey): PlanKey { return plan ?? "free"; }
 export function planLimits(plan?: PlanKey): PlanLimits { return PLANS[planOf(plan)].limits; }
 export const ORGS: Org[] = [
   { id: "o1", name: "Banco Andino", sector: "Servicios financieros", teams: 2, leader: "Roberto Méndez", leaderRole: "Gerente de Operaciones", contract: "6 meses", since: "feb 2026", status: "Activo" },

@@ -10,8 +10,9 @@
 import { reloadData, useGLStore } from "./store";
 import { getSupabaseBrowserClient } from "./supabase/client";
 import {
+  planLimits,
   type Admin, type Facilitator,
-  type Initiative, type Org, type RoleKey, type StageKey,
+  type Initiative, type Org, type PlanKey, type RoleKey, type StageKey,
   type Team, type TeamObjective,
 } from "./data";
 
@@ -166,7 +167,7 @@ export async function deleteOrg(id: string): Promise<{ error?: string }> {
 }
 
 /** Cambia el plan de una cuenta (organización). Solo superadmin/dueño. */
-export async function setOrgPlan(id: string, plan: "starter" | "pro" | "business"): Promise<{ error?: string }> {
+export async function setOrgPlan(id: string, plan: PlanKey): Promise<{ error?: string }> {
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.from("organizations").update({ plan }).eq("id", id);
   if (error) return { error: error.message };
@@ -363,6 +364,17 @@ export async function createTeam(input: {
 /** Crea una iniciativa (línea de trabajo) para un equipo. Arranca en Objetivos. */
 export async function createInitiative(input: { teamId: string; title: string; description?: string; stage?: StageKey; status?: Initiative["status"]; objectiveId?: string | null; data?: Record<string, unknown> }): Promise<{ error?: string; id?: string }> {
   const supabase = getSupabaseBrowserClient();
+  // Límite de loops activos por plan (Free = 1 a la vez). Solo aplica a los
+  // loops que nacen activos; los pausados (ej. tensiones de exploración) no cuentan.
+  const status = input.status ?? "active";
+  if (status === "active") {
+    const team = getMemberTeam(input.teamId) ?? getTeam(input.teamId);
+    const limit = planLimits(team?.orgId ? getOrg(team.orgId)?.plan : undefined).activeLoops;
+    if (Number.isFinite(limit)) {
+      const active = getInitiatives(input.teamId).filter((i) => i.status === "active").length;
+      if (active >= limit) return { error: `Tu plan permite ${limit} loop activo a la vez. Cerrá el actual, o subí de plan para trabajar varios desafíos en paralelo.` };
+    }
+  }
   const id = newId("i");
   const { error } = await supabase.from("initiatives").insert({
     id, team_id: input.teamId, title: input.title.trim(),

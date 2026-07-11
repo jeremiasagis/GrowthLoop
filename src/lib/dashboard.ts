@@ -96,9 +96,11 @@ export function dashMetrics(teams: Team[]): DashMetrics {
 const MATURITY_LABELS = ["Incipiente", "En formación", "En práctica", "Consolidada", "Referente"];
 const MATURITY_COLORS = ["var(--risk)", "var(--warning)", "var(--st-proof)", "var(--info)", "var(--green)"];
 const PLAN_META: Record<string, { label: string; color: string }> = {
-  starter: { label: "Starter", color: "var(--ink-2)" },
+  free: { label: "Free", color: "var(--ink-2)" },
+  starter: { label: "Free", color: "var(--ink-2)" }, // compat con orgs viejas sin migrar
   pro: { label: "Pro", color: "var(--green)" },
   business: { label: "Business", color: "var(--violet)" },
+  enterprise: { label: "Enterprise", color: "var(--warning)" },
 };
 
 export interface PlatformBreakdown {
@@ -125,7 +127,7 @@ export function platformBreakdown(teams: Team[], orgs: Org[]): PlatformBreakdown
 
   // Organizaciones por plan.
   const planCount = new Map<string, number>();
-  for (const o of orgs) { const k = (o.plan ?? "starter").toLowerCase().trim(); planCount.set(k, (planCount.get(k) ?? 0) + 1); }
+  for (const o of orgs) { const k = (o.plan ?? "free").toLowerCase().trim(); planCount.set(k, (planCount.get(k) ?? 0) + 1); }
   const orgsByPlan = [...planCount.entries()].map(([k, value]) => ({ label: PLAN_META[k]?.label ?? k, value, color: PLAN_META[k]?.color ?? "var(--ink-2)" }));
 
   // Equipos por nivel de madurez.
