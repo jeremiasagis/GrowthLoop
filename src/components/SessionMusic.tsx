@@ -1,16 +1,17 @@
 "use client";
 
 /* ============================================================
-   Música chill de fondo para la sala. NO usa ningún archivo de
-   audio: genera un pad ambient por Web Audio (acordes suaves que
-   respiran y van progresando, volumen bajo). Sirve para cubrir el
-   silencio incómodo en los momentos de pensar y escribir.
-   Se prende/apaga con un botón; arranca en silencio y entra con
-   un fade suave. Sin copyright, sin descargas, funciona offline.
+   Música chill de fondo para la sala — SOLO la ve el facilitador
+   (es quien conduce y proyecta). NO usa ningún archivo de audio:
+   genera un pad ambient por Web Audio (acordes suaves que respiran
+   y progresan, volumen bajo). Cubre el silencio en los momentos de
+   pensar / escribir / votar. Prende/apaga con un botón, entra con
+   fade, y tiene control de volumen. Sin copyright, offline.
    ============================================================ */
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 // Progresión calma (acordes con séptima). Cada acorde = 4 notas en Hz.
 const CHORDS = [
@@ -20,10 +21,17 @@ const CHORDS = [
   [98.0, 246.94, 392.0, 587.33], // G
 ];
 
-type Engine = { ctx: AudioContext; master: GainNode; nodes: OscillatorNode[]; oscs: OscillatorNode[]; timer: number };
+// Volumen máximo del master (música de fondo, nunca protagonista).
+const VOL_MAX = 0.2;
+
+type Engine = { ctx: AudioContext; master: GainNode; oscs: OscillatorNode[]; nodes: OscillatorNode[]; timer: number };
 
 export function SessionMusic() {
+  const { user } = useAuth();
+  const canPlay = user?.role === "facilitator";
   const [on, setOn] = useState(false);
+  const [vol, setVol] = useState(0.5); // 0..1
+  const volRef = useRef(0.5);
   const ref = useRef<Engine | null>(null);
 
   const stop = () => {
@@ -74,8 +82,8 @@ export function SessionMusic() {
       return o;
     });
 
-    // Entrada suave hasta un volumen bajo (música de fondo, no protagonista).
-    master.gain.setTargetAtTime(0.1, ctx.currentTime + 0.05, 0.9);
+    // Entrada suave hasta el volumen elegido.
+    master.gain.setTargetAtTime(volRef.current * VOL_MAX, ctx.currentTime + 0.05, 0.9);
 
     let idx = 0;
     const timer = window.setInterval(() => {
@@ -93,16 +101,35 @@ export function SessionMusic() {
     else { try { start(); setOn(true); } catch { /* navegador sin Web Audio */ } }
   };
 
+  const changeVol = (v: number) => {
+    setVol(v); volRef.current = v;
+    const a = ref.current;
+    if (a) a.master.gain.setTargetAtTime(v * VOL_MAX, a.ctx.currentTime, 0.15);
+  };
+
   useEffect(() => () => stop(), []);
 
+  if (!canPlay) return null;
+
   return (
-    <button
-      onClick={toggle}
-      title={on ? "Apagar música de fondo" : "Música chill de fondo"}
-      style={{ display: "inline-flex", alignItems: "center", gap: 6, color: on ? "var(--green)" : "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600 }}
-    >
-      <Icon name={on ? "Volume2" : "Music"} size={17} />
-      <span className="hide-sm">{on ? "Música" : "Música"}</span>
-    </button>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      <button
+        onClick={toggle}
+        title={on ? "Apagar música de fondo" : "Poner música chill de fondo (solo vos la controlás)"}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, color: on ? "var(--green)" : "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600 }}
+      >
+        <Icon name={on ? "Volume2" : "Music"} size={17} />
+        <span className="hide-sm">Música</span>
+      </button>
+      {on && (
+        <input
+          type="range" min={0} max={1} step={0.05} value={vol}
+          onChange={(e) => changeVol(Number(e.target.value))}
+          title="Volumen"
+          style={{ width: 72, accentColor: "var(--green)", cursor: "pointer" }}
+          className="hide-sm"
+        />
+      )}
+    </div>
   );
 }
