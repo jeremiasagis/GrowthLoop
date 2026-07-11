@@ -130,6 +130,19 @@ export async function setMyFocusStatus(id: string, status: string): Promise<{ er
   return { error: error?.message };
 }
 
+/** El miembro propone su propio foco de desarrollo (individual, asignado a sí mismo). */
+export async function proposeMyFocus(input: { teamId: string; title: string; detail?: string; domain?: string }): Promise<{ id?: string; error?: string }> {
+  const sb = getSupabaseBrowserClient();
+  const { data: auth } = await sb.auth.getUser();
+  if (!auth.user) return { error: "Sesión expirada." };
+  const { data, error } = await sb.from("team_challenges").insert({
+    team_id: input.teamId, title: input.title.trim(), detail: input.detail?.trim() || null,
+    scope: "individual", domain: input.domain ?? null, source: "self",
+    assignee_user_id: auth.user.id, created_by: auth.user.id,
+  }).select("id").single();
+  return error ? { error: error.message } : { id: data.id };
+}
+
 export interface Suggestion {
   title: string; detail: string; scope: ChallengeScope; domain: string; source: string; sourceRef: string;
 }

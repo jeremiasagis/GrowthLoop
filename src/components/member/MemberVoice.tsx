@@ -22,7 +22,7 @@ const MY_STATUS: Record<string, { l: string; c: string }> = {
   archived: { l: "Archivado", c: "var(--ink-3)" },
 };
 
-export function MemberVoice({ teamId }: { teamId: string }) {
+export function MemberVoice({ teamId, onSubmitted }: { teamId: string; onSubmitted?: (kind: VoiceKind) => void }) {
   const { show } = useToast();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<VoiceKind>("idea");
@@ -40,7 +40,10 @@ export function MemberVoice({ teamId }: { teamId: string }) {
     const { error } = await createTeamInput(teamId, kind, t);
     setBusy(false);
     if (error) { show("No se pudo enviar.", "TriangleAlert"); return; }
-    setText(""); setOpen(false); show("Lo planteaste al equipo", "Check"); reload();
+    const k = kind;
+    setText(""); setOpen(false);
+    show(k === "idea" ? "Tu idea ya está en el banco del equipo" : "Lo planteaste al equipo", "Check");
+    reload(); onSubmitted?.(k);
   };
   const retract = async (id: string) => {
     const { error } = await deleteTeamInput(id);
@@ -91,7 +94,7 @@ export function MemberVoice({ teamId }: { teamId: string }) {
               <span style={{ width: 38, height: 38, borderRadius: "var(--r-md)", background: "var(--green-soft)", color: "var(--green)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Megaphone" size={19} /></span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Plantear algo al equipo</div>
-                <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Le llega a tu facilitador para sumarlo a la mejora.</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)" }}>{kind === "idea" ? "Tu idea va al banco del equipo — todos la ven y pueden apoyarla." : "Le llega en privado a tu facilitador para sumarlo a la mejora."}</div>
               </div>
               <button onClick={() => setOpen(false)} style={{ color: "var(--ink-2)" }}><Icon name="X" size={20} /></button>
             </div>

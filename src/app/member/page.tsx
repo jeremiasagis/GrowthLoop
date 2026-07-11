@@ -14,7 +14,10 @@ import { loopThread } from "@/lib/loop";
 import { ciMaturity } from "@/lib/maturity";
 import { getReviewsForTeam, type TalentReview } from "@/lib/talent";
 import { MemberVoice } from "@/components/member/MemberVoice";
+import { IdeaBoard } from "@/components/member/IdeaBoard";
+import { KudosWall } from "@/components/member/KudosWall";
 import { myCommitments } from "@/lib/member/commitments";
+import { teamProgress } from "@/lib/gamification";
 
 export default function MemberHome() {
   const router = useRouter();
@@ -27,6 +30,7 @@ export default function MemberHome() {
   const [openReviews, setOpenReviews] = useState<TalentReview[]>([]);
   const [, setTick] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
+  const [ideaKey, setIdeaKey] = useState(0);
 
   useEffect(() => {
     if (!team?.id) return; const tid = team.id;
@@ -60,6 +64,7 @@ export default function MemberHome() {
   // Nuestro progreso: loops activos con su hilo (señal).
   const progress = activeInits.map((i) => ({ init: i, thread: loopThread(i) }));
   const maturity = ciMaturity(team);
+  const prog = teamProgress(team);
   const climaSeries = team.pulse.map(overallOf);
   const climaNow = climaSeries.length ? climaSeries[climaSeries.length - 1] : null;
   const climaUp = climaSeries.length >= 2 ? climaNow! - climaSeries[climaSeries.length - 2] : 0;
@@ -144,6 +149,30 @@ export default function MemberHome() {
       <div style={{ marginBottom: 22 }}>
         <SectionTitle icon="TrendingUp" sub="Lo que estamos logrando como equipo">Nuestro progreso</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+          <Card pad={16} style={{ background: "linear-gradient(180deg, rgba(0,232,122,0.08), var(--card))", borderColor: "color-mix(in srgb, var(--green) 30%, var(--line))" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ width: 40, height: 40, borderRadius: "var(--r-md)", background: "var(--green-soft)", color: "var(--green)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Trophy" size={20} /></div>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <div style={{ fontWeight: 800, fontSize: "var(--t-sm)" }}>{prog.level.name}</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Nivel del equipo · <b className="num" style={{ color: "var(--ink-1)" }}>{prog.xp}</b> XP{prog.cycles > 0 ? ` · ${prog.cycles} ${prog.cycles === 1 ? "ciclo cerrado" : "ciclos cerrados"}` : ""}</div>
+              </div>
+              {prog.streak > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--t-xs)", fontWeight: 800, color: "var(--warning)", padding: "4px 9px", borderRadius: "var(--r-full)", background: "var(--warning-bg)" }}><Icon name="Flame" size={13} /> Racha {prog.streak}</span>}
+            </div>
+            {prog.level.next != null && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ height: 7, borderRadius: 99, background: "var(--card-2)", overflow: "hidden" }}><div style={{ width: `${prog.pct}%`, height: "100%", background: "var(--green)", borderRadius: 99 }} /></div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 5 }}>Faltan <b className="num" style={{ color: "var(--ink-1)" }}>{prog.toNext}</b> XP para <b style={{ color: "var(--ink-1)" }}>subir de nivel</b></div>
+              </div>
+            )}
+            {prog.mission && <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)", fontSize: "var(--t-sm)" }}><Icon name="Target" size={14} style={{ color: "var(--green)", flexShrink: 0 }} /><span className="muted">Próximo paso del equipo:</span> <b>{prog.mission.label}</b></div>}
+            {prog.unlocked.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
+                {prog.unlocked.slice(0, 6).map((a) => (
+                  <span key={a.key} title={a.desc} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--t-xs)", fontWeight: 700, padding: "4px 9px", borderRadius: "var(--r-full)", background: "var(--card-2)", border: "1px solid var(--line)" }}><Icon name={a.icon} size={12} style={{ color: "var(--green)" }} /> {a.label}</span>
+                ))}
+              </div>
+            )}
+          </Card>
           <Card pad={16}>
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", justifyContent: "space-between" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><StageBadge stage={teamLiveStage(team) ?? "queue"} size="sm" /></span>
@@ -212,11 +241,23 @@ export default function MemberHome() {
         </button>
       </div>
 
-      {/* ── MI VOZ ── */}
+      {/* ── RECONOCIMIENTO ── */}
       <div style={{ marginTop: 22 }}>
-        <SectionTitle icon="Megaphone" sub="Lo que ves desde tu lugar alimenta la mejora">Mi voz</SectionTitle>
+        <SectionTitle icon="Award" sub="Lo que el equipo valora de cada uno">Reconocimiento</SectionTitle>
         <div style={{ marginTop: 10 }}>
-          <MemberVoice teamId={team.id} />
+          <KudosWall teamId={team.id} members={team.members} facilitator={team.facilitator} currentUserId={user?.id} />
+        </div>
+      </div>
+
+      {/* ── MI VOZ + BANCO DE IDEAS ── */}
+      <div style={{ marginTop: 22 }}>
+        <SectionTitle icon="Megaphone" sub="Lo que ves desde tu lugar alimenta la mejora">Mi voz y las ideas del equipo</SectionTitle>
+        <div style={{ marginTop: 10 }}>
+          <MemberVoice teamId={team.id} onSubmitted={(k) => { if (k === "idea") setIdeaKey((n) => n + 1); }} />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Lightbulb" size={13} style={{ color: "var(--st-proof)" }} /> Banco de ideas del equipo</div>
+          <IdeaBoard teamId={team.id} refreshKey={ideaKey} />
         </div>
       </div>
     </div>

@@ -10,7 +10,8 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/icon";
-import { Card, EmptyState, Pill, PulseRadar, SectionTitle } from "@/components/ui";
+import { Button, Card, EmptyState, Pill, PulseRadar, SectionTitle } from "@/components/ui";
+import { useToast } from "@/components/Toast";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useMemberTeam } from "@/lib/member/team";
 import { getMemberTeam } from "@/lib/repository";
@@ -19,7 +20,7 @@ import {
   type ReviewAggregate, type OneOnOne,
 } from "@/lib/talent";
 import { to100 } from "@/lib/data";
-import { getMyFocuses, setMyFocusStatus, FOCUS_STATUS, domainMeta, type Challenge } from "@/lib/challenges";
+import { getMyFocuses, setMyFocusStatus, proposeMyFocus, FOCUS_STATUS, DOMAINS, DOMAIN_META, domainMeta, type Challenge } from "@/lib/challenges";
 
 const CPAL = ["var(--green)", "var(--violet)", "var(--info)", "var(--warning)", "#22d3ee", "#f59e0b", "#a78bfa", "#34d399"];
 
@@ -78,6 +79,7 @@ function OneOnOneView({ ooo }: { ooo: OneOnOne }) {
 
 export default function MemberDesarrollo() {
   const { user } = useAuth();
+  const { show } = useToast();
   const { teamId } = useMemberTeam();
   const team = getMemberTeam(teamId);
   const [agg, setAgg] = useState<ReviewAggregate | null>(null);
@@ -85,6 +87,11 @@ export default function MemberDesarrollo() {
   const [ooos, setOoos] = useState<OneOnOne[]>([]);
   const [focuses, setFocuses] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
+  const [propose, setPropose] = useState(false);
+  const [pTitle, setPTitle] = useState("");
+  const [pDetail, setPDetail] = useState("");
+  const [pDomain, setPDomain] = useState<string>("comunicacion");
+  const [pBusy, setPBusy] = useState(false);
 
   useEffect(() => {
     if (!team?.id || !user?.id) return;
@@ -107,6 +114,16 @@ export default function MemberDesarrollo() {
     if (team?.id) setFocuses((await getMyFocuses()).filter((x) => x.teamId === team.id));
   };
 
+  const submitFocus = async () => {
+    if (!pTitle.trim() || pBusy || !team?.id) return;
+    setPBusy(true);
+    const { error } = await proposeMyFocus({ teamId: team.id, title: pTitle, detail: pDetail, domain: pDomain });
+    setPBusy(false);
+    if (error) { show("No se pudo crear el foco.", "TriangleAlert"); return; }
+    setPTitle(""); setPDetail(""); setPropose(false); show("Foco creado — es tuyo, marcá tu avance cuando quieras", "Check");
+    setFocuses((await getMyFocuses()).filter((x) => x.teamId === team.id));
+  };
+
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo todavía.</p></Card></div>;
 
   const dims = (agg?.competencies ?? teamCompetencies(team)).map((c, i) => ({ key: c.key, label: c.label, color: CPAL[i % CPAL.length] }));
@@ -120,9 +137,12 @@ export default function MemberDesarrollo() {
       </div>
 
       {/* ── Mis focos de desarrollo ── */}
-      {focuses.length > 0 && (
-        <Card pad={20} style={{ marginBottom: 22 }}>
-          <SectionTitle icon="Target" sub="En qué estás creciendo — tocá el estado para marcar tu avance">Mis focos de desarrollo</SectionTitle>
+      <Card pad={20} style={{ marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <SectionTitle icon="Target" sub="En qué estás creciendo — vos manejás tu avance">Mis focos de desarrollo</SectionTitle>
+          <Button size="sm" variant="secondary" icon="Plus" onClick={() => setPropose(true)}>Proponer un foco</Button>
+        </div>
+        {focuses.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
             {focuses.map((f) => {
               const dm = domainMeta(f.domain);
@@ -133,13 +153,51 @@ export default function MemberDesarrollo() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, textDecoration: f.status === "done" ? "line-through" : "none", opacity: f.status === "done" ? 0.7 : 1 }}>{f.title}</div>
                     {f.detail && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 1 }}>{f.detail}</p>}
+                    {f.source === "self" && <span style={{ fontSize: "var(--t-xs)", fontWeight: 700, color: "var(--green)" }}>Propuesto por vos</span>}
                   </div>
                   <button onClick={() => cycleFocus(f)} title="Cambiar estado" style={{ flex: "none", padding: "5px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${st.color}`, background: `color-mix(in srgb, ${st.color} 12%, var(--card))`, color: st.color }}>{st.label}</button>
                 </div>
               );
             })}
           </div>
-        </Card>
+        ) : (
+          <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 12, fontStyle: "italic" }}>Todavía no tenés focos. Proponé uno vos mismo —en qué querés crecer— o tu facilitador puede asignarte alguno en un 1-a-1.</p>
+        )}
+      </Card>
+
+      {propose && (
+        <div onClick={() => setPropose(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,11,22,0.7)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(520px,100%)", maxHeight: "88vh", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-lg)", padding: 24, animation: "pop-in .25s var(--spring)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <span style={{ width: 38, height: 38, borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--violet) 16%, transparent)", color: "var(--violet)", display: "grid", placeItems: "center", flex: "none" }}><Icon name="Target" size={19} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: "var(--t-md)" }}>Proponer un foco propio</div>
+                <div className="muted" style={{ fontSize: "var(--t-xs)" }}>En qué querés crecer. Es tuyo — vos marcás el avance.</div>
+              </div>
+              <button onClick={() => setPropose(false)} style={{ color: "var(--ink-2)" }}><Icon name="X" size={20} /></button>
+            </div>
+            <input value={pTitle} onChange={(e) => setPTitle(e.target.value)} placeholder="Ej. Ganar seguridad presentando ante el equipo" autoFocus
+              style={{ width: "100%", background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "10px 12px", fontSize: "var(--t-sm)", outline: "none", marginBottom: 10 }} />
+            <textarea value={pDetail} onChange={(e) => setPDetail(e.target.value)} placeholder="¿Por qué? ¿Cómo se vería lograrlo? (opcional)"
+              style={{ width: "100%", minHeight: 70, background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: 12, fontSize: "var(--t-sm)", resize: "vertical", outline: "none", marginBottom: 12 }} />
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Área</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+              {DOMAINS.map((d) => {
+                const dm = DOMAIN_META[d];
+                const on = pDomain === d;
+                return (
+                  <button key={d} onClick={() => setPDomain(d)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${on ? dm.color : "var(--line-2)"}`, background: on ? `color-mix(in srgb, ${dm.color} 12%, var(--card))` : "var(--card)", color: on ? dm.color : "var(--ink-2)" }}>
+                    <Icon name={dm.icon} size={13} /> {dm.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <Button variant="ghost" onClick={() => setPropose(false)}>Cancelar</Button>
+              <Button icon={pBusy ? "Loader" : "Check"} disabled={!pTitle.trim() || pBusy} onClick={submitFocus}>{pBusy ? "Creando…" : "Crear foco"}</Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Mi 360 ── */}

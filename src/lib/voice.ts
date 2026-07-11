@@ -66,6 +66,54 @@ export async function deleteTeamInput(id: string): Promise<{ error?: string }> {
   return { error: error?.message };
 }
 
+/* ── Banco de ideas social: las ideas se comparten con el equipo y se votan ── */
+export interface TeamIdea extends TeamInput {
+  votes: number;
+  votedByMe: boolean;
+  mine: boolean;
+}
+
+/** Todas las ideas activas del equipo, con su conteo de votos y si yo voté. */
+export async function getTeamIdeas(teamId: string): Promise<TeamIdea[]> {
+  const sb = getSupabaseBrowserClient();
+  const { data: auth } = await sb.auth.getUser();
+  const uid = auth.user?.id;
+  const { data: rows } = await sb.from("team_inputs").select("*")
+    .eq("team_id", teamId).eq("kind", "idea").neq("status", "archived")
+    .order("created_at", { ascending: false });
+  const ideas = (rows ?? []).map(map);
+  if (!ideas.length) return [];
+  const { data: votes } = await sb.from("team_input_votes")
+    .select("input_id, user_id").in("input_id", ideas.map((i) => i.id));
+  const counts = new Map<string, number>();
+  const mineVotes = new Set<string>();
+  for (const v of (votes ?? []) as { input_id: string; user_id: string }[]) {
+    counts.set(v.input_id, (counts.get(v.input_id) ?? 0) + 1);
+    if (v.user_id === uid) mineVotes.add(v.input_id);
+  }
+  return ideas
+    .map((i) => ({ ...i, votes: counts.get(i.id) ?? 0, votedByMe: mineVotes.has(i.id), mine: i.authorUserId === uid }))
+    .sort((a, b) => b.votes - a.votes);
+}
+
+export async function voteTeamInput(inputId: string, teamId: string): Promise<{ error?: string }> {
+  const sb = getSupabaseBrowserClient();
+  const { data: auth } = await sb.auth.getUser();
+  if (!auth.user) return { error: "Sesión expirada." };
+  const { error } = await sb.from("team_input_votes")
+    .insert({ input_id: inputId, team_id: teamId, user_id: auth.user.id });
+  return { error: error?.message };
+}
+
+export async function unvoteTeamInput(inputId: string): Promise<{ error?: string }> {
+  const sb = getSupabaseBrowserClient();
+  const { data: auth } = await sb.auth.getUser();
+  if (!auth.user) return { error: "Sesión expirada." };
+  const { error } = await sb.from("team_input_votes").delete()
+    .eq("input_id", inputId).eq("user_id", auth.user.id);
+  return { error: error?.message };
+}
+
 export const VOICE_KINDS: { key: VoiceKind; label: string; icon: string; color: string; placeholder: string }[] = [
   { key: "problema", label: "Un problema", icon: "TriangleAlert", color: "var(--risk)", placeholder: "¿Qué está trabando al equipo? Contalo en una o dos frases." },
   { key: "idea", label: "Una idea", icon: "Lightbulb", color: "var(--st-proof)", placeholder: "¿Qué probarías para mejorar algo?" },
