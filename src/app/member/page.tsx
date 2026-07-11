@@ -18,6 +18,8 @@ import { IdeaBoard } from "@/components/member/IdeaBoard";
 import { KudosWall } from "@/components/member/KudosWall";
 import { StreakGrid } from "@/components/StreakGrid";
 import { AuroraBackground } from "@/components/AuroraBackground";
+import { OnlinePresence } from "@/components/OnlinePresence";
+import { usePresence } from "@/lib/presence";
 import { myCommitments } from "@/lib/member/commitments";
 import { teamProgress } from "@/lib/gamification";
 
@@ -33,6 +35,7 @@ export default function MemberHome() {
   const [, setTick] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [ideaKey, setIdeaKey] = useState(0);
+  const online = usePresence(team?.id ? `presence:team:${team.id}` : undefined, user?.id ? { userId: user.id, name: user.name ?? "Alguien", initials: user.initials, role: user.role } : null);
 
   useEffect(() => {
     if (!team?.id) return; const tid = team.id;
@@ -82,7 +85,10 @@ export default function MemberHome() {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Hola, {firstName} 👋</h1>
-          <p className="muted" style={{ marginTop: 4 }}>{team.org} · {team.name}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+            <p className="muted">{team.org} · {team.name}</p>
+            <OnlinePresence users={online} />
+          </div>
         </div>
         <button onClick={() => router.push("/join")} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: "var(--r-md)", border: "1px solid var(--line-2)", background: "var(--card)", color: "var(--ink-1)", fontSize: "var(--t-sm)", fontWeight: 600 }}>
           <Icon name="QrCode" size={15} /> Unirse con un código

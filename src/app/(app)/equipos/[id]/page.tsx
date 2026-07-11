@@ -27,6 +27,8 @@ import { NorteSuggestions } from "@/components/NorteSuggestions";
 import { TeamVoicePanel } from "@/components/TeamVoicePanel";
 import { Celebration } from "@/components/Celebration";
 import { StreakGrid } from "@/components/StreakGrid";
+import { OnlinePresence } from "@/components/OnlinePresence";
+import { usePresence } from "@/lib/presence";
 import { teamProgress } from "@/lib/gamification";
 import { LOOP_PLAYBOOKS, playbookByKey } from "@/lib/playbooks";
 
@@ -1462,6 +1464,7 @@ export default function TeamPage() {
   const [contractOpen, setContractOpen] = useState(false);
   const [protocolOpen, setProtocolOpen] = useState(false);
   const [celeb, setCeleb] = useState<{ title: string; subtitle?: string; emoji: string } | null>(null);
+  const online = usePresence(team?.id ? `presence:team:${team.id}` : undefined, user?.id ? { userId: user.id, name: user.name ?? "Alguien", initials: user.initials, role: user.role } : null);
 
   // Celebración: confetti al subir de nivel o cerrar un ciclo (la 1ª vez fija la
   // línea de base en silencio para no festejar el historial retroactivo).
@@ -1572,6 +1575,7 @@ export default function TeamPage() {
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
             <AvatarStack people={team.members} max={6} size={30} />
+            <OnlinePresence users={online} />
             <span className="muted" style={{ fontSize: "var(--t-sm)" }}>{team.members.length} integrantes · {team.area} · cliente {team.clientType.toLowerCase()}</span>
             <FacilitatorChip lead={lead} canEdit={isFacil && !!lead && (lead.email ?? "").toLowerCase() === (user?.email ?? "").toLowerCase()} onSaved={() => setTeamNonce((n) => n + 1)} />
             <button onClick={() => setTab("ritmo")} title="Ver el ritmo del equipo"
