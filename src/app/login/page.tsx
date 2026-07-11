@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { Logo } from "@/components/AppShell";
+import { AuroraBackground } from "@/components/AuroraBackground";
 import { Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { homeFor } from "@/lib/auth/access";
@@ -45,10 +46,11 @@ function LoginInner() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 20px", background: "radial-gradient(900px 460px at 50% -120px, rgba(0,232,122,0.10), transparent), var(--bg-1)" }}>
-      <div style={{ marginBottom: 26 }}><Logo /></div>
+    <div style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 20px", background: "var(--bg-1)" }}>
+      <AuroraBackground fixed />
+      <div style={{ position: "relative", zIndex: 1, marginBottom: 26 }}><Logo /></div>
 
-      <div style={{ width: "100%", maxWidth: 420, background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: "var(--r-xl)", padding: 30, boxShadow: "var(--sh-lg)" }}>
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 420, background: "color-mix(in srgb, var(--card) 82%, transparent)", backdropFilter: "blur(12px)", border: "1px solid var(--line-2)", borderRadius: "var(--r-xl)", padding: 30, boxShadow: "var(--sh-lg)" }}>
         <h1 style={{ fontSize: "var(--t-xl)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 }}>Ingresá a tu cuenta</h1>
         <p className="muted" style={{ fontSize: "var(--t-sm)", marginBottom: 22 }}>Acompañá la mejora continua de tus equipos.</p>
 
@@ -89,7 +91,7 @@ function LoginInner() {
         </div>
       </div>
 
-      <p className="faint" style={{ fontSize: "var(--t-xs)", textAlign: "center", marginTop: 22, maxWidth: 360, lineHeight: 1.6 }}>
+      <p className="faint" style={{ position: "relative", zIndex: 1, fontSize: "var(--t-xs)", textAlign: "center", marginTop: 22, maxWidth: 360, lineHeight: 1.6 }}>
         ¿Sos nuevo? Tu acceso llega por invitación.
       </p>
     </div>

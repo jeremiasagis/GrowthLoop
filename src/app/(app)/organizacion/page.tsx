@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
-import { Card, EmptyState, SectionTitle } from "@/components/ui";
+import { Card, EmptyState, SectionTitle, Sparkline } from "@/components/ui";
 import { KpiCard } from "@/components/charts";
 import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -51,14 +51,32 @@ export default function OrganizacionPage() {
         <p className="muted" style={{ marginTop: 4 }}>El cruce de tus <b style={{ color: "var(--ink-1)" }}>{teams.length}</b> {teams.length === 1 ? "equipo" : "equipos"}: clima, madurez, atención y desarrollo de la gente.</p>
       </div>
 
-      {/* KPIs de la org */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px,1fr))", gap: 12, marginBottom: 26 }}>
-        <KpiCard title="Equipos" sub="en la organización" value={teams.length} accent="var(--violet)" />
-        <KpiCard title="Clima" sub="promedio (0-100)" value={m.climaNow != null ? m.climaNow : "—"} delta={m.climaDelta ?? undefined} deltaSuffix="" spark={m.climaTrend} accent={m.climaNow != null && m.climaNow < 50 ? "var(--risk)" : m.climaNow != null && m.climaNow < 70 ? "var(--warning)" : "var(--green)"} />
-        <KpiCard title="Loops activos" sub="en curso" value={m.loopsActive} />
-        <KpiCard title="Compromisos" sub="cumplidos" value={m.commitmentsPct != null ? `${m.commitmentsPct}%` : "—"} accent="var(--st-follow)" />
-        <KpiCard title="Equipos a atender" sub="riesgo ≥ 25" value={attention.length} accent={attention.length ? "var(--risk)" : "var(--green)"} />
-      </div>
+      {/* KPIs de la org · bento */}
+      {(() => {
+        const climaAccent = m.climaNow != null && m.climaNow < 50 ? "var(--risk)" : m.climaNow != null && m.climaNow < 70 ? "var(--warning)" : "var(--green)";
+        return (
+          <div className="gl-bento" style={{ marginBottom: 26 }}>
+            <Card className="gl-bento-hero" pad={20} style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", background: `linear-gradient(150deg, color-mix(in srgb, ${climaAccent} 12%, var(--card)), var(--card) 62%)`, borderColor: `color-mix(in srgb, ${climaAccent} 32%, var(--line))` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div className="eyebrow" style={{ color: "var(--ink-2)" }}>Clima de la organización</div>
+                {m.climaDelta != null && m.climaDelta !== 0 && <span style={{ fontSize: "var(--t-xs)", fontWeight: 800, color: m.climaDelta > 0 ? "var(--success)" : "var(--risk)" }}>{m.climaDelta > 0 ? "▲ +" : "▼ "}{m.climaDelta}</span>}
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span className="num" style={{ fontSize: "var(--t-4xl)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 0.9, color: climaAccent }}>{m.climaNow ?? "—"}</span>
+                  <span className="muted num" style={{ fontSize: "var(--t-md)", fontWeight: 700 }}>/100</span>
+                </div>
+                {m.climaTrend.length > 1 && <Sparkline data={m.climaTrend} color={climaAccent} w={160} h={44} />}
+              </div>
+              <div className="muted" style={{ fontSize: "var(--t-xs)" }}>Promedio del último pulso de los {teams.length} {teams.length === 1 ? "equipo" : "equipos"}.</div>
+            </Card>
+            <KpiCard title="Equipos" sub="en la organización" value={teams.length} accent="var(--violet)" />
+            <KpiCard title="Loops activos" sub="en curso" value={m.loopsActive} />
+            <KpiCard title="Compromisos" sub="cumplidos" value={m.commitmentsPct != null ? `${m.commitmentsPct}%` : "—"} accent="var(--st-follow)" />
+            <KpiCard title="Equipos a atender" sub="riesgo ≥ 25" value={attention.length} accent={attention.length ? "var(--risk)" : "var(--green)"} onClick={attention.length ? () => document.getElementById("org-atencion")?.scrollIntoView({ behavior: "smooth" }) : undefined} />
+          </div>
+        );
+      })()}
 
       {/* Heatmap de clima por dimensión × equipo */}
       <div style={{ marginBottom: 26 }}>
@@ -169,7 +187,7 @@ export default function OrganizacionPage() {
       </div>
 
       {/* Ranking de atención */}
-      <div>
+      <div id="org-atencion">
         <SectionTitle icon="TriangleAlert" sub="Dónde poner el ojo primero — clima, inactividad y compromisos">Equipos que piden atención</SectionTitle>
         <Card pad={16} style={{ marginTop: 10 }}>
           {attention.length === 0 ? (

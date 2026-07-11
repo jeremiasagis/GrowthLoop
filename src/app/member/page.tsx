@@ -17,6 +17,7 @@ import { MemberVoice } from "@/components/member/MemberVoice";
 import { IdeaBoard } from "@/components/member/IdeaBoard";
 import { KudosWall } from "@/components/member/KudosWall";
 import { StreakGrid } from "@/components/StreakGrid";
+import { AuroraBackground } from "@/components/AuroraBackground";
 import { myCommitments } from "@/lib/member/commitments";
 import { teamProgress } from "@/lib/gamification";
 
@@ -75,7 +76,9 @@ export default function MemberHome() {
   const asyncDays = asyncUntil ? Math.max(0, Math.ceil((new Date(asyncUntil).getTime() - Date.now()) / 86400000)) : null;
 
   return (
-    <div className="screen-pad">
+    <div className="screen-pad" style={{ position: "relative" }}>
+      <AuroraBackground intensity={0.6} />
+      <div style={{ position: "relative", zIndex: 1 }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Hola, {firstName} 👋</h1>
@@ -102,7 +105,7 @@ export default function MemberHome() {
               </div>
             </Card>
           ) : live ? (
-            <Card glow pad={16} style={{ background: "linear-gradient(180deg, rgba(0,232,122,0.12), var(--card))", borderColor: "color-mix(in srgb, var(--green) 45%, transparent)", animation: "glow-pulse 2s infinite" }}>
+            <Card glow pad={16} className="gl-live-border" style={{ background: "linear-gradient(180deg, rgba(0,232,122,0.12), var(--card))", borderColor: "color-mix(in srgb, var(--green) 45%, transparent)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <span style={{ width: 10, height: 10, borderRadius: 99, background: "var(--green)", boxShadow: "0 0 8px var(--green)", animation: "glow-pulse 1.2s infinite" }} />
                 <div style={{ flex: 1, minWidth: 160 }}><span style={{ fontWeight: 800, fontSize: "var(--t-sm)" }}>Sesión en vivo ahora</span></div>
@@ -263,6 +266,7 @@ export default function MemberHome() {
           <div className="eyebrow" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Icon name="Lightbulb" size={13} style={{ color: "var(--st-proof)" }} /> Banco de ideas del equipo</div>
           <IdeaBoard teamId={team.id} refreshKey={ideaKey} />
         </div>
+      </div>
       </div>
     </div>
   );

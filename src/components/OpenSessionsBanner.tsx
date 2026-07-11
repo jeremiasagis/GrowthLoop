@@ -44,7 +44,7 @@ export function OpenSessionsBanner() {
         const c = isAsync ? "var(--info)" : "var(--green)";
         const name = retroById(s.retro)?.name ?? s.type;
         return (
-          <Card key={s.id} pad={16} glow={!isAsync} style={{ border: `1px solid color-mix(in srgb, ${c} 45%, var(--line))`, background: `color-mix(in srgb, ${c} 7%, var(--card))` }}>
+          <Card key={s.id} pad={16} glow={!isAsync} className={isAsync ? "" : "gl-live-border"} style={{ border: `1px solid color-mix(in srgb, ${c} 45%, var(--line))`, background: `color-mix(in srgb, ${c} 7%, var(--card))` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ width: 32, height: 32, borderRadius: "var(--r-md)", background: `color-mix(in srgb, ${c} 16%, transparent)`, color: c, display: "grid", placeItems: "center", flex: "none" }}><Icon name={isAsync ? "Clock" : "Radio"} size={16} /></span>
               <div style={{ flex: 1, minWidth: 160 }}>
