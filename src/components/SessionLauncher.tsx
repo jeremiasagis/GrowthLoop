@@ -7,25 +7,17 @@
    PASO 3 · elegir modo (en vivo / asincrónico)
    ============================================================ */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "./icon";
 import { Button, Pill } from "./ui";
 import { useToast } from "./Toast";
 import { createLiveSession } from "@/lib/session";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { retrosForStage, retroInPlan, retroById, phaseMode, phaseSplit, type RetroDefinition } from "@/lib/retros/registry";
-
-/** El método canónico (retro) de cada etapa del loop — el que se lanza por
-    defecto (método invisible). El catálogo queda como "cambiar herramienta". */
-const CANONICAL_METHOD: Partial<Record<string, string>> = {
-  focus: "focus-fishbone",             // Causa
-  ideation: "ideation-bet-design",     // Apuesta
-  follow: "follow-how-are-we-doing",   // Probar
-  learn: "learn-cycle-close",          // Aprender y decidir
-};
+import { retrosForStage, retroInPlan, canonicalRetro, CANONICAL_RETRO, phaseMode, phaseSplit, type RetroDefinition } from "@/lib/retros/registry";
 import { getOrg } from "@/lib/repository";
 import { CYCLE_STAGES, STAGES, normalizeStage, planOf, planLimits, type Initiative, type StageKey, type Team } from "@/lib/data";
+import { getRetroStatus, isRetroActive } from "@/lib/retro-status";
 
 export function SessionLauncher({ team, initiative, initialStage, initialRetro, onClose }: { team: Team; initiative?: Initiative; initialStage?: StageKey; initialRetro?: RetroDefinition; onClose: () => void }) {
   const router = useRouter();
@@ -36,11 +28,11 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPicks, setAiPicks] = useState<Record<string, string> | null>(null);
   const curIdx = initiative ? CYCLE_STAGES.indexOf(normalizeStage(initiative.stage)) : -1;
-  // El método canónico de la etapa, si está disponible (implementado + en el plan).
+  // El método canónico de la etapa (solo etapas del loop con default explícito),
+  // si está disponible (implementado + en el plan).
   const canonicalFor = (st: StageKey | null | undefined): RetroDefinition | undefined => {
-    const id = st ? CANONICAL_METHOD[st] : undefined;
-    if (!id) return undefined;
-    const r = retroById(id);
+    if (!st || !CANONICAL_RETRO[st]) return undefined;
+    const r = canonicalRetro(st);
     return r && r.implemented && retroInPlan(r.id, plan) ? r : undefined;
   };
   const initStage: StageKey | null = initialRetro ? (initialRetro.stage as StageKey) : (initialStage ?? (initiative ? normalizeStage(initiative.stage) : null));
@@ -52,6 +44,8 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
   const [mode, setMode] = useState<"live" | "async">("live");
   const [asyncDays, setAsyncDays] = useState(7);
   const [created, setCreated] = useState<{ id: string; code: string } | null>(null);
+  const [retroStatus, setRetroStatus] = useState<Record<string, boolean>>({});
+  useEffect(() => { getRetroStatus().then(setRetroStatus); }, []);
 
   // Retros ya hechas por el equipo (por nombre en el historial de sesiones).
   const doneByName = new Map<string, string>();
@@ -72,7 +66,7 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
   };
   const suggest = async () => {
     if (!stage || aiBusy) return;
-    const allowed = retrosForStage(stage).filter((r) => r.implemented && retroInPlan(r.id, plan));
+    const allowed = retrosForStage(stage).filter((r) => r.implemented && retroInPlan(r.id, plan) && isRetroActive(retroStatus, r.id));
     if (!allowed.length) return;
     setAiBusy(true);
     try {
@@ -169,7 +163,7 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(aiPicks ? [...retrosForStage(stage)].sort((a, b) => (aiPicks[b.id] ? 1 : 0) - (aiPicks[a.id] ? 1 : 0)) : retrosForStage(stage)).map((r) => {
+              {(aiPicks ? [...retrosForStage(stage).filter((x) => isRetroActive(retroStatus, x.id))].sort((a, b) => (aiPicks[b.id] ? 1 : 0) - (aiPicks[a.id] ? 1 : 0)) : retrosForStage(stage).filter((x) => isRetroActive(retroStatus, x.id))).map((r) => {
                 const doneAt = doneByName.get(r.name);
                 const locked = !retroInPlan(r.id, plan);
                 const aiReason = aiPicks?.[r.id];
@@ -198,7 +192,7 @@ export function SessionLauncher({ team, initiative, initialStage, initialRetro, 
                   </button>
                 );
               })}
-              {!retrosForStage(stage).length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Esta etapa todavía no tiene retros en el catálogo.</p>}
+              {!retrosForStage(stage).filter((x) => isRetroActive(retroStatus, x.id)).length && <p className="muted" style={{ fontSize: "var(--t-sm)", fontStyle: "italic" }}>Esta etapa no tiene retros activas en el catálogo.</p>}
             </div>
           </>
         )}

@@ -875,10 +875,10 @@ export function retrosForStage(stage: string): RetroDefinition[] {
 
 /** La retro canónica (default) de cada etapa del loop. El facilitador puede cambiarla. */
 export const CANONICAL_RETRO: Record<string, string> = {
-  focus: "focus-why-is-it-happening",     // Analizar
-  ideation: "ideation-bet-design",        // Diseñar
+  focus: "focus-fishbone",                // Causa (fishbone; 5 porqués queda como alternativa)
+  ideation: "ideation-bet-design",        // Apuesta
   follow: "follow-how-are-we-doing",      // Probar
-  learn: "learn-cycle-close",             // Aprender
+  learn: "learn-cycle-close",             // Aprender y decidir
 };
 
 /** La retro canónica de una etapa (objeto), o la primera implementada si no hay default. */

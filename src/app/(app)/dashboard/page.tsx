@@ -219,6 +219,7 @@ export default function DashboardPage() {
           )}
           {isSuper && (
             <>
+              <Button variant="secondary" icon="Archive" onClick={() => go("/almacen")}>Almacén de retros</Button>
               <Button variant="secondary" icon="Building2" onClick={() => go("/organizaciones")}>Nueva organización</Button>
               <Button variant="secondary" icon="UserPlus" onClick={() => go("/facilitadores")}>Invitar facilitador</Button>
               <Button icon="ShieldPlus" variant="violet" onClick={() => go("/admins")}>Crear admin</Button>
