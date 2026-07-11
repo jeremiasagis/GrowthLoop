@@ -37,26 +37,28 @@ const CYCLE: { key: StageKey; desc: string }[] = [
 ];
 
 const AUDIENCE = [
-  { icon: "UserCog", title: "Para facilitadores", desc: "Conducís sesiones que mueven la aguja, con una estructura probada que te guía paso a paso." },
-  { icon: "Building2", title: "Para empresas", desc: "Visibilidad real del avance de cada equipo, con reportes claros y una biblioteca de aprendizajes." },
-  { icon: "Users", title: "Para los equipos", desc: "Participan en vivo, votan en anonimato y ven que sus ideas se vuelven mejoras concretas." },
+  { icon: "UserCog", title: "Para líderes", desc: "Conducís la mejora de tu equipo con un método que se pone solo, y ves el impacto real de cada ciclo — no solo si se hizo, sino si funcionó." },
+  { icon: "Building2", title: "Para RRHH y dirección", desc: "La cultura y el desarrollo de todos tus equipos, cruzados en una vista: clima, equipos a atender y crecimiento de la gente." },
+  { icon: "Users", title: "Para los colaboradores", desc: "Participan, proponen ideas, se reconocen entre pares y conducen su propio desarrollo dentro del equipo." },
 ];
 
-const PRICING: { plan: string; price: string; tagline: string; features: string[]; cta: string; to: "registro" | "wa"; highlight?: boolean }[] = [
-  { plan: "Starter", price: "Gratis", tagline: "Para empezar solo, hoy", to: "registro", cta: "Empezá gratis",
-    features: ["1 equipo", "2 retros esenciales por etapa", "Sesiones en vivo y anónimas", "Biblioteca de aprendizajes"] },
-  { plan: "Pro", price: "Para facilitadores", tagline: "Acompañá a varios equipos", to: "wa", cta: "Quiero Pro", highlight: true,
-    features: ["Hasta 10 equipos", "Las 49 retros, todas desbloqueadas", "✨ Copiloto de IA en cada sesión", "Reporte ejecutivo con IA", "Modo escenario + reacciones en vivo"] },
-  { plan: "Business", price: "A medida", tagline: "Para empresas y sus líderes", to: "wa", cta: "Hablar con ventas",
-    features: ["Equipos y facilitadores ilimitados", "Tus líderes facilitan sus equipos", "Panel de organización + coordinadores", "Onboarding y soporte"] },
+const PRICING: { plan: string; price: string; unit?: string; tagline: string; features: string[]; cta: string; to: "registro" | "wa"; highlight?: boolean }[] = [
+  { plan: "Free", price: "US$0", tagline: "Un líder que quiere probar con su equipo", to: "registro", cta: "Empezá gratis",
+    features: ["1 equipo · miembros ilimitados", "1 loop de mejora a la vez", "Todos los métodos, gamificación y memoria", "Desarrollo individual (360, 1-a-1)"] },
+  { plan: "Pro", price: "US$25", unit: "/equipo/mes", tagline: "El producto completo, para varios equipos", to: "wa", cta: "Quiero Pro", highlight: true,
+    features: ["Hasta 10 equipos", "Loops ilimitados en paralelo", "✨ IA: sugerencias, informes y síntesis", "Vista de organización (RRHH)"] },
+  { plan: "Business", price: "US$18", unit: "/equipo/mes", tagline: "Muchos equipos, con precio por volumen", to: "wa", cta: "Hablar con ventas",
+    features: ["Hasta 50 equipos", "Todo lo de Pro", "Menor precio por equipo", "Soporte estándar"] },
+  { plan: "Enterprise", price: "A medida", tagline: "Toda la organización", to: "wa", cta: "Hablar con ventas",
+    features: ["Equipos ilimitados", "SSO / SAML · SLA", "Onboarding y soporte dedicado", "Revisión de seguridad"] },
 ];
 
 const AI_USES = [
-  { icon: "Layers", title: "Agrupa las tarjetas", desc: "Junta lo que el equipo escribe por tema y le pone nombre, en segundos." },
-  { icon: "Lightbulb", title: "Sugiere qué retro hacer", desc: "Según el estado del equipo y lo que querés trabajar hoy." },
+  { icon: "Layers", title: "Agrupa lo que se escribe", desc: "Junta los aportes del equipo por tema y les pone nombre, en segundos." },
+  { icon: "Sparkles", title: "Sintetiza lo detectado en desafíos", desc: "Convierte lo que sale de una exploración en desafíos concretos para el backlog." },
   { icon: "PenLine", title: "Redacta por vos", desc: "Causa raíz, narrativa del resultado y la apuesta — borradores que editás." },
   { icon: "FileText", title: "Arma el informe del ciclo", desc: "Un resumen ejecutivo listo para compartir con el líder o la empresa." },
-  { icon: "Search", title: "Responde tu biblioteca", desc: "Preguntás en lenguaje natural y encuentra los aprendizajes que importan." },
+  { icon: "Search", title: "Responde sobre tus datos", desc: "Preguntás en lenguaje natural sobre la cultura y el desarrollo de tus equipos." },
 ];
 
 const WHY = [
@@ -64,6 +66,13 @@ const WHY = [
   { icon: "EyeOff", title: "Anónimo y seguro", desc: "Las votaciones son anónimas y ocultas hasta que el facilitador las revela. Se dice lo que hay que decir." },
   { icon: "Library", title: "Queda registrado", desc: "Cada ciclo deja aprendizajes, apuestas y causas raíz guardados. La mejora se vuelve memoria del equipo." },
   { icon: "Trophy", title: "Gamificada", desc: "El equipo sube de nivel, mantiene su racha y desbloquea logros a medida que mejora. La constancia se vuelve hábito, con energía." },
+];
+
+const MODEL: { k: string; color: string; desc: string }[] = [
+  { k: "Fundaciones", color: "var(--green)", desc: "Contrato, FODA y clima: las fotos que definen al equipo, congeladas e históricas." },
+  { k: "Desafíos", color: "var(--info)", desc: "Un backlog vivo que se alimenta solo — de las fundaciones, del clima y de lo que plantea la gente." },
+  { k: "Loops + Desarrollo", color: "var(--violet)", desc: "Los desafíos colectivos se vuelven ciclos de mejora; los individuales, focos de desarrollo de cada persona." },
+  { k: "Memoria", color: "var(--warning)", desc: "Cada aprendizaje queda en una biblioteca viva. Nada de lo que el equipo descubre se pierde." },
 ];
 
 function Section({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -104,14 +113,15 @@ export default function Home() {
       {/* hero */}
       <Section style={{ paddingTop: 72, paddingBottom: 64, textAlign: "center" }}>
         <span className="eyebrow" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: "var(--r-full)", background: "var(--green-soft)", color: "var(--green)", marginBottom: 22 }}>
-          <Icon name="Sprout" size={14} /> Mejora continua · gamificada · con IA
+          <Icon name="Sprout" size={14} /> Mejora continua · desarrollo de equipos · con IA
         </span>
         <h1 style={{ fontSize: "clamp(2.2rem, 5vw, 3.6rem)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.05, maxWidth: 880, margin: "0 auto 20px" }}>
-          El <span style={{ color: "var(--green)" }}>loop</span> que convierte las reuniones en mejoras reales
+          La mejora continua de tus equipos, vuelta un <span style={{ color: "var(--green)" }}>hábito</span>
         </h1>
-        <p className="muted" style={{ fontSize: "var(--t-lg)", lineHeight: 1.6, maxWidth: 660, margin: "0 auto 32px" }}>
-          Growthloop hace que tu equipo detecte lo que lo traba, pruebe soluciones y deje aprendizajes —
-          en sesiones en vivo, facilitadas y anónimas, <b style={{ color: "var(--violet)" }}>con un copiloto de IA</b>. Sin planillas que nadie mira.
+        <p className="muted" style={{ fontSize: "var(--t-lg)", lineHeight: 1.6, maxWidth: 680, margin: "0 auto 32px" }}>
+          Growthloop convierte “mejorar” en un sistema con método puesto: los equipos detectan sus desafíos, corren
+          ciclos que <b style={{ color: "var(--ink-1)" }}>miden su impacto real</b>, y desarrollan a las personas —
+          <b style={{ color: "var(--violet)" }}> con un copiloto de IA</b>. Sin planillas que nadie mira.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <Button size="lg" icon="Rocket" onClick={() => router.push("/registro")}>Empezá gratis</Button>
@@ -119,15 +129,34 @@ export default function Home() {
             <Button size="lg" variant="secondary" icon="MessageCircle">Quiero llevarlo a mi empresa</Button>
           </a>
         </div>
-        <p className="faint" style={{ fontSize: "var(--t-xs)", marginTop: 18 }}>Plan Starter gratis para facilitadores · sin tarjeta · 1 equipo y las retros esenciales.</p>
+        <p className="faint" style={{ fontSize: "var(--t-xs)", marginTop: 18 }}>Free para un líder con su equipo · sin tarjeta · miembros ilimitados.</p>
+      </Section>
+
+      {/* el modelo — la columna vertebral */}
+      <Section style={{ paddingTop: 40, paddingBottom: 64 }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Un recorrido, cuatro momentos</h2>
+          <p className="muted" style={{ fontSize: "var(--t-base)", maxWidth: 660, margin: "0 auto", lineHeight: 1.6 }}>
+            El equipo no elige una dinámica ni una herramienta: elige un <b style={{ color: "var(--ink-1)" }}>desafío</b>, y el método aparece solo. Todo se ordena en una columna vertebral simple.
+          </p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+          {MODEL.map((m, i) => (
+            <Card key={m.k} pad={20} style={{ position: "relative", overflow: "hidden", borderLeft: `3px solid ${m.color}` }}>
+              <div className="eyebrow num" style={{ color: m.color, marginBottom: 8 }}>{`0${i + 1}`}</div>
+              <h3 style={{ fontSize: "var(--t-md)", fontWeight: 800, marginBottom: 6 }}>{m.k}</h3>
+              <p className="muted" style={{ fontSize: "var(--t-sm)", lineHeight: 1.55 }}>{m.desc}</p>
+            </Card>
+          ))}
+        </div>
       </Section>
 
       {/* cómo funciona — el ciclo */}
       <Section style={{ paddingTop: 40, paddingBottom: 64 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Un ciclo simple, que se repite</h2>
+          <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Dentro de un loop</h2>
           <p className="muted" style={{ fontSize: "var(--t-base)", maxWidth: 640, margin: "0 auto", lineHeight: 1.6 }}>
-            Cada loop de mejora recorre cuatro etapas, en sesiones en vivo. El equipo descubre qué mejorar en el módulo de <b style={{ color: "var(--st-explore)" }}>Exploración</b> (¿dónde estamos?), elige una variable, y desde ahí el ciclo se repite.
+            Cada desafío colectivo se vuelve un loop, en vivo y con el método puesto. La vuelta recorre cuatro etapas, mide una <b style={{ color: "var(--green)" }}>señal</b> concreta, y se repite subiendo hacia el objetivo.
           </p>
         </div>
         {/* círculo (desktop) */}
@@ -232,7 +261,7 @@ export default function Home() {
           </span>
           <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Un copiloto que facilita con vos</h2>
           <p className="muted" style={{ fontSize: "var(--t-base)", maxWidth: 600, margin: "0 auto", lineHeight: 1.6 }}>
-            La IA hace el trabajo pesado de la facilitación: sintetiza, redacta y resume — vos revisás y decidís. Incluida en los planes Pro y Business.
+            La IA hace el trabajo pesado: sintetiza, redacta y resume — vos revisás y decidís. Incluida desde el plan Pro.
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
@@ -251,9 +280,9 @@ export default function Home() {
       {/* planes */}
       <Section style={{ paddingTop: 40, paddingBottom: 72 }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Planes para cada momento</h2>
-          <p className="muted" style={{ fontSize: "var(--t-base)", maxWidth: 560, margin: "0 auto", lineHeight: 1.6 }}>
-            Empezá gratis con un equipo. Cuando crezcas —más equipos, más retros o tu empresa entera— pasás a Pro o Business.
+          <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 10 }}>Escalás con tus equipos, no con tu presupuesto</h2>
+          <p className="muted" style={{ fontSize: "var(--t-base)", maxWidth: 600, margin: "0 auto", lineHeight: 1.6 }}>
+            Se cobra por equipo activo — los colaboradores entran gratis y sin límite. Arrancás gratis con un equipo y crecés a medida que la mejora se contagia. <span className="faint">(Valores de referencia, facturación anual.)</span>
           </p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, alignItems: "stretch" }}>
@@ -264,7 +293,10 @@ export default function Home() {
                   <h3 style={{ fontSize: "var(--t-lg)", fontWeight: 800 }}>{p.plan}</h3>
                   {p.highlight && <span className="eyebrow" style={{ padding: "3px 9px", borderRadius: "var(--r-full)", background: "var(--green-soft)", color: "var(--green)" }}>Popular</span>}
                 </div>
-                <div className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, lineHeight: 1.15, color: p.highlight ? "var(--green)" : "var(--ink-0)" }}>{p.price}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span className="num" style={{ fontSize: "var(--t-xl)", fontWeight: 800, lineHeight: 1.15, color: p.highlight ? "var(--green)" : "var(--ink-0)" }}>{p.price}</span>
+                  {p.unit && <span className="muted" style={{ fontSize: "var(--t-xs)", fontWeight: 600 }}>{p.unit}</span>}
+                </div>
                 <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 4 }}>{p.tagline}</p>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
@@ -281,6 +313,9 @@ export default function Home() {
             </Card>
           ))}
         </div>
+        <p className="muted" style={{ textAlign: "center", fontSize: "var(--t-sm)", lineHeight: 1.6, maxWidth: 680, margin: "22px auto 0" }}>
+          <b style={{ color: "var(--ink-1)" }}>¿Por qué por equipo?</b> Cada equipo es un motor de mejora, así que el precio sigue al valor. Los colaboradores son gratis a propósito — cuantos más participan, más rico es el reconocimiento, las ideas y los datos de cultura. Nunca cobramos por lo que queremos que crezca.
+        </p>
       </Section>
 
       {/* CTA final */}
