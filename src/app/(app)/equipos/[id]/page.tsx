@@ -1575,6 +1575,7 @@ export default function TeamPage() {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Button variant="secondary" icon="Handshake" onClick={() => setContractOpen(true)}>Contrato</Button>
           <Button variant="secondary" icon="Landmark" onClick={() => router.push(`/equipos/${team.id}/fundaciones`)}>Fundaciones</Button>
+          <Button variant="secondary" icon="Flag" onClick={() => router.push(`/equipos/${team.id}/desafios`)}>Desafíos</Button>
           <Button variant="secondary" icon="Library" onClick={() => router.push(`/equipos/${team.id}/biblioteca`)}>Biblioteca</Button>
           <Button variant="secondary" icon="FileBarChart" onClick={() => router.push(`/reporte/${team.id}`)}>Reporte</Button>
           <Button icon="Users" onClick={() => setMembersOpen(true)}>Integrantes</Button>
