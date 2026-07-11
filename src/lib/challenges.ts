@@ -96,6 +96,40 @@ export async function convertChallengeToLoop(ch: Challenge): Promise<{ error?: s
   return { loopId: res.id };
 }
 
+/* ── Focos de desarrollo (desafíos individuales asignados) ── */
+export const FOCUS_STATUS: Record<string, { label: string; color: string; next: string }> = {
+  open: { label: "Pendiente", color: "var(--ink-2)", next: "doing" },
+  doing: { label: "En progreso", color: "var(--info)", next: "done" },
+  done: { label: "Logrado", color: "var(--success)", next: "open" },
+};
+
+/** Mis focos de desarrollo (desafíos individuales asignados a mí). */
+export async function getMyFocuses(): Promise<Challenge[]> {
+  const sb = getSupabaseBrowserClient();
+  const { data: auth } = await sb.auth.getUser();
+  if (!auth.user) return [];
+  const { data } = await sb.from("team_challenges").select("*")
+    .eq("assignee_user_id", auth.user.id).eq("scope", "individual").neq("status", "archived")
+    .order("created_at", { ascending: false });
+  return (data ?? []).map(map);
+}
+
+/** Focos de desarrollo de una persona (para el 1-a-1 del facilitador). */
+export async function getMemberFocuses(teamId: string, userId: string): Promise<Challenge[]> {
+  const sb = getSupabaseBrowserClient();
+  const { data } = await sb.from("team_challenges").select("*")
+    .eq("team_id", teamId).eq("assignee_user_id", userId).eq("scope", "individual").neq("status", "archived")
+    .order("created_at", { ascending: false });
+  return (data ?? []).map(map);
+}
+
+/** El asignado marca el avance de su foco (vía RPC security definer). */
+export async function setMyFocusStatus(id: string, status: string): Promise<{ error?: string }> {
+  const sb = getSupabaseBrowserClient();
+  const { error } = await sb.rpc("set_my_focus_status", { p_challenge_id: id, p_status: status });
+  return { error: error?.message };
+}
+
 export interface Suggestion {
   title: string; detail: string; scope: ChallengeScope; domain: string; source: string; sourceRef: string;
 }

@@ -15,6 +15,7 @@ import { useToast } from "@/components/Toast";
 import { getOrg, getTeam } from "@/lib/repository";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { planLimits, to100, to5 } from "@/lib/data";
+import { getMemberFocuses, FOCUS_STATUS, domainMeta, type Challenge } from "@/lib/challenges";
 import {
   closeReview, createOneOnOne, createReview, getOneOnOnes, getReviewAggregate, getReviewsForTeam,
   teamCompetencies, updateOneOnOne, type OneOnOne, type ReviewAggregate, type TalentReview,
@@ -33,6 +34,7 @@ export default function PersonaDetailPage() {
   const [reviews, setReviews] = useState<TalentReview[]>([]);
   const [agg, setAgg] = useState<ReviewAggregate | null>(null);
   const [ooos, setOoos] = useState<OneOnOne[]>([]);
+  const [focuses, setFocuses] = useState<Challenge[]>([]);
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
 
@@ -45,6 +47,7 @@ export default function PersonaDetailPage() {
       const lastClosed = rs.find((r) => r.status === "closed");
       setAgg(lastClosed ? await getReviewAggregate(lastClosed.id) : null);
       setOoos(await getOneOnOnes({ teamId, memberUserId: memberId }));
+      setFocuses(await getMemberFocuses(teamId, memberId));
     })();
     return () => { active = false; };
   }, [teamId, memberId, tick]);
@@ -137,6 +140,26 @@ export default function PersonaDetailPage() {
           <p className="muted" style={{ fontSize: "var(--t-sm)", marginTop: 12, fontStyle: "italic" }}>Todavía no hay un 360 cerrado. Iniciá uno para ver la brecha entre cómo se ve y cómo lo ve el equipo.</p>
         )}
       </Card>
+
+      {/* Focos de desarrollo (desafíos individuales asignados desde el Hub) */}
+      {focuses.length > 0 && (
+        <Card pad={20} style={{ marginBottom: 20 }}>
+          <SectionTitle icon="Target" sub="Los desafíos individuales que le asignaste — para trabajar en el 1-a-1">Focos de desarrollo</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+            {focuses.map((f) => {
+              const dm = domainMeta(f.domain);
+              const st = FOCUS_STATUS[f.status] ?? FOCUS_STATUS.open;
+              return (
+                <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: `3px solid ${dm.color}`, borderRadius: "var(--r-md)" }}>
+                  <Icon name={dm.icon} size={15} style={{ color: dm.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: "var(--t-sm)", fontWeight: 600, textDecoration: f.status === "done" ? "line-through" : "none", opacity: f.status === "done" ? 0.7 : 1 }}>{f.title}</span>
+                  <span style={{ flex: "none", fontSize: "var(--t-xs)", fontWeight: 700, color: st.color }}>{st.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* 1-a-1 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>

@@ -19,6 +19,7 @@ import {
   type ReviewAggregate, type OneOnOne,
 } from "@/lib/talent";
 import { to100 } from "@/lib/data";
+import { getMyFocuses, setMyFocusStatus, FOCUS_STATUS, domainMeta, type Challenge } from "@/lib/challenges";
 
 const CPAL = ["var(--green)", "var(--violet)", "var(--info)", "var(--warning)", "#22d3ee", "#f59e0b", "#a78bfa", "#34d399"];
 
@@ -82,6 +83,7 @@ export default function MemberDesarrollo() {
   const [agg, setAgg] = useState<ReviewAggregate | null>(null);
   const [hasReview, setHasReview] = useState(false);
   const [ooos, setOoos] = useState<OneOnOne[]>([]);
+  const [focuses, setFocuses] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -93,10 +95,17 @@ export default function MemberDesarrollo() {
       const lastClosed = mine.find((r) => r.status === "closed");
       const a = lastClosed ? await getReviewAggregate(lastClosed.id) : null;
       const o = (await getMyOneOnOnes()).filter((x) => x.teamId === tid);
-      if (active) { setHasReview(mine.length > 0); setAgg(a); setOoos(o); setLoading(false); }
+      const f = (await getMyFocuses()).filter((x) => x.teamId === tid);
+      if (active) { setHasReview(mine.length > 0); setAgg(a); setOoos(o); setFocuses(f); setLoading(false); }
     })();
     return () => { active = false; };
   }, [team?.id, user?.id]);
+
+  const cycleFocus = async (f: Challenge) => {
+    const next = FOCUS_STATUS[f.status]?.next ?? "doing";
+    await setMyFocusStatus(f.id, next);
+    if (team?.id) setFocuses((await getMyFocuses()).filter((x) => x.teamId === team.id));
+  };
 
   if (!team) return <div className="screen-pad"><Card pad={24}><p className="muted">No estás asignado a un equipo todavía.</p></Card></div>;
 
@@ -109,6 +118,29 @@ export default function MemberDesarrollo() {
         <h1 style={{ fontSize: "var(--t-2xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>Mi desarrollo</h1>
         <p className="muted" style={{ marginTop: 4 }}>Tu espejo en el equipo: cómo venís creciendo y tus conversaciones 1-a-1.</p>
       </div>
+
+      {/* ── Mis focos de desarrollo ── */}
+      {focuses.length > 0 && (
+        <Card pad={20} style={{ marginBottom: 22 }}>
+          <SectionTitle icon="Target" sub="En qué estás creciendo — tocá el estado para marcar tu avance">Mis focos de desarrollo</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+            {focuses.map((f) => {
+              const dm = domainMeta(f.domain);
+              const st = FOCUS_STATUS[f.status] ?? FOCUS_STATUS.open;
+              return (
+                <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", background: "var(--card-2)", border: "1px solid var(--line)", borderLeft: `3px solid ${dm.color}`, borderRadius: "var(--r-md)" }}>
+                  <Icon name={dm.icon} size={15} style={{ color: dm.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "var(--t-sm)", fontWeight: 600, textDecoration: f.status === "done" ? "line-through" : "none", opacity: f.status === "done" ? 0.7 : 1 }}>{f.title}</div>
+                    {f.detail && <p className="muted" style={{ fontSize: "var(--t-xs)", marginTop: 1 }}>{f.detail}</p>}
+                  </div>
+                  <button onClick={() => cycleFocus(f)} title="Cambiar estado" style={{ flex: "none", padding: "5px 11px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${st.color}`, background: `color-mix(in srgb, ${st.color} 12%, var(--card))`, color: st.color }}>{st.label}</button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* ── Mi 360 ── */}
       <Card pad={20} style={{ marginBottom: 22 }}>

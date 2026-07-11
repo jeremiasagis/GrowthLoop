@@ -73,6 +73,7 @@ export default function DesafiosPage() {
 
   const open = list.filter((c) => c.status === "open");
   const routed = list.filter((c) => c.status === "routed");
+  const joinable = (team.members ?? []).filter((m) => m.userId);
 
   const addFromSugg = async (s: Suggestion) => {
     setBusy(s.sourceRef);
@@ -151,9 +152,17 @@ export default function DesafiosPage() {
                   <ScopeToggle value={c.scope} onChange={(s) => patch(c, { scope: s })} />
                   <button onClick={() => setPickDomain(pickDomain === c.id ? null : c.id)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: "var(--r-full)", fontSize: "var(--t-xs)", fontWeight: 700, border: `1px solid ${dm.color}`, background: `color-mix(in srgb, ${dm.color} 12%, var(--card))`, color: dm.color }}><Icon name={dm.icon} size={12} /> {dm.label}</button>
                   <span style={{ flex: 1 }} />
-                  {c.scope === "collective"
-                    ? <Button size="sm" icon={busy === c.id ? "Loader" : "RefreshCw"} disabled={busy === c.id} onClick={() => toLoop(c)}>Convertir en loop</Button>
-                    : <span className="muted" style={{ fontSize: "var(--t-xs)", fontStyle: "italic" }}>Se trabaja en desarrollo 1-a-1 (próximamente)</span>}
+                  {c.scope === "collective" ? (
+                    <Button size="sm" icon={busy === c.id ? "Loader" : "RefreshCw"} disabled={busy === c.id} onClick={() => toLoop(c)}>Convertir en loop</Button>
+                  ) : joinable.length === 0 ? (
+                    <span className="muted" style={{ fontSize: "var(--t-xs)", fontStyle: "italic" }}>Cuando se unan integrantes, asignás este foco a una persona.</span>
+                  ) : (
+                    <select value={c.assigneeUserId ?? ""} onChange={(e) => patch(c, { assigneeUserId: e.target.value || undefined })}
+                      style={{ background: "var(--card-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", color: "var(--ink-0)", padding: "6px 9px", fontSize: "var(--t-xs)", fontWeight: 600, outline: "none" }}>
+                      <option value="">Asignar a…</option>
+                      {joinable.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
+                    </select>
+                  )}
                 </div>
                 {pickDomain === c.id && (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
